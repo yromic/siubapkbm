@@ -1,0 +1,5 @@
+# Ignore local Node scripts
+backend/mock_runner.js
+backend/run_user_utility.js
+mock_runner.js
+run_user_utility.js

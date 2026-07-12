@@ -1,0 +1,110 @@
+#users
+id,name,email,username,password_hash,role,phone,status,failed_login_attempts,locked_until,last_login_at,created_at,updated_at,lifecycle_status,archived_at,archived_by,suspended_at,suspended_by
+USE_1781806369723_1243,Operator SIUBA,operator@example.com,operator,acfb223e5a801953ad7257dd461930857c84372f98976c5585986daaee472492,admin,08123456789,active,0,,,2026-06-18T18:12:49.723Z,2026-06-18T18:12:49.723Z
+USE_1781806369724_1794,"Budi Santoso, S.Pd.",budi.teacher@example.com,buditeacher,a06612d52665f9130ecde578cbb1fc27f3f2a1e833a862a9fdd916b982923676,teacher,08987654321,active,0,,,2026-06-18T18:12:49.724Z,2026-06-18T18:12:49.724Z
+USE_1781806369724_9938,"Siti Aminah, S.Pd.",siti.teacher@example.com,sititeacher,a06612d52665f9130ecde578cbb1fc27f3f2a1e833a862a9fdd916b982923676,teacher,087712345678,active,0,,,2026-06-18T18:12:49.724Z,2026-06-18T18:12:49.724Z
+
+#teacher_profiles
+id,user_id,full_name,gender,phone,address,nip,nuptk,position,status,created_at,updated_at,lifecycle_status,archived_at,archived_by
+TEA_1781806369724_8373,USE_1781806369724_1794,"Budi Santoso, S.Pd.",L,08987654321,"Jl. Merdeka No. 12, Bandung",198503152010121002,9876543210123456,Wali Kelas 5,active,2026-06-18T18:12:49.724Z,2026-06-18T18:12:49.724Z
+TEA_1781806369724_4102,USE_1781806369724_9938,"Siti Aminah, S.Pd.",P,087712345678,"Perum Indah Regency Blok B-3, Bandung",199008242015032001,1234567890123456,Guru Bidang Studi,active,2026-06-18T18:12:49.724Z,2026-06-18T18:12:49.724Z
+
+#students
+id,nisn,nik,full_name,birth_place,birth_date,gender,religion,phone,affirmation,special_needs,family_card_number,family_card_date,mother_name,mother_nik,father_name,father_nik,guardian_name,guardian_nik,address_street,rt,rw,hamlet,village,district,city,province,spp_amount,parent_access_pin_hash,parent_access_pin_failed_attempts,parent_access_pin_locked_until,status,created_at,updated_at,lifecycle_status,archived_at,archived_by,deleted_at,deleted_by,restored_at,restored_by
+
+#academic_years
+id,name,start_date,end_date,is_active,created_at,updated_at,lifecycle_status,locked_at,locked_by,archived_at,archived_by
+
+#semesters
+id,academic_year_id,name,start_date,end_date,is_active,created_at,updated_at,lifecycle_status,locked_at,locked_by,archived_at,archived_by
+
+#classes
+id,code,name,level,status,created_at,updated_at,lifecycle_status,archived_at,archived_by
+
+#class_teacher_assignments
+id,class_id,teacher_user_id,academic_year_id,semester_id,effective_from,effective_until,status,created_at,updated_at,lifecycle_status
+
+#student_enrollments
+id,student_id,class_id,academic_year_id,semester_id,status,created_at,updated_at,lifecycle_status
+
+#subjects
+id,code,name,description,status,created_at,updated_at,lifecycle_status,archived_at,archived_by
+
+#class_subjects
+id,class_id,subject_id,academic_year_id,semester_id,status,created_at,updated_at,lifecycle_status
+
+#academic_assessments
+id,teacher_user_id,class_id,subject_id,academic_year_id,semester_id,title,description,assessment_date,score_min,score_max,status,created_at,updated_at,lifecycle_status,deleted_at,deleted_by,locked_at,locked_by
+
+#academic_scores
+id,assessment_id,student_id,student_enrollment_id,score,note,status,created_at,updated_at,lifecycle_status,deleted_at,deleted_by
+
+#culture_indicators
+id,code,name,description,status,created_at,updated_at,lifecycle_status
+
+#character_values
+id,code,name,description,status,created_at,updated_at,lifecycle_status
+
+#culture_character_mappings
+id,culture_indicator_id,character_value_id,sub_character_label,weight,status,created_at,updated_at,lifecycle_status
+
+#culture_scores
+id,student_id,student_enrollment_id,class_id,teacher_user_id,academic_year_id,semester_id,score_date,sss_score,am_score,hb_score,asm_score,br_score,ak_score,tm_score,status,created_at,updated_at,lifecycle_status
+
+#character_weekly_summaries
+id,student_id,student_enrollment_id,academic_year_id,semester_id,week_start_date,week_end_date,f_score,i_score,t_score,r_score,a_score,h_score,sss_sum,sss_count,am_sum,am_count,hb_sum,hb_count,asm_sum,asm_count,br_sum,br_count,ak_sum,ak_count,tm_sum,tm_count,days_counted,created_at,updated_at,lifecycle_status
+
+#character_monthly_summaries
+id,student_id,student_enrollment_id,academic_year_id,semester_id,month,year,f_score,i_score,t_score,r_score,a_score,h_score,sss_sum,sss_count,am_sum,am_count,hb_sum,hb_count,asm_sum,asm_count,br_sum,br_count,ak_sum,ak_count,tm_sum,tm_count,days_counted,created_at,updated_at,lifecycle_status
+
+#character_semester_summaries
+id,student_id,student_enrollment_id,academic_year_id,semester_id,f_score,i_score,t_score,r_score,a_score,h_score,sss_sum,sss_count,am_sum,am_count,hb_sum,hb_count,asm_sum,asm_count,br_sum,br_count,ak_sum,ak_count,tm_sum,tm_count,days_counted,created_at,updated_at,lifecycle_status
+
+#student_files
+id,student_id,file_type,drive_file_id,original_filename,mime_type,file_size,version,status,uploaded_by,uploaded_at,created_at,updated_at,lifecycle_status,deleted_at,deleted_by
+
+#teacher_notes
+id,student_id,student_enrollment_id,teacher_user_id,note_type,title,content,visibility,academic_year_id,semester_id,created_at,updated_at,lifecycle_status
+
+#import_logs
+id,import_type,file_name,drive_file_id,uploaded_by,total_rows,success_rows,error_rows,error_report_file_id,status,error_summary,created_at,updated_at,lifecycle_status
+
+#audit_logs
+id,user_id,user_name,user_role,action,entity_type,entity_id,old_value,new_value,description,ip_address,user_agent,created_at
+
+#app_settings
+id,setting_key,setting_value,description,updated_by,updated_at
+
+#class_promotion_rules
+id,source_class_id,target_class_id,status,created_at,updated_at,lifecycle_status
+
+#parent_access_logs
+id,student_id,action,success,ip_address,user_agent,attempted_at
+
+#report_snapshots
+id,snapshot_type,student_id,class_id,academic_year_id,semester_id,snapshot_payload,created_by,created_at
+
+#report_exports
+id,report_type,snapshot_id,student_id,class_id,academic_year_id,semester_id,generated_by,generated_at,status,file_id,file_name,mime_type,file_size,source_type,source_id,total_rows,created_at,updated_at,lifecycle_status
+
+#backup_snapshots
+id,backup_file_id,backup_type,created_by,created_at,status,sheet_count,record_count,description
+
+#staff_sessions
+id,user_id,token_hash,issued_at,expires_at,revoked_at,last_seen_at,ip_address,user_agent,created_at,updated_at,lifecycle_status
+
+#spp_payments
+id,student_id,academic_year_id,month,year,amount_due,amount_paid,payment_status,paid_at,payment_method,verified_by,notes,created_at,updated_at,lifecycle_status,deleted_at,deleted_by
+
+#teacher_attendance
+id,teacher_id,date,time_in,lat,lng,distance_meters,status,created_at,updated_at,lifecycle_status
+
+
+#1pqOrWOZbeFdReJ4p9EHUtABgJxlxNCy94MHXt2HQTZM_audit_logs
+id,user_id,user_name,user_role,action,entity_type,entity_id,old_value,new_value,description,ip_address,user_agent,created_at
+id,user_id,user_name,user_role,action,entity_type,entity_id,old_value,new_value,description,ip_address,user_agent,created_at
+AUD_1781806369724_4964,admin_utility,Manual Account Creator,administrator,create_record,users,USE_1781806369723_1243,,"{""name"":""Operator SIUBA"",""email"":""operator@example.com"",""username"":""operator"",""password_hash"":""acfb223e5a801953ad7257dd461930857c84372f98976c5585986daaee472492"",""role"":""admin"",""phone"":""08123456789"",""status"":""active"",""failed_login_attempts"":0,""locked_until"":"""",""last_login_at"":"""",""id"":""USE_1781806369723_1243"",""created_at"":""2026-06-18T18:12:49.723Z"",""updated_at"":""2026-06-18T18:12:49.723Z""}",Created new record in users.,,,2026-06-18T18:12:49.724Z
+AUD_1781806369724_1731,admin_utility,Manual Account Creator,administrator,create_record,users,USE_1781806369724_1794,,"{""name"":""Budi Santoso, S.Pd."",""email"":""budi.teacher@example.com"",""username"":""buditeacher"",""password_hash"":""a06612d52665f9130ecde578cbb1fc27f3f2a1e833a862a9fdd916b982923676"",""role"":""teacher"",""phone"":""08987654321"",""status"":""active"",""failed_login_attempts"":0,""locked_until"":"""",""last_login_at"":"""",""id"":""USE_1781806369724_1794"",""created_at"":""2026-06-18T18:12:49.724Z"",""updated_at"":""2026-06-18T18:12:49.724Z""}",Created new record in users.,,,2026-06-18T18:12:49.724Z
+AUD_1781806369724_5064,admin_utility,Manual Account Creator,administrator,create_record,teacher_profiles,TEA_1781806369724_8373,,"{""user_id"":""USE_1781806369724_1794"",""full_name"":""Budi Santoso, S.Pd."",""gender"":""L"",""phone"":""08987654321"",""address"":""Jl. Merdeka No. 12, Bandung"",""nip"":""198503152010121002"",""nuptk"":""9876543210123456"",""position"":""Wali Kelas 5"",""status"":""active"",""id"":""TEA_1781806369724_8373"",""created_at"":""2026-06-18T18:12:49.724Z"",""updated_at"":""2026-06-18T18:12:49.724Z""}",Created new record in teacher_profiles.,,,2026-06-18T18:12:49.724Z
+AUD_1781806369724_6149,admin_utility,Manual Account Creator,administrator,create_record,users,USE_1781806369724_9938,,"{""name"":""Siti Aminah, S.Pd."",""email"":""siti.teacher@example.com"",""username"":""sititeacher"",""password_hash"":""a06612d52665f9130ecde578cbb1fc27f3f2a1e833a862a9fdd916b982923676"",""role"":""teacher"",""phone"":""087712345678"",""status"":""active"",""failed_login_attempts"":0,""locked_until"":"""",""last_login_at"":"""",""id"":""USE_1781806369724_9938"",""created_at"":""2026-06-18T18:12:49.724Z"",""updated_at"":""2026-06-18T18:12:49.724Z""}",Created new record in users.,,,2026-06-18T18:12:49.724Z
+AUD_1781806369724_7740,admin_utility,Manual Account Creator,administrator,create_record,teacher_profiles,TEA_1781806369724_4102,,"{""user_id"":""USE_1781806369724_9938"",""full_name"":""Siti Aminah, S.Pd."",""gender"":""P"",""phone"":""087712345678"",""address"":""Perum Indah Regency Blok B-3, Bandung"",""nip"":""199008242015032001"",""nuptk"":""1234567890123456"",""position"":""Guru Bidang Studi"",""status"":""active"",""id"":""TEA_1781806369724_4102"",""created_at"":""2026-06-18T18:12:49.724Z"",""updated_at"":""2026-06-18T18:12:49.724Z""}",Created new record in teacher_profiles.,,,2026-06-18T18:12:49.724Z

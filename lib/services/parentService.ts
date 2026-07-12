@@ -1,0 +1,291 @@
+import { db } from '@/lib/db';
+import { v4 as uuidv4 } from 'uuid';
+import { AppError } from '@/lib/errors';
+import bcrypt from 'bcrypt';
+import { generateSessionToken, hashToken } from '@/lib/auth/tokenUtils';
+import { getStudentAcademicSummary } from './academicScoreService';
+import { calculateAndGetSemesterSummary } from './characterSummaryService';
+
+const PARENT_SESSION_HOURS = 2;
+
+export async function loginParent(
+  nisn: string,
+  birthDate: string,
+  pin: string,
+  ip?: string,
+  userAgent?: string
+) {
+  if (!nisn || !birthDate || !pin) {
+    throw new AppError('nisn, birth_date, and parent_pin are required.', 'ERR_VALIDATION', 400);
+  }
+
+  // Normalize date format to YYYY-MM-DD
+  const birthDateObj = new Date(birthDate);
+  if (isNaN(birthDateObj.getTime())) {
+    throw new AppError('Invalid birth date format.', 'ERR_VALIDATION', 400);
+  }
+  const formattedBirthDate = birthDateObj.toISOString().split('T')[0];
+
+  const student = await db('students')
+    .where('nisn', nisn)
+    .whereRaw('DATE(birth_date) = ?', [formattedBirthDate])
+    .whereNotIn('status', ['soft_deleted', 'archived'])
+    .first();
+
+  if (!student) {
+    // Log attempt
+    await logParentAccess(null, 'login_failed_no_student', false, ip, userAgent);
+    throw new AppError('Invalid NISN, birth date, or PIN.', 'ERR_UNAUTHORIZED', 401);
+  }
+
+  // Check for PIN lockout
+  if (student.parent_access_pin_locked_until && new Date(student.parent_access_pin_locked_until) > new Date()) {
+    const remainingMs = new Date(student.parent_access_pin_locked_until).getTime() - Date.now();
+    const remainingMins = Math.ceil(remainingMs / 60000);
+    await logParentAccess(student.id, 'login_locked', false, ip, userAgent);
+    throw new AppError(`Account is temporarily locked. Try again in ${remainingMins} minutes.`, 'ERR_ACCOUNT_LOCKED', 403);
+  }
+
+  // Check PIN hash
+  const pinHash = student.parent_access_pin_hash;
+  if (!pinHash) {
+    throw new AppError('Parent access PIN is not configured. Please contact school admin.', 'ERR_NO_PIN', 403);
+  }
+
+  const isPinValid = await bcrypt.compare(pin, pinHash);
+  if (!isPinValid) {
+    const attempts = (student.parent_access_pin_failed_attempts || 0) + 1;
+    const patch: any = { parent_access_pin_failed_attempts: attempts, updated_at: new Date() };
+    if (attempts >= 5) {
+      const lockUntil = new Date();
+      lockUntil.setMinutes(lockUntil.getMinutes() + 15);
+      patch.parent_access_pin_locked_until = lockUntil;
+    }
+    await db('students').where('id', student.id).update(patch);
+    await logParentAccess(student.id, 'login_failed_invalid_pin', false, ip, userAgent);
+    throw new AppError('Invalid NISN, birth date, or PIN.', 'ERR_UNAUTHORIZED', 401);
+  }
+
+  // Reset failed attempts
+  await db('students').where('id', student.id).update({
+    parent_access_pin_failed_attempts: 0,
+    parent_access_pin_locked_until: null,
+    updated_at: new Date()
+  });
+
+  // Generate session token
+  const { rawToken, hash } = generateSessionToken();
+  const sessionId = uuidv4();
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + PARENT_SESSION_HOURS);
+
+  await db('parent_sessions').insert({
+    id: sessionId,
+    student_id: student.id,
+    token_hash: hash,
+    issued_at: new Date(),
+    expires_at: expiresAt,
+    last_seen_at: new Date(),
+    ip_address: ip || null,
+    user_agent: userAgent || null,
+    created_at: new Date(),
+    updated_at: new Date()
+  });
+
+  await logParentAccess(student.id, 'login_success', true, ip, userAgent);
+
+  const { parent_access_pin_hash, parent_access_pin_failed_attempts, parent_access_pin_locked_until, ...safeStudent } = student;
+
+  return {
+    token: rawToken,
+    student: safeStudent,
+    expires_at: expiresAt
+  };
+}
+
+export async function logoutParent(rawToken: string) {
+  if (!rawToken) return;
+  const hash = hashToken(rawToken);
+  await db('parent_sessions').where('token_hash', hash).delete();
+}
+
+export async function verifyParentToken(rawToken: string): Promise<any> {
+  if (!rawToken) return null;
+  const hash = hashToken(rawToken);
+
+  const session = await db('parent_sessions')
+    .where('token_hash', hash)
+    .andWhere('expires_at', '>', new Date())
+    .first();
+
+  if (!session) return null;
+
+  await db('parent_sessions')
+    .where('id', session.id)
+    .update({ last_seen_at: new Date(), updated_at: new Date() });
+
+  return session;
+}
+
+async function logParentAccess(
+  studentId: string | null,
+  action: string,
+  success: boolean,
+  ip?: string,
+  userAgent?: string
+) {
+  try {
+    if (!studentId) return;
+    await db('parent_access_logs').insert({
+      id: uuidv4(),
+      student_id: studentId,
+      action,
+      success: success ? 1 : 0,
+      ip_address: ip || null,
+      user_agent: userAgent || null,
+      attempted_at: new Date()
+    });
+  } catch (e) {
+    // non-critical, ignore
+  }
+}
+
+export async function getParentStudentData(studentId: string) {
+  const student = await db('students')
+    .where('id', studentId)
+    .first();
+
+  if (!student) throw new AppError('Student not found.', 'ERR_VALIDATION', 404);
+
+  const { parent_access_pin_hash, ...safeStudent } = student;
+  return safeStudent;
+}
+
+export async function getParentDashboard(studentId: string) {
+  const student = await db('students').where('id', studentId).first();
+  if (!student) throw new AppError('Student not found.', 'ERR_VALIDATION', 404);
+
+  const enrollment = await db('student_enrollments')
+    .join('classes', 'student_enrollments.class_id', 'classes.id')
+    .join('semesters', 'student_enrollments.semester_id', 'semesters.id')
+    .join('academic_years', 'student_enrollments.academic_year_id', 'academic_years.id')
+    .where({ 'student_enrollments.student_id': studentId, 'student_enrollments.status': 'active' })
+    .select(
+      'student_enrollments.class_id',
+      'classes.name as class_name',
+      'student_enrollments.semester_id',
+      'semesters.name as semester_name',
+      'student_enrollments.academic_year_id',
+      'academic_years.name as academic_year_name'
+    )
+    .first();
+
+  // SPP status
+  let sppStatus = null;
+  if (enrollment) {
+    const now = new Date();
+    const sppRecord = await db('spp_payments')
+      .where({
+        student_id: studentId,
+        academic_year_id: enrollment.academic_year_id,
+        payment_month: now.getMonth() + 1,
+        payment_year: now.getFullYear()
+      })
+      .first();
+    sppStatus = sppRecord ? sppRecord.payment_status : 'not_generated';
+  }
+
+  return {
+    student: {
+      id: student.id,
+      full_name: student.full_name,
+      nisn: student.nisn,
+      gender: student.gender
+    },
+    enrollment,
+    spp_this_month: sppStatus
+  };
+}
+
+export async function getParentAcademicSummary(studentId: string, academicYearId?: string, semesterId?: string) {
+  // Get enrollment to find current period
+  let yearId = academicYearId;
+  let semId = semesterId;
+
+  if (!yearId || !semId) {
+    const enrollment = await db('student_enrollments')
+      .where({ student_id: studentId, status: 'active' })
+      .first();
+    if (enrollment) {
+      yearId = yearId || enrollment.academic_year_id;
+      semId = semId || enrollment.semester_id;
+    }
+  }
+
+  if (!yearId || !semId) {
+    throw new AppError('No active enrollment found.', 'ERR_VALIDATION', 400);
+  }
+
+  return await getStudentAcademicSummary(studentId, yearId, semId);
+}
+
+export async function getParentCharacterSummary(studentId: string, academicYearId?: string, semesterId?: string) {
+  let yearId = academicYearId;
+  let semId = semesterId;
+
+  if (!yearId || !semId) {
+    const enrollment = await db('student_enrollments')
+      .where({ student_id: studentId, status: 'active' })
+      .first();
+    if (enrollment) {
+      yearId = yearId || enrollment.academic_year_id;
+      semId = semId || enrollment.semester_id;
+    }
+  }
+
+  if (!yearId || !semId) {
+    throw new AppError('No active enrollment found.', 'ERR_VALIDATION', 400);
+  }
+
+  try {
+    return await calculateAndGetSemesterSummary(studentId, yearId, semId, false);
+  } catch (e) {
+    return { message: 'No character summary data yet.', f_score: 0, i_score: 0, t_score: 0, r_score: 0, a_score: 0, h_score: 0 };
+  }
+}
+
+export async function getParentSppStatus(studentId: string) {
+  const enrollments = await db('student_enrollments')
+    .where({ student_id: studentId })
+    .whereNot('lifecycle_status', 'soft_deleted');
+
+  if (enrollments.length === 0) {
+    return { message: 'No enrollment found.', payments: [] };
+  }
+
+  const latestEnrollment = enrollments[enrollments.length - 1];
+  const payments = await db('spp_payments')
+    .where({ student_id: studentId, academic_year_id: latestEnrollment.academic_year_id })
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .orderBy('payment_year', 'asc')
+    .orderBy('payment_month', 'asc');
+
+  return { payments };
+}
+
+export async function getParentAvailablePeriods(studentId: string) {
+  const enrollments = await db('student_enrollments')
+    .join('semesters', 'student_enrollments.semester_id', 'semesters.id')
+    .join('academic_years', 'student_enrollments.academic_year_id', 'academic_years.id')
+    .where({ 'student_enrollments.student_id': studentId })
+    .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+    .select(
+      'student_enrollments.academic_year_id',
+      'student_enrollments.semester_id',
+      'student_enrollments.status',
+      'semesters.name as semester_name',
+      'academic_years.name as academic_year_name'
+    );
+
+  return enrollments;
+}

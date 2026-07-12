@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fdfbf7;
+  --foreground: #171717;
+
+  /* Surface levels for Light Mode (neutral light colors) */
+  --surface-0: #fdfbf7;
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+
+  /* Sonner toast theme — aligned with SIUBA design system */
+  --normal-bg: #ffffff;
+  --normal-border: #e4e4e7;
+  --normal-text: #09090b;
+  --success-bg: #f0fdf4;
+  --success-border: #bbf7d0;
+  --success-text: #166534;
+  --error-bg: #fef2f2;
+  --error-border: #fecaca;
+  --error-text: #991b1b;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+  --warning-text: #92400e;
+  --info-bg: #eff6ff;
+  --info-border: #bfdbfe;
+  --info-text: #1e40af;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-data: var(--font-ibm-plex-sans);
+  --font-fredoka: var(--font-fredoka);
+  --font-plus-jakarta: var(--font-plus-jakarta);
+
+  /* Brand colors */
+  --color-brand-emerald-50: #f0fdf4;
+  --color-brand-emerald-100: #dcfce7;
+  --color-brand-emerald-500: #10b981;
+  --color-brand-emerald-600: #059669;
+  --color-brand-emerald-700: #047857;
+
+  --color-brand-lime-50: #f7fee7;
+  --color-brand-lime-100: #ecfccb;
+  --color-brand-lime-500: #84cc16;
+  --color-brand-lime-600: #65a30d;
+
+  --color-brand-amber-50: #fffbeb;
+  --color-brand-amber-100: #fef3c7;
+  --color-brand-amber-500: #f59e0b;
+  --color-brand-amber-600: #d97706;
+
+  --color-brand-cream: #fdfbf7;
+  --color-brand-light-emerald: #ecfdf5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+
+    /* Surface levels for Dark Mode (Point 17 Design System) */
+    --surface-0: #0a0a0a;
+    --surface-1: #171717;
+    --surface-2: #262626;
+    --surface-3: #2d2d2d;
+
+    /* Sonner dark mode */
+    --normal-bg: #18181b;
+    --normal-border: #27272a;
+    --normal-text: #fafafa;
+    --success-bg: #052e16;
+    --success-border: #14532d;
+    --success-text: #86efac;
+    --error-bg: #450a0a;
+    --error-border: #7f1d1d;
+    --error-text: #fca5a5;
+    --warning-bg: #422006;
+    --warning-border: #78350f;
+    --warning-text: #fde68a;
+    --info-bg: #172554;
+    --info-border: #1e3a8a;
+    --info-text: #93c5fd;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Utility animations used by ui-states and banners */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 200ms ease-out both;
+}
+

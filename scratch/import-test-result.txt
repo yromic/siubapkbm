@@ -1,0 +1,32 @@
+﻿Γùç injected env (8) from .env // tip: Γùê encrypted .env [www.dotenvx.com]
+=== Calling createImportSession ===
+node.exe : === ERROR ===
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (=== ERROR ===:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Message: insert into `import_logs` (`created_at`, `drive_file_id`, `error_rows`, `file_name`, `id`, `import_type`, 
+`lifecycle_status`, `status`, `success_rows`, `total_rows`, `updated_at`, `uploaded_by`) values ('2026-07-11 
+15:46:32.783', 'F:\\Project\\siuba\\storage\\uploads\\67bede0c-6098-4a13-becd-0feda86c5af7-test.csv', 0, 'test.csv', 
+'ecf2f63f-28a0-4502-8874-4a4b27cae161', 'students', 'active', 'previewed', 0, 0, '2026-07-11 15:46:32.783', 
+'test-actor-id') - Unknown column 'drive_file_id' in 'field list'
+Code   : ER_BAD_FIELD_ERROR
+Stack  :
+ Error: insert into `import_logs` (`created_at`, `drive_file_id`, `error_rows`, `file_name`, `id`, `import_type`, 
+`lifecycle_status`, `status`, `success_rows`, `total_rows`, `updated_at`, `uploaded_by`) values ('2026-07-11 
+15:46:32.783', 'F:\\Project\\siuba\\storage\\uploads\\67bede0c-6098-4a13-becd-0feda86c5af7-test.csv', 0, 'test.csv', 
+'ecf2f63f-28a0-4502-8874-4a4b27cae161', 'students', 'active', 'previewed', 0, 0, '2026-07-11 15:46:32.783', 
+'test-actor-id') - Unknown column 'drive_file_id' in 'field list'
+    at Packet.asError (F:\Project\siuba\node_modules\mysql2\lib\packets\packet.js:791:17)
+    at Query.execute (F:\Project\siuba\node_modules\mysql2\lib\commands\command.js:29:26)
+    at Connection.handlePacket (F:\Project\siuba\node_modules\mysql2\lib\base\connection.js:552:34)
+    at PacketParser.onPacket (F:\Project\siuba\node_modules\mysql2\lib\base\connection.js:102:12)
+    at PacketParser.executeStart (F:\Project\siuba\node_modules\mysql2\lib\packet_parser.js:75:16)
+    at Socket.<anonymous> (F:\Project\siuba\node_modules\mysql2\lib\base\connection.js:109:25)
+    at Socket.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
+    at Readable.push (node:internal/streams/readable:394:5)
+    at TCP.onStreamRead (node:internal/stream_base_commons:189:23)
