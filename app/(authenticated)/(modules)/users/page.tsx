@@ -105,7 +105,7 @@ export default function UsersPage() {
       setUsers(data);
     } catch (err: unknown) {
       console.error("Failed to load users:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as { message: string }).message : "Data pengguna belum dapat dimuat. Silakan coba kembali.";
+      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Data pengguna belum dapat dimuat. Silakan coba kembali.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -181,7 +181,7 @@ export default function UsersPage() {
       setShowCreateModal(false);
     } catch (err: unknown) {
       console.error("Failed to create user:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as { message: string }).message : "Gagal menyimpan pengguna.";
+      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Gagal menyimpan pengguna.";
       setModalError(msg);
     } finally {
       setModalLoading(false);
@@ -253,7 +253,7 @@ export default function UsersPage() {
       setShowEditModal(false);
     } catch (err: unknown) {
       console.error("Failed to update user:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as { message: string }).message : "Gagal memperbarui pengguna.";
+      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Gagal memperbarui pengguna.";
       setModalError(msg);
     } finally {
       setModalLoading(false);
@@ -299,7 +299,7 @@ export default function UsersPage() {
       );
     } catch (err: unknown) {
       console.error("Failed to reset password:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as { message: string }).message : "Gagal mengatur ulang kata sandi.";
+      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Gagal mengatur ulang kata sandi.";
       setModalError(msg);
     } finally {
       setModalLoading(false);

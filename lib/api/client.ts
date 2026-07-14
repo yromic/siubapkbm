@@ -102,6 +102,7 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
 
   // Finance (SPP)
   'list_spp_payments':             { method: 'GET',  path: '/api/v1/finance/spp' },
+  'get_class_spp_arrears':         { method: 'GET',  path: '/api/v1/finance/spp/arrears' },
   'verify_spp_payment':            { method: 'POST', path: '/api/v1/finance/spp/verify' },
   'verify_bulk_spp_payments':      { method: 'POST', path: '/api/v1/finance/spp/verify-bulk' },
   'spp_revert_payment':            { method: 'POST', path: '/api/v1/finance/spp/:id/revert', idField: 'payment_id' },

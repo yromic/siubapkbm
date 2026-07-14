@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { apiRequest } from "@/lib/api/client";
 import { PageHeader, ResponsiveContainer, LoadingState, ForbiddenState } from "@/components/ui-states";
-import { listSppPaymentsApi, verifySppPaymentApi, verifyBulkSppPaymentsApi, SppPayment, revertSppPaymentApi } from "@/lib/api/finance";
+import { listSppPaymentsApi, verifySppPaymentApi, verifyBulkSppPaymentsApi, SppPayment, revertSppPaymentApi, getClassSppArrearsApi, StudentArrearsSummary } from "@/lib/api/finance";
 import { humanizeError } from "@/lib/utils/ui-error";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Loader2 } from "lucide-react";
@@ -36,6 +36,59 @@ export default function FinancePage() {
   const [payments, setPayments] = useState<SppPayment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Arrears View States
+  const [activeTab, setActiveTab] = useState<"monthly" | "arrears">("monthly");
+  const [arrearsList, setArrearsList] = useState<StudentArrearsSummary[]>([]);
+  const [arrearsLoading, setArrearsLoading] = useState(false);
+  const [arrearsError, setArrearsError] = useState<string | null>(null);
+
+  // Fetch arrears list
+  const loadArrears = useCallback(async () => {
+    if (!token || !selectedClassId) return;
+    setArrearsLoading(true);
+    setArrearsError(null);
+    try {
+      const data = await getClassSppArrearsApi(token, selectedClassId);
+      setArrearsList(data);
+    } catch (err: unknown) {
+      console.error(err);
+      setArrearsError(humanizeError(err));
+    } finally {
+      setArrearsLoading(false);
+    }
+  }, [token, selectedClassId]);
+
+  // Load arrears list
+  useEffect(() => {
+    if (activeTab === "arrears") {
+      loadArrears();
+    }
+  }, [activeTab, loadArrears]);
+
+  const handleOpenVerifyModalFromArrears = (student: StudentArrearsSummary) => {
+    if (student.unpaid_months.length === 0) return;
+    const earliest = student.unpaid_months[0];
+    const virtualPayment: SppPayment = {
+      id: earliest.id,
+      student_id: student.student_id,
+      student_name: student.student_name,
+      student_nisn: student.student_nisn,
+      academic_year_id: "",
+      month: earliest.payment_month,
+      year: earliest.payment_year,
+      amount_due: earliest.amount_due,
+      amount_paid: earliest.amount_paid,
+      payment_status: earliest.amount_paid > 0 ? "partial" : "unpaid",
+      paid_at: "",
+      payment_method: "",
+      verified_by: "",
+      notes: "",
+      created_at: "",
+      updated_at: ""
+    };
+    handleOpenVerifyModal(virtualPayment);
+  };
 
   // Modal State
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -148,7 +201,11 @@ export default function FinancePage() {
       await verifySppPaymentApi(token, selectedPayment.student_id, amountNum, paymentMethod, notes, advanceMonths);
       notify.success(UX_COPY.finance.verifySuccess);
       setShowVerifyModal(false);
-      loadPayments(); // Reload list
+      if (activeTab === "monthly") {
+        loadPayments();
+      } else {
+        loadArrears();
+      }
     } catch (err: unknown) {
       console.error(err);
       const errMsg = humanizeError(err);
@@ -159,7 +216,10 @@ export default function FinancePage() {
     }
   };
 
-  const unpaidPayments = payments.filter((p) => p.payment_status !== "paid");
+  // Treat both 'paid' (new) and 'verified' (legacy) as fully settled
+  const isPaidStatus = (status: string) => status === "paid" || status === "verified";
+
+  const unpaidPayments = payments.filter((p) => !isPaidStatus(p.payment_status));
   const isAllSelected = unpaidPayments.length > 0 && selectedStudentIds.length === unpaidPayments.length;
 
   const handleSelectAllToggle = () => {
@@ -197,7 +257,11 @@ export default function FinancePage() {
       notify.success(UX_COPY.finance.bulkVerifySuccess);
       setShowBulkVerifyModal(false);
       setSelectedStudentIds([]);
-      loadPayments();
+      if (activeTab === "monthly") {
+        loadPayments();
+      } else {
+        loadArrears();
+      }
     } catch (err: unknown) {
       console.error(err);
       const errMsg = humanizeError(err);
@@ -222,7 +286,11 @@ export default function FinancePage() {
       await revertSppPaymentApi(token, revertPayment.id);
       notify.success(UX_COPY.finance.revertSuccess);
       setShowRevertModal(false);
-      loadPayments();
+      if (activeTab === "monthly") {
+        loadPayments();
+      } else {
+        loadArrears();
+      }
     } catch (err: unknown) {
       console.error(err);
       const errMsg = humanizeError(err);
@@ -250,6 +318,30 @@ export default function FinancePage() {
         description="Kelola tagihan dan verifikasi pembayaran bulanan siswa secara manual."
       />
 
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <button
+          onClick={() => setActiveTab("monthly")}
+          className={`px-4 py-2.5 font-semibold text-sm transition-all border-b-2 cursor-pointer ${
+            activeTab === "monthly"
+              ? "border-[#468432] text-[#468432]"
+              : "border-transparent text-zinc-550 hover:text-zinc-800 dark:hover:text-zinc-300"
+          }`}
+        >
+          Tagihan Bulanan
+        </button>
+        <button
+          onClick={() => setActiveTab("arrears")}
+          className={`px-4 py-2.5 font-semibold text-sm transition-all border-b-2 cursor-pointer ${
+            activeTab === "arrears"
+              ? "border-[#468432] text-[#468432]"
+              : "border-transparent text-zinc-550 hover:text-zinc-800 dark:hover:text-zinc-300"
+          }`}
+        >
+          Rekap Tunggakan
+        </button>
+      </div>
+
       {/* Filter Section */}
       <div className="p-4 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[12px] shadow-sm space-y-4 md:space-y-0 md:flex md:space-x-4 md:items-end">
         <div className="flex-1">
@@ -269,41 +361,45 @@ export default function FinancePage() {
           </select>
         </div>
 
-        <div className="w-full md:w-48">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Bulan</label>
-          <select
-            className="w-full p-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#171717] text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]"
-            value={selectedMonth}
-            onChange={(e) => {
-              setSelectedMonth(parseInt(e.target.value));
-              setSelectedStudentIds([]);
-            }}
-          >
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
-        </div>
+        {activeTab === "monthly" && (
+          <>
+            <div className="w-full md:w-48">
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Bulan</label>
+              <select
+                className="w-full p-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#171717] text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]"
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(parseInt(e.target.value));
+                  setSelectedStudentIds([]);
+                }}
+              >
+                {months.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
 
-        <div className="w-full md:w-32">
-          <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Tahun</label>
-          <select
-            className="w-full p-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#171717] text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]"
-            value={selectedYear}
-            onChange={(e) => {
-              setSelectedYear(parseInt(e.target.value));
-              setSelectedStudentIds([]);
-            }}
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
+            <div className="w-full md:w-32">
+              <label className="block text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">Tahun</label>
+              <select
+                className="w-full p-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#171717] text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]"
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(parseInt(e.target.value));
+                  setSelectedStudentIds([]);
+                }}
+              >
+                {years.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Bulk Action Banner */}
-      {selectedStudentIds.length > 0 && (
+      {activeTab === "monthly" && selectedStudentIds.length > 0 && (
         <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-250 dark:border-emerald-900 rounded-[12px] flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-450">
             {selectedStudentIds.length} siswa dipilih untuk verifikasi pembayaran.
@@ -319,84 +415,172 @@ export default function FinancePage() {
 
       {/* Table Section */}
       <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-[12px] overflow-hidden shadow-sm flex-1 flex flex-col justify-start">
-        {loading ? (
-          <LoadingState message="Memuat tagihan SPP siswa..." />
-        ) : error ? (
-          <div className="p-4"><InfoBanner variant="error" description={error} /></div>
-        ) : payments.length === 0 ? (
-          <div className="p-8 text-center text-zinc-500 font-medium">Tidak ada siswa aktif terdaftar di kelas dan periode terpilih.</div>
-        ) : (
-          <>
-            <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-              <thead className="bg-zinc-50 dark:bg-[#171717]">
-                <tr>
-                  <th className="px-4 py-3 text-center w-12">
-                    <input
-                      type="checkbox"
-                      className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] cursor-pointer"
-                      checked={isAllSelected}
-                      onChange={handleSelectAllToggle}
-                      disabled={unpaidPayments.length === 0}
-                    />
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">Nama Siswa</th>
-                  <th className="hidden md:table-cell px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">NISN</th>
-                  <th className="px-4 py-3 text-right font-semibold text-zinc-600 dark:text-zinc-400">Tagihan</th>
-                  <th className="px-4 py-3 text-right font-semibold text-zinc-600 dark:text-zinc-400">Terbayar</th>
-                  <th className="px-4 py-3 text-center font-semibold text-zinc-600 dark:text-zinc-400">Status</th>
-                  <th className="px-4 py-3 text-center font-semibold text-zinc-600 dark:text-zinc-400">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850">
-                {payments.map((p) => {
-                  const isSelected = selectedStudentIds.includes(p.student_id);
-                  const isPaid = p.payment_status === "paid";
-                  return (
-                    <tr key={p.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30">
-                      <td className="px-4 py-3 text-center w-12">
+        {activeTab === "monthly" ? (
+          loading ? (
+            <LoadingState message="Memuat tagihan SPP siswa..." />
+          ) : error ? (
+            <div className="p-4"><InfoBanner variant="error" description={error} /></div>
+          ) : payments.length === 0 ? (
+            <div className="p-8 text-center text-zinc-500 font-medium">Tidak ada siswa aktif terdaftar di kelas dan periode terpilih.</div>
+          ) : (
+            <>
+              <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+                <thead className="bg-zinc-50 dark:bg-[#171717]">
+                  <tr>
+                    <th className="px-4 py-3 text-center w-12">
+                      <input
+                        type="checkbox"
+                        className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] cursor-pointer"
+                        checked={isAllSelected}
+                        onChange={handleSelectAllToggle}
+                        disabled={unpaidPayments.length === 0}
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">Nama Siswa</th>
+                    <th className="hidden md:table-cell px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">NISN</th>
+                    <th className="px-4 py-3 text-right font-semibold text-zinc-600 dark:text-zinc-400">Tagihan</th>
+                    <th className="px-4 py-3 text-right font-semibold text-zinc-600 dark:text-zinc-400">Terbayar</th>
+                    <th className="px-4 py-3 text-center font-semibold text-zinc-600 dark:text-zinc-400">Status</th>
+                    <th className="px-4 py-3 text-center font-semibold text-zinc-600 dark:text-zinc-400">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850">
+                  {payments.map((p) => {
+                    const isSelected = selectedStudentIds.includes(p.student_id);
+                    const isPaid = isPaidStatus(p.payment_status);
+                    return (
+                      <tr key={p.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30">
+                        <td className="px-4 py-3 text-center w-12">
+                          <input
+                            type="checkbox"
+                            className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] disabled:opacity-40 cursor-pointer"
+                            checked={isSelected}
+                            onChange={() => handleSelectRowToggle(p.student_id)}
+                            disabled={isPaid}
+                          />
+                        </td>
+                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                          <div>{p.student_name}</div>
+                          <div className="md:hidden text-xs text-zinc-500 mt-0.5">NISN: {p.student_nisn}</div>
+                        </td>
+                      <td className="hidden md:table-cell px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.student_nisn}</td>
+                      <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-100 font-mono">{formatCurrency(p.amount_due)}</td>
+                      <td className="px-4 py-3 text-right text-zinc-600 dark:text-zinc-400 font-mono">{formatCurrency(p.amount_paid)}</td>
+                      <td className="px-4 py-3 text-center">
+                        {isPaidStatus(p.payment_status) ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+                            Lunas
+                          </span>
+                        ) : p.payment_status === "partial" ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400">
+                            Sebagian
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                            Belum Bayar
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {!isPaidStatus(p.payment_status) ? (
+                          <button
+                            onClick={() => handleOpenVerifyModal(p)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition"
+                          >
+                            Verifikasi
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenRevertDialog(p)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-650 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 transition flex items-center gap-1 mx-auto cursor-pointer"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                            </svg>
+                            Batal Lunas
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="block md:hidden p-4 space-y-3">
+              {payments.map((p) => {
+                const isSelected = selectedStudentIds.includes(p.student_id);
+                const isPaid = isPaidStatus(p.payment_status);
+                return (
+                  <div
+                    key={p.id}
+                    className={`p-4 rounded-[20px] border transition-all ${
+                      isSelected
+                        ? "border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/10"
+                        : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-[#171717]/40"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5 min-w-0">
                         <input
                           type="checkbox"
-                          className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] disabled:opacity-40 cursor-pointer"
+                          className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] disabled:opacity-40 mt-1 cursor-pointer shrink-0"
                           checked={isSelected}
                           onChange={() => handleSelectRowToggle(p.student_id)}
                           disabled={isPaid}
                         />
-                      </td>
-                      <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                        <div>{p.student_name}</div>
-                        <div className="md:hidden text-xs text-zinc-500 mt-0.5">NISN: {p.student_nisn}</div>
-                      </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-zinc-600 dark:text-zinc-400">{p.student_nisn}</td>
-                    <td className="px-4 py-3 text-right text-zinc-900 dark:text-zinc-100 font-mono">{formatCurrency(p.amount_due)}</td>
-                    <td className="px-4 py-3 text-right text-zinc-600 dark:text-zinc-400 font-mono">{formatCurrency(p.amount_paid)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {p.payment_status === "paid" ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
-                          Lunas
-                        </span>
-                      ) : p.payment_status === "partial" ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400">
-                          Sebagian
-                        </span>
-                      ) : (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400">
-                          Belum Bayar
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {p.payment_status !== "paid" ? (
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                            {p.student_name}
+                          </div>
+                          <div className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
+                            NISN: {p.student_nisn}
+                          </div>
+                        </div>
+                      </div>
+  
+                      <div className="shrink-0">
+                        {isPaidStatus(p.payment_status) ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-450">
+                            Lunas
+                          </span>
+                        ) : p.payment_status === "partial" ? (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-450">
+                            Sebagian
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-450">
+                            Belum Bayar
+                          </span>
+                        )}
+                      </div>
+                    </div>
+  
+                    <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50 text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold text-zinc-400 block uppercase tracking-wider">Tagihan</span>
+                        <span className="font-bold font-mono text-zinc-900 dark:text-zinc-150 block mt-0.5">{formatCurrency(p.amount_due)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-zinc-400 block uppercase tracking-wider">Terbayar</span>
+                        <span className="font-bold font-mono text-zinc-650 dark:text-zinc-450 block mt-0.5">{formatCurrency(p.amount_paid)}</span>
+                      </div>
+                    </div>
+  
+                    <div className="mt-4 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50 flex justify-end">
+                      {!isPaidStatus(p.payment_status) ? (
                         <button
                           onClick={() => handleOpenVerifyModal(p)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition"
+                          className="px-4 py-2 rounded-[12px] text-xs font-semibold text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition cursor-pointer"
                         >
                           Verifikasi
                         </button>
                       ) : (
                         <button
                           onClick={() => handleOpenRevertDialog(p)}
-                          className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-red-650 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20 transition flex items-center gap-1 mx-auto cursor-pointer"
+                          className="px-3 py-1.5 rounded-[12px] text-xs font-semibold text-red-650 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-950/15 dark:hover:bg-red-950/30 transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
@@ -404,99 +588,109 @@ export default function FinancePage() {
                           Batal Lunas
                         </button>
                       )}
-                    </td>
-                  </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+          )
+        ) : (
+          arrearsLoading ? (
+            <LoadingState message="Memuat rekap tunggakan siswa..." />
+          ) : arrearsError ? (
+            <div className="p-4"><InfoBanner variant="error" description={arrearsError} /></div>
+          ) : arrearsList.length === 0 ? (
+            <div className="p-8 text-center text-zinc-500 font-medium">Tidak ada siswa dengan tunggakan di kelas ini. Semua lunas!</div>
+          ) : (
+            <>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
+                  <thead className="bg-zinc-50 dark:bg-[#171717]">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">Nama Siswa</th>
+                      <th className="hidden md:table-cell px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">NISN</th>
+                      <th className="px-4 py-3 text-center font-semibold text-zinc-600 dark:text-zinc-400">Jumlah Bulan</th>
+                      <th className="px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">Rincian Bulan</th>
+                      <th className="px-4 py-3 text-right font-semibold text-zinc-600 dark:text-zinc-400">Total Tunggakan</th>
+                      <th className="px-4 py-3 text-center font-semibold text-zinc-600 dark:text-zinc-400">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850">
+                    {arrearsList.map((student) => (
+                      <tr key={student.student_id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-900/30">
+                        <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
+                          {student.student_name}
+                        </td>
+                        <td className="hidden md:table-cell px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                          {student.student_nisn}
+                        </td>
+                        <td className="px-4 py-3 text-center text-red-600 dark:text-red-400 font-semibold">
+                          {student.unpaid_months.length} Bulan
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400 text-xs max-w-xs truncate">
+                          {student.unpaid_months.map(m => `${months[m.payment_month - 1].label} ${m.payment_year}`).join(", ")}
+                        </td>
+                        <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 font-bold font-mono">
+                          {formatCurrency(student.total_arrears)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleOpenVerifyModalFromArrears(student)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition"
+                          >
+                            Bayar Tunggakan
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          <div className="block md:hidden p-4 space-y-3">
-            {payments.map((p) => {
-              const isSelected = selectedStudentIds.includes(p.student_id);
-              const isPaid = p.payment_status === "paid";
-              return (
-                <div
-                  key={p.id}
-                  className={`p-4 rounded-[20px] border transition-all ${
-                    isSelected
-                      ? "border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/10"
-                      : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-[#171717]/40"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <input
-                        type="checkbox"
-                        className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] disabled:opacity-40 mt-1 cursor-pointer shrink-0"
-                        checked={isSelected}
-                        onChange={() => handleSelectRowToggle(p.student_id)}
-                        disabled={isPaid}
-                      />
-                      <div className="min-w-0">
-                        <div className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate">
-                          {p.student_name}
+              {/* Mobile View for Arrears */}
+              <div className="block md:hidden p-4 space-y-3">
+                {arrearsList.map((student) => (
+                  <div
+                    key={student.student_id}
+                    className="p-4 rounded-[20px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-[#171717]/40 space-y-3"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                          {student.student_name}
                         </div>
-                        <div className="text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
-                          NISN: {p.student_nisn}
+                        <div className="text-xs text-zinc-550 dark:text-zinc-450 mt-0.5">
+                          NISN: {student.student_nisn}
                         </div>
                       </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400">
+                        {student.unpaid_months.length} Bulan
+                      </span>
                     </div>
 
-                    <div className="shrink-0">
-                      {p.payment_status === "paid" ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-450">
-                          Lunas
-                        </span>
-                      ) : p.payment_status === "partial" ? (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-450">
-                          Sebagian
-                        </span>
-                      ) : (
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-450">
-                          Belum Bayar
-                        </span>
-                      )}
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400 bg-white dark:bg-[#121212] p-2 rounded-lg border border-zinc-100 dark:border-zinc-900">
+                      <span className="font-bold block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">Rincian:</span>
+                      {student.unpaid_months.map(m => `${months[m.payment_month - 1].label} ${m.payment_year}`).join(", ")}
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50 text-xs">
-                    <div>
-                      <span className="text-[10px] font-bold text-zinc-400 block uppercase tracking-wider">Tagihan</span>
-                      <span className="font-bold font-mono text-zinc-900 dark:text-zinc-150 block mt-0.5">{formatCurrency(p.amount_due)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-zinc-400 block uppercase tracking-wider">Terbayar</span>
-                      <span className="font-bold font-mono text-zinc-650 dark:text-zinc-450 block mt-0.5">{formatCurrency(p.amount_paid)}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-zinc-200/50 dark:border-zinc-800/50 flex justify-end">
-                    {p.payment_status !== "paid" ? (
+                    <div className="flex items-center justify-between pt-2 border-t border-zinc-200/50 dark:border-zinc-800/50">
+                      <div>
+                        <span className="text-[10px] font-bold text-zinc-450 block uppercase tracking-wider">Total Tunggakan</span>
+                        <span className="font-bold font-mono text-red-600 dark:text-red-400 text-sm">{formatCurrency(student.total_arrears)}</span>
+                      </div>
                       <button
-                        onClick={() => handleOpenVerifyModal(p)}
-                        className="px-4 py-2 rounded-[12px] text-xs font-semibold text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition cursor-pointer"
+                        onClick={() => handleOpenVerifyModalFromArrears(student)}
+                        className="px-3 py-2 rounded-[12px] text-xs font-semibold text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition cursor-pointer"
                       >
-                        Verifikasi
+                        Bayar
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => handleOpenRevertDialog(p)}
-                        className="px-3 py-1.5 rounded-[12px] text-xs font-semibold text-red-650 hover:text-red-700 bg-red-50 hover:bg-red-100 dark:bg-red-950/15 dark:hover:bg-red-950/30 transition flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                        Batal Lunas
-                      </button>
-                    )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
+                ))}
+              </div>
+            </>
+          )
         )}
       </div>
 

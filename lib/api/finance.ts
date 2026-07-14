@@ -64,3 +64,22 @@ export async function getParentSppStatusApi(token: string): Promise<ParentSppSta
 export async function revertSppPaymentApi(token: string, payment_id: string): Promise<SppPayment> {
   return apiRequest<SppPayment>("spp_revert_payment", { payment_id }, token);
 }
+
+export interface StudentArrearsSummary {
+  student_id: string;
+  student_name: string;
+  student_nisn: string;
+  total_arrears: number;
+  unpaid_months: Array<{
+    id: string;
+    payment_month: number;
+    payment_year: number;
+    amount_due: number;
+    amount_paid: number;
+  }>;
+}
+
+export async function getClassSppArrearsApi(token: string, class_id: string): Promise<StudentArrearsSummary[]> {
+  return apiRequest<StudentArrearsSummary[]>("get_class_spp_arrears", { class_id }, token);
+}
+

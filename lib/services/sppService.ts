@@ -78,7 +78,15 @@ export async function listPayments(
       query.where('spp_payments.payment_year', filters.payment_year);
     }
     if (filters.payment_status) {
-      query.where('spp_payments.payment_status', filters.payment_status);
+      if (filters.payment_status === 'unpaid') {
+        // Exclude both 'paid' and 'verified' (legacy)
+        query.whereNotIn('spp_payments.payment_status', ['paid', 'verified']);
+      } else if (filters.payment_status === 'paid') {
+        // Include both 'paid' and 'verified'
+        query.whereIn('spp_payments.payment_status', ['paid', 'verified']);
+      } else {
+        query.where('spp_payments.payment_status', filters.payment_status);
+      }
     }
     if (filters.class_id) {
       query.where('student_enrollments.class_id', filters.class_id);
@@ -157,13 +165,13 @@ export async function verifyPayment(
         })
         .first();
     } else {
-      // Find earliest unpaid record in active year
+      // Find earliest unpaid record in active year (exclude 'paid' and 'verified')
       targetRecord = await db('spp_payments')
         .where({
           student_id: input.student_id,
           academic_year_id: yearId,
-          payment_status: 'unpaid'
         })
+        .whereNotIn('payment_status', ['paid', 'verified'])
         .whereNot('lifecycle_status', 'soft_deleted')
         .orderBy('payment_year', 'asc')
         .orderBy('payment_month', 'asc')
@@ -182,8 +190,8 @@ export async function verifyPayment(
         .where({
           student_id: input.student_id,
           academic_year_id: yearId,
-          payment_status: 'unpaid'
         })
+        .whereNotIn('payment_status', ['paid', 'verified'])
         .whereNot('id', targetRecord.id)
         .whereNot('lifecycle_status', 'soft_deleted')
         .orderBy('payment_year', 'asc')
@@ -270,11 +278,16 @@ export async function revertPayment(id: string) {
   try {
     const existing = await db('spp_payments')
       .where('id', id)
-      .whereNot('lifecycle_status', 'soft_deleted')
+      .whereNotIn('lifecycle_status', ['soft_deleted'])
       .first();
 
     if (!existing) {
       throw new AppError(`SPP payment record with ID ${id} not found.`, 'ERR_VALIDATION', 404);
+    }
+
+    // Only allow revert if currently paid or verified
+    if (!['paid', 'verified'].includes(existing.payment_status)) {
+      throw new AppError('Only paid or verified records can be reverted.', 'ERR_VALIDATION', 400);
     }
 
     await db('spp_payments')
@@ -307,3 +320,76 @@ export async function revertPayment(id: string) {
     );
   }
 }
+
+export async function getClassArrears(classId: string) {
+  if (!classId) {
+    throw new AppError('Class ID is required.', 'ERR_VALIDATION', 400);
+  }
+
+  try {
+    const records = await db('spp_payments')
+      .join('students', 'spp_payments.student_id', 'students.id')
+      .join('student_enrollments', function() {
+        this.on('students.id', 'student_enrollments.student_id')
+            .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
+      })
+      .where('student_enrollments.class_id', classId)
+      .whereIn('spp_payments.payment_status', ['unpaid', 'partial'])
+      .whereNot('spp_payments.lifecycle_status', 'soft_deleted')
+      .select(
+        'spp_payments.*',
+        'students.full_name as student_name',
+        'students.nisn as student_nisn'
+      )
+      .orderBy('students.full_name', 'asc')
+      .orderBy('spp_payments.payment_year', 'asc')
+      .orderBy('spp_payments.payment_month', 'asc');
+
+    // Group by student
+    const studentMap: Record<string, {
+      student_id: string;
+      student_name: string;
+      student_nisn: string;
+      total_arrears: number;
+      unpaid_months: Array<{
+        id: string;
+        payment_month: number;
+        payment_year: number;
+        amount_due: number;
+        amount_paid: number;
+      }>;
+    }> = {};
+
+    for (const r of records) {
+      if (!studentMap[r.student_id]) {
+        studentMap[r.student_id] = {
+          student_id: r.student_id,
+          student_name: r.student_name,
+          student_nisn: r.student_nisn,
+          total_arrears: 0,
+          unpaid_months: []
+        };
+      }
+
+      const remaining = Number(r.amount_due) - Number(r.amount_paid);
+      studentMap[r.student_id].total_arrears += remaining;
+      studentMap[r.student_id].unpaid_months.push({
+        id: r.id,
+        payment_month: r.payment_month,
+        payment_year: r.payment_year,
+        amount_due: Number(r.amount_due),
+        amount_paid: Number(r.amount_paid)
+      });
+    }
+
+    return Object.values(studentMap);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error fetching class arrears',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
