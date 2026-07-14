@@ -18,12 +18,13 @@ const ALL_TYPES: Array<{ value: ImportType; label: string }> = [
 ];
 
 function errorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    if (error.code === "ERR_ROW_LIMIT_EXCEEDED") return "Jumlah baris melebihi batas untuk jenis import ini. Kurangi data atau bagi menjadi beberapa file.";
-    if (error.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk melakukan import jenis data ini.";
-    if (error.code === "ERR_PERIOD_LOCKED") return "Sebagian data berada pada periode yang sudah dikunci dan tidak dapat diubah.";
-    if (error.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
-    if (/csv|parse|column|header/i.test(error.message)) return "File CSV tidak dapat dibaca. Gunakan template yang disediakan.";
+  if (error && typeof error === "object" && "code" in error) {
+    const apiErr = error as { code: string; message: string };
+    if (apiErr.code === "ERR_ROW_LIMIT_EXCEEDED") return "Jumlah baris melebihi batas untuk jenis import ini. Kurangi data atau bagi menjadi beberapa file.";
+    if (apiErr.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk melakukan import jenis data ini.";
+    if (apiErr.code === "ERR_PERIOD_LOCKED") return "Sebagian data berada pada periode yang sudah dikunci dan tidak dapat diubah.";
+    if (apiErr.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+    if (/csv|parse|column|header/i.test(apiErr.message || "")) return "File CSV tidak dapat dibaca. Gunakan template yang disediakan.";
   }
   return error instanceof Error ? error.message : "Terjadi kendala saat memproses import. Coba lagi.";
 }

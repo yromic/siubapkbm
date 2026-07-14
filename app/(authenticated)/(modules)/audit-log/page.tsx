@@ -13,10 +13,11 @@ const EMPTY_FILTERS = { q: "", action: "", entity_type: "", date_from: "", date_
 const inputClass = "w-full rounded-[12px] border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#468432] dark:border-zinc-700 dark:bg-[#171717]";
 
 function errorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    if (error.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk mengakses halaman ini.";
-    if (error.code === "ERR_NOT_FOUND") return "Data tidak ditemukan.";
-    if (error.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+  if (error && typeof error === "object" && "code" in error) {
+    const apiErr = error as { code: string };
+    if (apiErr.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk mengakses halaman ini.";
+    if (apiErr.code === "ERR_NOT_FOUND") return "Data tidak ditemukan.";
+    if (apiErr.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
   }
   return "Terjadi kendala saat memuat data.";
 }

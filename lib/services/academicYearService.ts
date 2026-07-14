@@ -274,6 +274,24 @@ export async function setActiveAcademicYear(id: string) {
       });
     });
 
+    // Schedule SPP record generation for all enrolled students in the activated year.
+    // Run in the background so activation is not blocked by SPP generation failures.
+    setImmediate(async () => {
+      try {
+        const { generateSppRecordsForStudent } = await import('@/lib/services/sppService');
+        const enrollments = await db('student_enrollments')
+          .where({ academic_year_id: id, status: 'active' })
+          .whereNot('lifecycle_status', 'soft_deleted')
+          .select('student_id', 'academic_year_id');
+        for (const e of enrollments) {
+          await generateSppRecordsForStudent(e.student_id, e.academic_year_id);
+        }
+        console.log(`[setActiveAcademicYear] Generated SPP records for ${enrollments.length} enrollments in year ${id}`);
+      } catch (err) {
+        console.warn('[setActiveAcademicYear] SPP bulk-generate failed (non-fatal):', err);
+      }
+    });
+
     return await getAcademicYearById(id);
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -284,6 +302,7 @@ export async function setActiveAcademicYear(id: string) {
     );
   }
 }
+
 
 export async function lockAcademicYear(id: string, actorId: string) {
   if (!id || !actorId) {

@@ -28,8 +28,10 @@ export async function loginStaff(
 ): Promise<{ token: string; user: Omit<User, 'password_hash'> }> {
   // Find user by username or email
   const user = await db('users')
-    .where('username', identifier)
-    .orWhere('email', identifier)
+    .where(builder => {
+      builder.where('username', identifier).orWhere('email', identifier);
+    })
+    .whereNot('lifecycle_status', 'soft_deleted')
     .first();
 
   if (!user) {

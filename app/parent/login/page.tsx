@@ -54,7 +54,7 @@ export default function ParentLoginPage() {
     try {
       await login(trimmedNisn, trimmedBirthDate, trimmedPin);
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (err && typeof err === "object" && "code" in err) {
         setError(humanizeError(err));
       } else {
         setError("Gagal terhubung dengan server. Silakan coba lagi.");

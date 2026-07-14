@@ -33,7 +33,7 @@ function formatDate(value: string) {
 }
 
 function coverageErrorMessage(error: unknown) {
-  if (error instanceof ApiError && error.code === "ERR_FORBIDDEN") {
+  if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "ERR_FORBIDDEN") {
     return "Anda tidak memiliki akses ke data budaya kelas ini.";
   }
   return "Data kelengkapan budaya gagal dimuat. Silakan coba lagi.";

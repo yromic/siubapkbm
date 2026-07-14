@@ -36,6 +36,7 @@ export interface ImportPreviewRow {
   changes: ImportChange[];
   warnings: ImportIssue[];
   errors: ImportIssue[];
+  temp_password?: string;
 }
 
 export interface ImportSummary {

@@ -56,7 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshCurrentUser]);
 
   const login = async (identifier: string, password: string) => {
-    setLoading(true);
     try {
       const data = await apiRequest<LoginResponse>("login", { identifier, password });
       setToken("cookie_session");
@@ -65,8 +64,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       clearSession();
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

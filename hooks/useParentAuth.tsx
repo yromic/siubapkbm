@@ -57,7 +57,6 @@ export function ParentAuthProvider({ children }: { children: React.ReactNode }) 
   }, [refreshProfile]);
 
   const login = async (nisn: string, birth_date: string, pin: string) => {
-    setLoading(true);
     try {
       await loginParentApi(nisn, birth_date, pin);
       setToken("cookie_session");
@@ -69,8 +68,6 @@ export function ParentAuthProvider({ children }: { children: React.ReactNode }) 
     } catch (error) {
       clearSession();
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

@@ -1,4 +1,4 @@
-﻿import { db } from '@/lib/db';
+import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 import fs from 'fs';
@@ -387,7 +387,12 @@ async function validateTeacherRows(
       createCount++;
     }
 
-    previewRows.push(makeRowPayload(rowNum, ctx.rowErrors.length > 0 ? 'error' : 'create', email, fullName, ctx));
+    const tempPassword = crypto.createHash('sha256').update(`${importLogId}-${rowNum}`).digest('base64').replace(/[+/=]/g, '').slice(0, 8);
+    const rowPayload = makeRowPayload(rowNum, ctx.rowErrors.length > 0 ? 'error' : 'create', email, fullName, ctx);
+    if (ctx.rowErrors.length === 0) {
+      (rowPayload as any).temp_password = tempPassword;
+    }
+    previewRows.push(rowPayload);
   }
 
   return {
@@ -908,7 +913,7 @@ export async function confirmImportSession(
     successCount = result.successCount;
     errorCount = result.errorCount;
   } else if (normType === 'teacher') {
-    const result = await confirmTeacherRows(rows, validated.preview_rows, confirmErrors, successCount, errorCount, importedIds, processedRows);
+    const result = await confirmTeacherRows(importLogId, rows, validated.preview_rows, confirmErrors, successCount, errorCount, importedIds, processedRows);
     successCount = result.successCount;
     errorCount = result.errorCount;
   } else if (normType === 'class') {
@@ -1029,6 +1034,7 @@ async function confirmStudentRows(
 }
 
 async function confirmTeacherRows(
+  importLogId: string,
   rows: any[],
   previewRows: any[],
   confirmErrors: any[],
@@ -1056,7 +1062,7 @@ async function confirmTeacherRows(
         const gender = rawRow.gender ? normaliseGender(rawRow.gender) : null;
         const status = rawRow.status ? normaliseStatus(rawRow.status) : 'active';
 
-        const tempPassword = crypto.randomBytes(6).toString('base64').replace(/[+/=]/g, '').slice(0, 8);
+        const tempPassword = crypto.createHash('sha256').update(`${importLogId}-${previewRow.row_number}`).digest('base64').replace(/[+/=]/g, '').slice(0, 8);
         const passwordHash = await bcrypt.hash(tempPassword, 10);
 
         const userId = uuidv4();

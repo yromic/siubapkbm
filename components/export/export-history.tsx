@@ -10,13 +10,14 @@ const TYPE_LABELS: Record<string, string> = { students: "Data Siswa", academic: 
 const STATUS_LABELS: Record<string, string> = { completed: "Selesai", failed: "Gagal", archived: "Diarsipkan" };
 
 export function exportErrorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    if (error.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk membuat atau mengunduh export ini.";
-    if (error.code === "ERR_NOT_FOUND") return "Data export tidak ditemukan atau sudah tidak tersedia.";
-    if (error.code === "ERR_INVALID_EXPORT") return "Data export tidak valid.";
-    if (error.code === "ERR_FILE_NOT_FOUND") return "File export sudah tidak tersedia di penyimpanan.";
-    if (error.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
-    if (/lock timeout|database is busy/i.test(error.message)) return "Server sedang sibuk. Coba lagi beberapa saat.";
+  if (error && typeof error === "object" && "code" in error) {
+    const apiErr = error as { code: string; message: string };
+    if (apiErr.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk membuat atau mengunduh export ini.";
+    if (apiErr.code === "ERR_NOT_FOUND") return "Data export tidak ditemukan atau sudah tidak tersedia.";
+    if (apiErr.code === "ERR_INVALID_EXPORT") return "Data export tidak valid.";
+    if (apiErr.code === "ERR_FILE_NOT_FOUND") return "File export sudah tidak tersedia di penyimpanan.";
+    if (apiErr.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+    if (/lock timeout|database is busy/i.test(apiErr.message || "")) return "Server sedang sibuk. Coba lagi beberapa saat.";
   }
   return "Terjadi kendala saat memproses export.";
 }

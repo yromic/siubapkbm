@@ -10,8 +10,11 @@ const TYPE_LABELS: Record<ImportType, string> = { students: "Siswa", teachers: "
 const STATUS_LABELS: Record<ImportLogStatus, string> = { previewed: "Pratinjau", success: "Berhasil", partial_success: "Berhasil sebagian", failed: "Gagal" };
 
 function messageForError(error: unknown) {
-  if (error instanceof ApiError && error.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk melihat atau mengunduh riwayat ini.";
-  if (error instanceof ApiError && error.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+  if (error && typeof error === "object" && "code" in error) {
+    const apiErr = error as { code: string };
+    if (apiErr.code === "ERR_FORBIDDEN") return "Anda tidak memiliki izin untuk melihat atau mengunduh riwayat ini.";
+    if (apiErr.code === "NETWORK_ERROR") return "Tidak dapat terhubung ke server. Periksa koneksi lalu coba lagi.";
+  }
   return "Riwayat import tidak dapat dimuat. Coba lagi.";
 }
 

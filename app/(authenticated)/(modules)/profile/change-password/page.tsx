@@ -84,17 +84,18 @@ export default function ChangePasswordPage() {
       await changeOwnPasswordApi(token, oldPassword, newPassword);
       setSuccess(true);
     } catch (err: unknown) {
-      if (err instanceof ApiError) {
-        if (err.code === "ERR_UNAUTHORIZED") {
+      if (err && typeof err === "object" && "code" in err) {
+        const apiErr = err as { code: string; message: string };
+        if (apiErr.code === "ERR_UNAUTHORIZED") {
           setFormError("Sesi Anda telah berakhir. Silakan login kembali.");
           setTimeout(() => {
             clearSession();
             window.location.href = "/login";
           }, 3000);
-        } else if (err.message.includes("Incorrect current password")) {
+        } else if ((apiErr.message || "").includes("Incorrect current password")) {
           setFormError("Password lama tidak sesuai.");
         } else {
-          setFormError(err.message);
+          setFormError(apiErr.message);
         }
       } else {
         setFormError("Terjadi kesalahan sistem saat mencoba mengubah password. Silakan coba kembali.");

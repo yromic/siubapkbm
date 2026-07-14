@@ -13,7 +13,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export function userFacingError(error: unknown, fallback = UX_COPY.error.default) {
-  if (error instanceof ApiError) return ERROR_MESSAGES[error.code] || fallback;
+  if (error && typeof error === "object" && "code" in error) {
+    return ERROR_MESSAGES[(error as { code: string }).code] || fallback;
+  }
   return fallback;
 }
 
@@ -33,8 +35,9 @@ export function humanizeError(error: unknown): string {
     }
   }
 
-  if (error instanceof ApiError && error.code === "LOCKED") {
-    const lockedUntil = error.details?.locked_until;
+  if (error && typeof error === "object" && "code" in error && (error as { code: string }).code === "LOCKED") {
+    const details = (error as any).details;
+    const lockedUntil = details?.locked_until;
     if (lockedUntil && typeof lockedUntil === "string") {
       try {
         const dateObj = new Date(lockedUntil);
@@ -51,11 +54,12 @@ export function humanizeError(error: unknown): string {
   }
   
   let message = "";
-  if (error instanceof ApiError) {
-    if (ERROR_MESSAGES[error.code]) {
-      return ERROR_MESSAGES[error.code];
+  if (error && typeof error === "object" && "code" in error) {
+    const apiErr = error as { code: string; message: string };
+    if (ERROR_MESSAGES[apiErr.code]) {
+      return ERROR_MESSAGES[apiErr.code];
     }
-    message = error.message;
+    message = apiErr.message;
   } else if (error instanceof Error) {
     message = error.message;
   } else if (typeof error === "string") {

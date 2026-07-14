@@ -60,17 +60,12 @@ export async function listPayments(
   limit = 20
 ) {
   try {
-    const enrollments = await db('student_enrollments')
-      .where('status', 'active')
-      .whereNot('lifecycle_status', 'soft_deleted');
-
-    for (const e of enrollments) {
-      await generateSppRecordsForStudent(e.student_id, e.academic_year_id);
-    }
-
     const query = db('spp_payments')
       .join('students', 'spp_payments.student_id', 'students.id')
-      .leftJoin('student_enrollments', 'students.id', 'student_enrollments.student_id')
+      .leftJoin('student_enrollments', function() {
+        this.on('students.id', 'student_enrollments.student_id')
+            .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
+      })
       .whereNot('spp_payments.lifecycle_status', 'soft_deleted');
 
     if (filters.student_id) {
@@ -204,7 +199,7 @@ export async function verifyPayment(
         await trx('spp_payments')
           .where('id', r.id)
           .update({
-            payment_status: 'verified',
+            payment_status: 'paid',
             amount_paid: r.amount_due, // fully paid
             payment_method: input.payment_method,
             notes: input.notes || null,
@@ -215,7 +210,7 @@ export async function verifyPayment(
 
         results.push({
           ...r,
-          payment_status: 'verified',
+          payment_status: 'paid',
           amount_paid: r.amount_due,
           payment_method: input.payment_method,
           notes: input.notes || null,

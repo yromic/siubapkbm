@@ -38,8 +38,19 @@ export default function LoginPage() {
     try {
       await login(trimmedIdentifier, trimmedPassword);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
+      if (err && typeof err === "object" && "code" in err) {
+        const apiErr = err as { code: string; message: string };
+        if (apiErr.code === "ERR_INVALID_CREDENTIALS") {
+          setError("Email atau password salah");
+        } else if (apiErr.code === "ERR_ACCOUNT_LOCKED") {
+          const match = (apiErr.message || "").match(/\d+/);
+          const minutes = match ? match[0] : "15";
+          setError(`Akun terkunci, coba lagi dalam ${minutes} menit`);
+        } else if (apiErr.code === "ERR_INACTIVE_ACCOUNT") {
+          setError("Akun tidak aktif, hubungi administrator");
+        } else {
+          setError(apiErr.message);
+        }
       } else {
         setError("Terjadi kesalahan sistem saat mencoba login. Coba lagi.");
       }

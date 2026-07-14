@@ -7,7 +7,7 @@ import { AppError } from '@/lib/errors';
 
 export async function POST(req: NextRequest) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator'], req, async () => {
+    return withRole(['administrator', 'operator'], req, async () => {
       try {
         const actorId = (req as any).user?.id;
         if (!actorId) {

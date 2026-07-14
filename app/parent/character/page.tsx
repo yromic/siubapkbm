@@ -28,7 +28,7 @@ export default function ParentCharacterPage() {
         setData(response);
       } catch (err) {
         console.error("Failed to load character summary data:", err);
-        if (err instanceof ApiError && err.code === "ERR_UNAUTHORIZED") {
+        if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ERR_UNAUTHORIZED") {
           clearSession();
         } else {
           setError(UX_COPY.error.default);

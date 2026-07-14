@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
+import { generateSppRecordsForStudent } from '@/lib/services/sppService';
 
 export interface EnrollmentFilters {
   student_id?: string;
@@ -104,8 +105,9 @@ export async function createEnrollment(input: EnrollmentInput) {
     throw new AppError('Missing required fields: student_id, class_id, academic_year_id, and semester_id are required.', 'ERR_VALIDATION', 400);
   }
 
+  let newEnrollmentId: string | undefined;
   try {
-    return await db.transaction(async (trx) => {
+    const result = await db.transaction(async (trx) => {
       // Validate relations
       const student = await trx('students').where('id', input.student_id).whereNot('status', 'soft_deleted').first();
       if (!student) throw new AppError('Student not found or deleted.', 'ERR_VALIDATION', 400);
@@ -150,6 +152,18 @@ export async function createEnrollment(input: EnrollmentInput) {
       await trx('student_enrollments').insert(newItem);
       return newItem;
     });
+
+    newEnrollmentId = result.id;
+
+    // After transaction is committed, generate SPP records for this academic year.
+    // Done outside the transaction so a generate failure doesn't roll back the enrollment.
+    try {
+      await generateSppRecordsForStudent(input.student_id, input.academic_year_id);
+    } catch (sppErr) {
+      console.warn('[createEnrollment] SPP generation failed (non-fatal):', sppErr);
+    }
+
+    return result;
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(

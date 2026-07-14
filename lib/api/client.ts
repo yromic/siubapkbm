@@ -79,7 +79,7 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'publish_academic_assessment':   { method: 'POST', path: '/api/v1/academic-assessments/:id/publish', idField: 'id' },
   'list_academic_scores_by_assessment': { method: 'GET', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
   'save_academic_scores':          { method: 'POST', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
-  'get_class_academic_summary':    { method: 'GET',  path: '/api/v1/students/:id/academic-summary', idField: 'student_id' },
+  'get_class_academic_summary':    { method: 'GET',  path: '/api/v1/students/:id/academic-summary', idField: 'class_id' },
   'calculate_academic_completeness': { method: 'GET', path: '/api/v1/completeness/academic' },
   'list_my_class_subjects':        { method: 'GET',  path: '/api/v1/class-subjects/my' },
 
@@ -104,7 +104,8 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'list_spp_payments':             { method: 'GET',  path: '/api/v1/finance/spp' },
   'verify_spp_payment':            { method: 'POST', path: '/api/v1/finance/spp/verify' },
   'verify_bulk_spp_payments':      { method: 'POST', path: '/api/v1/finance/spp/verify-bulk' },
-  'spp_revert_payment':            { method: 'POST', path: '/api/v1/finance/spp/:id/revert', idField: 'id' },
+  'spp_revert_payment':            { method: 'POST', path: '/api/v1/finance/spp/:id/revert', idField: 'payment_id' },
+  'generate_spp_records':          { method: 'POST', path: '/api/v1/finance/spp/generate' },
 
   // Parent Portal
   'parent_login':                  { method: 'POST', path: '/api/v1/parent/login' },
@@ -236,7 +237,7 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'create_class_report_snapshot':   { method: 'POST', path: '/api/v1/snapshots/classes/:id', idField: 'class_id' },
   'get_report_snapshot':            { method: 'GET',  path: '/api/v1/snapshots' },
   'list_report_exports':            { method: 'GET',  path: '/api/v1/exports' },
-  'download_report_export':         { method: 'GET',  path: '/api/v1/exports/:id/download', idField: 'id' },
+  'download_report_export':         { method: 'GET',  path: '/api/v1/exports/:id/download', idField: 'export_id' },
 
   // Parent additional
   'parent_verify_access':           { method: 'POST', path: '/api/v1/parent/verify' },
@@ -292,14 +293,14 @@ export async function apiRequest<T>(
     for (const item of sppList) {
       const key = `${item.payment_year ?? "?"}-${String(item.payment_month ?? "?").padStart(2, "0")}`;
       if (!sppByMonth[key]) sppByMonth[key] = { Lunas: 0, Belum: 0 };
-      if (item.payment_status === "paid" || item.payment_status === "verified") sppByMonth[key].Lunas++;
+      if (item.payment_status === "paid") sppByMonth[key].Lunas++;
       else sppByMonth[key].Belum++;
     }
     const sppChartData = Object.entries(sppByMonth).slice(-6).map(([name, v]) => ({ name, ...v }));
 
     // SPP completion rate
     const totalSpp = sppList.length;
-    const paidSpp  = sppList.filter((s: any) => s.payment_status === "paid" || s.payment_status === "verified").length;
+    const paidSpp  = sppList.filter((s: any) => s.payment_status === "paid").length;
     const sppCompletionRate = totalSpp > 0 ? Math.round((paidSpp / totalSpp) * 100) : 0;
     const unpaidSppPercent  = totalSpp > 0 ? Math.round(((totalSpp - paidSpp) / totalSpp) * 100) : 0;
 
@@ -539,7 +540,7 @@ export async function apiRequest<T>(
       // Ignore
     }
 
-    if (response.status === 401) {
+    if (response.status === 401 && errorCode === "ERR_HTTP_ERROR") {
       errorCode = "ERR_UNAUTHORIZED";
     }
 

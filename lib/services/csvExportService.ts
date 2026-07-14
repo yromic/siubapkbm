@@ -64,7 +64,7 @@ async function saveExport(params: {
     generated_by: params.actorId,
     generated_at: new Date(),
     status: 'completed',
-    file_id: exportId,
+    file_path: filePath,
     file_name: params.fileName,
     mime_type: 'text/csv',
     file_size: stats.size,
@@ -136,6 +136,16 @@ export async function exportStudentsCsvService(params: {
       if (params.semesterId) query.where('student_enrollments.semester_id', params.semesterId);
     }
 
+    let resolvedAcademicYearId = params.academicYearId;
+    let resolvedSemesterId = params.semesterId;
+
+    if (!resolvedAcademicYearId || !resolvedSemesterId) {
+      const activeYear = await db('academic_years').where('is_active', 1).first();
+      const activeSem = await db('semesters').where('is_active', 1).first();
+      if (!resolvedAcademicYearId && activeYear) resolvedAcademicYearId = activeYear.id;
+      if (!resolvedSemesterId && activeSem) resolvedSemesterId = activeSem.id;
+    }
+
     const students = await query;
 
     const headers = ['ID', 'NISN', 'Nama Lengkap', 'Tempat Lahir', 'Tanggal Lahir', 'Jenis Kelamin', 'Agama', 'Status'];
@@ -159,8 +169,8 @@ export async function exportStudentsCsvService(params: {
       reportType: 'students',
       actorId: params.actorId,
       classId: params.classId,
-      academicYearId: params.academicYearId,
-      semesterId: params.semesterId,
+      academicYearId: resolvedAcademicYearId,
+      semesterId: resolvedSemesterId,
       totalRows: students.length,
     });
   } catch (error) {

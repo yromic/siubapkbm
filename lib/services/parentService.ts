@@ -257,21 +257,59 @@ export async function getParentCharacterSummary(studentId: string, academicYearI
 export async function getParentSppStatus(studentId: string) {
   const enrollments = await db('student_enrollments')
     .where({ student_id: studentId })
-    .whereNot('lifecycle_status', 'soft_deleted');
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .orderBy('created_at', 'desc');
 
   if (enrollments.length === 0) {
-    return { message: 'No enrollment found.', payments: [] };
+    return { current_bill: null, arrears: [], total_arrears_amount: 0, history: [] };
   }
 
-  const latestEnrollment = enrollments[enrollments.length - 1];
-  const payments = await db('spp_payments')
+  const latestEnrollment = enrollments[0];
+  const rawPayments = await db('spp_payments')
     .where({ student_id: studentId, academic_year_id: latestEnrollment.academic_year_id })
     .whereNot('lifecycle_status', 'soft_deleted')
     .orderBy('payment_year', 'asc')
     .orderBy('payment_month', 'asc');
 
-  return { payments };
+  // Map DB column names to SppPayment interface field names
+  const payments = rawPayments.map((p: any) => ({
+    ...p,
+    month: p.payment_month,
+    year: p.payment_year,
+  }));
+
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  const unpaidPayments = payments.filter((p: any) => p.payment_status !== 'paid');
+
+  // current_bill: the unpaid record for the current calendar month, or the oldest unpaid
+  let current_bill: any = unpaidPayments.find(
+    (p: any) => p.payment_month === currentMonth && p.payment_year === currentYear
+  ) || unpaidPayments[0] || null;
+
+  // arrears: all unpaid records BEFORE the current bill
+  const arrears = current_bill
+    ? unpaidPayments.filter((p: any) => p.id !== current_bill.id &&
+        (p.payment_year < current_bill.payment_year ||
+          (p.payment_year === current_bill.payment_year && p.payment_month < current_bill.payment_month)))
+    : [];
+
+  const total_arrears_amount = arrears.reduce(
+    (sum: number, p: any) => sum + (Number(p.amount_due) - Number(p.amount_paid)),
+    0
+  );
+
+  // history: all payments (paid + unpaid) for display
+  return {
+    current_bill,
+    arrears,
+    total_arrears_amount,
+    history: payments,
+  };
 }
+
 
 export async function getParentAvailablePeriods(studentId: string) {
   const enrollments = await db('student_enrollments')

@@ -165,8 +165,8 @@ export function StudentFilesPanel({
       }
       notify.success("Dokumen berhasil dibuka.");
     } catch (err) {
-      const fallback =
-        err instanceof ApiError && err.code === "ERR_FORBIDDEN"
+      const isForbidden = err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ERR_FORBIDDEN";
+      const fallback = isForbidden
           ? "Anda tidak memiliki izin untuk membuka dokumen ini."
           : "Gagal membuka dokumen.";
       const msg = err instanceof Error ? err.message || fallback : fallback;

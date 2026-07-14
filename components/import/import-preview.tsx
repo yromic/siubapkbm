@@ -34,6 +34,14 @@ function RowCard({ row }: { row: ImportPreviewRow }) {
           <p className="text-xs font-medium text-zinc-500">Baris {row.row_number}</p>
           <h3 className="truncate font-semibold text-zinc-900 dark:text-zinc-100">{row.display_name || row.identifier || "Data tanpa identitas"}</h3>
           {row.identifier && <p className="truncate text-xs text-zinc-500">{row.identifier}</p>}
+          {row.temp_password && (
+            <div className="mt-2 flex items-center gap-1.5 text-xs text-zinc-650 dark:text-zinc-350">
+              <span className="font-semibold text-zinc-550 dark:text-zinc-450">Password Sementara:</span>
+              <code className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono font-bold text-emerald-700 dark:bg-zinc-800 dark:text-emerald-400 select-all">
+                {row.temp_password}
+              </code>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 text-xs font-semibold">
           <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">{operationLabels[row.operation]}</span>
