@@ -53,7 +53,8 @@ export async function listTeacherProfiles(
     await ensureAllTeacherProfilesExist();
     const query = db('teacher_profiles')
       .join('users', 'teacher_profiles.user_id', 'users.id')
-      .whereNot('teacher_profiles.lifecycle_status', 'soft_deleted');
+      .whereNot('teacher_profiles.lifecycle_status', 'soft_deleted')
+      .whereNot('users.lifecycle_status', 'soft_deleted');
 
     if (filters.search) {
       const searchPattern = `%${filters.search}%`;

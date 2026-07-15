@@ -13,6 +13,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         const { id } = await params;
         const file = await getStudentFileById(id);
 
+        const userRole = (req as any).user?.role;
+        if (userRole === 'teacher' && (file.file_type === 'kk' || file.file_type === 'akta')) {
+          return errorResponse('Insufficient permissions to access sensitive documents.', 'ERR_FORBIDDEN', 403);
+        }
+
         const buffer = fs.readFileSync(file.file_path);
         return new NextResponse(buffer, {
           status: 200,

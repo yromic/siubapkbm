@@ -43,6 +43,8 @@ CREATE TABLE `users` (
   `archived_by` CHAR(36) NULL,
   `suspended_at` DATETIME NULL,
   `suspended_by` CHAR(36) NULL,
+  `deleted_at` DATETIME NULL,
+  `deleted_by` CHAR(36) NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_user_email` (`email`),
   UNIQUE KEY `uq_user_username` (`username`),
@@ -70,6 +72,8 @@ CREATE TABLE `teacher_profiles` (
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `archived_at` DATETIME NULL,
   `archived_by` CHAR(36) NULL,
+  `deleted_at` DATETIME NULL,
+  `deleted_by` CHAR(36) NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_teacher_user` (`user_id`),
   CONSTRAINT `fk_teacher_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
@@ -157,6 +161,8 @@ CREATE TABLE `classes` (
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `archived_at` DATETIME NULL,
   `archived_by` CHAR(36) NULL,
+  `deleted_at` DATETIME NULL,
+  `deleted_by` CHAR(36) NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_class_code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -176,6 +182,8 @@ CREATE TABLE `subjects` (
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `archived_at` DATETIME NULL,
   `archived_by` CHAR(36) NULL,
+  `deleted_at` DATETIME NULL,
+  `deleted_by` CHAR(36) NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_subject_code` (`code`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -218,6 +226,10 @@ CREATE TABLE `class_teacher_assignments` (
   `lifecycle_status` ENUM('active', 'inactive', 'archived', 'soft_deleted') NOT NULL DEFAULT 'active',
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `archived_at` DATETIME NULL,
+  `archived_by` CHAR(36) NULL,
+  `deleted_at` DATETIME NULL,
+  `deleted_by` CHAR(36) NULL,
   PRIMARY KEY (`id`),
   INDEX `idx_class_teacher_lookup` (`teacher_user_id`, `academic_year_id`, `semester_id`),
   CONSTRAINT `fk_assignment_class` FOREIGN KEY (`class_id`) REFERENCES `classes` (`id`) ON DELETE CASCADE,

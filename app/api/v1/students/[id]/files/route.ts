@@ -10,7 +10,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
-        const files = await listStudentFiles(id);
+        let files = await listStudentFiles(id);
+        const userRole = (req as any).user?.role;
+        if (userRole === 'teacher') {
+          files = files.filter((f: any) => f.file_type === 'foto' || f.file_type === 'pas_foto');
+        }
         return successResponse(files, 'Student files retrieved.');
       } catch (error) {
         if (error instanceof AppError) return errorResponse(error.message, error.code, error.statusCode);

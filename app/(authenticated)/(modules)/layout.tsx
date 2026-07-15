@@ -337,8 +337,8 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                             key={item.name}
                             href={item.href}
                             className={`flex items-center gap-3 px-3 py-2 rounded-[12px] text-sm font-medium transition-all ${active
-                                ? "bg-emerald-50/60 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-950/20"
-                                : "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#262626] hover:text-zinc-900 dark:hover:text-zinc-200"
+                              ? "bg-emerald-50/60 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-950/20"
+                              : "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#262626] hover:text-zinc-900 dark:hover:text-zinc-200"
                               }`}
                           >
                             <span className={active ? "text-[#468432] dark:text-emerald-400" : "text-zinc-400"}>
@@ -443,8 +443,8 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                                 href={item.href}
                                 onClick={() => setSidebarOpen(false)}
                                 className={`flex items-center gap-3 px-3 py-2 rounded-[12px] text-sm font-medium transition-all ${active
-                                    ? "bg-emerald-50/60 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-950/20"
-                                    : "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#262626] hover:text-zinc-900 dark:hover:text-zinc-200"
+                                  ? "bg-emerald-50/60 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-950/20"
+                                  : "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#262626] hover:text-zinc-900 dark:hover:text-zinc-200"
                                   }`}
                               >
                                 <span className={active ? "text-[#468432] dark:text-emerald-400" : "text-zinc-400"}>

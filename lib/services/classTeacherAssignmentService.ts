@@ -96,19 +96,34 @@ export async function createAssignment(input: AssignmentInput) {
     const semesterItem = await db('semesters').where('id', input.semester_id).whereNot('lifecycle_status', 'soft_deleted').first();
     if (!semesterItem) throw new AppError('Semester not found or deleted.', 'ERR_VALIDATION', 400);
 
+    // Validate that the target class doesn't already have an active class teacher for the specified period/semester
+    const activeHomeroom = await db('class_teacher_assignments')
+      .where({
+        class_id: input.class_id,
+        semester_id: input.semester_id,
+        status: 'active',
+        lifecycle_status: 'active'
+      })
+      .first();
+
+    if (activeHomeroom) {
+      throw new AppError('Kelas ini sudah memiliki wali kelas aktif untuk semester terpilih.', 'ERR_VALIDATION', 400);
+    }
+
     // Validate unique active assignment for teacher-class-period
     const existing = await db('class_teacher_assignments')
       .where({
         class_id: input.class_id,
         teacher_user_id: input.teacher_user_id,
         academic_year_id: input.academic_year_id,
-        semester_id: input.semester_id
+        semester_id: input.semester_id,
+        status: 'active'
       })
       .whereNot('lifecycle_status', 'soft_deleted')
       .first();
 
     if (existing) {
-      throw new AppError('Teacher is already assigned to this class for the specified period.', 'ERR_VALIDATION', 400);
+      throw new AppError('Guru tersebut sudah aktif ditugaskan di kelas ini untuk periode yang sama.', 'ERR_VALIDATION', 400);
     }
 
     const id = uuidv4();

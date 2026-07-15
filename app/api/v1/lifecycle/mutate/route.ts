@@ -129,10 +129,67 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        await (db as any)(tableName).where('id', id).update(patch);
+        // Check if teacher has active homeroom assignments before soft delete
+        let hasActiveAssignments = false;
+        if (entity_type === 'user' && status === 'soft_deleted' && entity.role === 'teacher') {
+          const activeAssignment = await db('class_teacher_assignments')
+            .where({
+              teacher_user_id: id,
+              status: 'active'
+            })
+            .whereNot('lifecycle_status', 'soft_deleted')
+            .first();
+          if (activeAssignment) {
+            hasActiveAssignments = true;
+          }
+        }
 
-        const updated = await (db as any)(tableName).where('id', id).first();
-        return successResponse(updated, `${entity_type} status updated to ${status}.`);
+        await db.transaction(async (trx) => {
+          await trx(tableName).where('id', id).update(patch);
+
+          if (entity_type === 'user' && entity.role === 'teacher') {
+            if (status === 'soft_deleted') {
+              await trx('teacher_profiles')
+                .where('user_id', id)
+                .update({
+                  lifecycle_status: 'soft_deleted',
+                  deleted_at: patch.deleted_at,
+                  deleted_by: patch.deleted_by,
+                  updated_at: new Date()
+                });
+
+              // Terminate all active assignments for the soft deleted teacher
+              await trx('class_teacher_assignments')
+                .where({
+                  teacher_user_id: id,
+                  status: 'active'
+                })
+                .whereNot('lifecycle_status', 'soft_deleted')
+                .update({
+                  status: 'inactive',
+                  lifecycle_status: 'inactive',
+                  effective_until: new Date(),
+                  updated_at: new Date()
+                });
+            } else if (status === 'active') {
+              await trx('teacher_profiles')
+                .where('user_id', id)
+                .update({
+                  lifecycle_status: 'active',
+                  deleted_at: null,
+                  deleted_by: null,
+                  updated_at: new Date()
+                });
+            }
+          }
+        });
+
+        const updated = await db(tableName).where('id', id).first();
+        let message = `${entity_type} status updated to ${status}.`;
+        if (hasActiveAssignments) {
+          message += ` Warning: Penugasan wali kelas aktif guru ini otomatis diakhiri karena akun guru dihapus.`;
+        }
+        return successResponse(updated, message);
       } catch (error) {
         if (error instanceof AppError) return errorResponse(error.message, error.code, error.statusCode);
         return errorResponse(error instanceof Error ? error.message : 'Error', 'ERR_INTERNAL', 500);
