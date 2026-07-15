@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/api/client";
 import {
@@ -212,7 +213,12 @@ export default function PromotionPage() {
     : ["total", "promoted", "repeated", "graduated", "transferred", "inactive", "left", "unresolved"];
 
   return <ResponsiveContainer className="space-y-6">
-    <PageHeader title="Panduan Kenaikan Kelas" description="Pratinjau, tindakan manual, dan pelaksanaan kenaikan kelas tahunan siswa." />
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <PageHeader title="Panduan Kenaikan Kelas" description="Pratinjau, tindakan manual, dan pelaksanaan kenaikan kelas tahunan siswa." />
+      <Link href="/settings/promotion-history" className="inline-flex items-center justify-center rounded-[12px] bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 px-4 py-2.5 text-sm font-semibold transition">
+        Lihat Riwayat Kenaikan Kelas
+      </Link>
+    </div>
 
     <section className="rounded-[20px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#171717]">
       <h2 className="mb-4 text-lg font-bold">1. Pilih Periode</h2>

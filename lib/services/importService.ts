@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
+import { validateUserIdentifiers } from './userService';
 import fs from 'fs';
 import path from 'path';
 import Papa from 'papaparse';
@@ -359,9 +360,14 @@ async function validateTeacherRows(
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       ctx.rowErrors.push({ row_number: rowNum, field: 'email', message: `Format email tidak valid`, severity: 'error' });
     } else {
-      const existing = await db('users').where('email', email).whereNot('lifecycle_status', 'soft_deleted').first();
-      if (existing) {
-        ctx.rowErrors.push({ row_number: rowNum, field: 'email', message: `Email sudah terdaftar`, severity: 'error' });
+      try {
+        await validateUserIdentifiers(email);
+      } catch (err) {
+        if (err instanceof AppError) {
+          ctx.rowErrors.push({ row_number: rowNum, field: 'email', message: err.message, severity: 'error' });
+        } else {
+          ctx.rowErrors.push({ row_number: rowNum, field: 'email', message: 'Gagal memvalidasi email', severity: 'error' });
+        }
       }
     }
 

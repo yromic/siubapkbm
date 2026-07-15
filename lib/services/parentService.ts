@@ -226,7 +226,17 @@ export async function getParentAcademicSummary(studentId: string, academicYearId
     throw new AppError('No active enrollment found.', 'ERR_VALIDATION', 400);
   }
 
-  return await getStudentAcademicSummary(studentId, yearId, semId);
+  // Validate student is actually enrolled in requested period
+  const validEnrollment = await db('student_enrollments')
+    .where({ student_id: studentId, academic_year_id: yearId, semester_id: semId })
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .first();
+
+  if (!validEnrollment) {
+    throw new AppError('Unauthorized: Student is not enrolled in the requested period.', 'ERR_VALIDATION', 403);
+  }
+
+  return await getStudentAcademicSummary(studentId, yearId, semId, true);
 }
 
 export async function getParentCharacterSummary(studentId: string, academicYearId?: string, semesterId?: string) {
@@ -245,6 +255,16 @@ export async function getParentCharacterSummary(studentId: string, academicYearI
 
   if (!yearId || !semId) {
     throw new AppError('No active enrollment found.', 'ERR_VALIDATION', 400);
+  }
+
+  // Validate student is actually enrolled in requested period
+  const validEnrollment = await db('student_enrollments')
+    .where({ student_id: studentId, academic_year_id: yearId, semester_id: semId })
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .first();
+
+  if (!validEnrollment) {
+    throw new AppError('Unauthorized: Student is not enrolled in the requested period.', 'ERR_VALIDATION', 403);
   }
 
   try {

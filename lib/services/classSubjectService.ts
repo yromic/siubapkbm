@@ -129,7 +129,7 @@ export async function assignSubjectToClass(input: ClassSubjectInput) {
   }
 }
 
-export async function unassignSubjectFromClass(id: string) {
+export async function unassignSubjectFromClass(id: string, actorId?: string) {
   if (!id) {
     throw new AppError('Assignment ID is required.', 'ERR_VALIDATION', 400);
   }
@@ -146,7 +146,9 @@ export async function unassignSubjectFromClass(id: string) {
 
     await db('class_subjects').where('id', id).update({
       status: 'inactive',
-      lifecycle_status: 'inactive', // Soft delete / deactivate
+      lifecycle_status: 'soft_deleted',
+      deleted_at: new Date(),
+      deleted_by: actorId || null,
       updated_at: new Date()
     });
   } catch (error) {
@@ -158,3 +160,79 @@ export async function unassignSubjectFromClass(id: string) {
     );
   }
 }
+
+export interface ClassSubjectUpdateInput {
+  academic_year_id?: string;
+  semester_id?: string;
+  status?: string;
+}
+
+export async function updateClassSubject(id: string, input: ClassSubjectUpdateInput) {
+  if (!id) {
+    throw new AppError('Assignment ID is required.', 'ERR_VALIDATION', 400);
+  }
+
+  try {
+    const existing = await db('class_subjects')
+      .where('id', id)
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .first();
+
+    if (!existing) {
+      throw new AppError(`Class subject assignment with ID ${id} not found.`, 'ERR_VALIDATION', 404);
+    }
+
+    const updatedYearId = input.academic_year_id || existing.academic_year_id;
+    const updatedSemesterId = input.semester_id || existing.semester_id;
+
+    // Check if new combination conflicts with another active assignment
+    const conflict = await db('class_subjects')
+      .where({
+        class_id: existing.class_id,
+        subject_id: existing.subject_id,
+        academic_year_id: updatedYearId,
+        semester_id: updatedSemesterId
+      })
+      .whereNot('id', id)
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .first();
+
+    if (conflict) {
+      throw new AppError('Subject is already assigned to this class for the specified period.', 'ERR_VALIDATION', 400);
+    }
+
+    const patch: any = {
+      updated_at: new Date()
+    };
+
+    if (input.academic_year_id !== undefined) {
+      const yearItem = await db('academic_years').where('id', input.academic_year_id).whereNot('lifecycle_status', 'soft_deleted').first();
+      if (!yearItem) throw new AppError('Academic Year not found or deleted.', 'ERR_VALIDATION', 400);
+      patch.academic_year_id = input.academic_year_id;
+    }
+
+    if (input.semester_id !== undefined) {
+      const semesterItem = await db('semesters').where('id', input.semester_id).whereNot('lifecycle_status', 'soft_deleted').first();
+      if (!semesterItem) throw new AppError('Semester not found or deleted.', 'ERR_VALIDATION', 400);
+      patch.semester_id = input.semester_id;
+    }
+
+    if (input.status !== undefined) {
+      patch.status = input.status;
+    }
+
+    await db('class_subjects').where('id', id).update(patch);
+    
+    return await db('class_subjects')
+      .where('id', id)
+      .first();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error updating class subject assignment',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+

@@ -3,10 +3,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 import { getAssessmentById, assertNotLocked } from './assessmentService';
 import { Decimal } from 'decimal.js';
+import { createAuditLog } from './auditService';
 
 export interface ScoreInput {
   student_id: string;
-  score: number;
+  score: number | null | "" | undefined;
   note?: string;
 }
 
@@ -52,21 +53,27 @@ export async function saveScores(assessmentId: string, scores: ScoreInput[], act
 
     // 2. Validate all student enrollments and scores bounds before starting transaction
     for (const item of scores) {
-      if (!item.student_id || item.score === undefined) {
-        throw new AppError('Missing student_id or score in input array.', 'ERR_VALIDATION', 400);
+      if (!item.student_id) {
+        throw new AppError('Missing student_id in input array.', 'ERR_VALIDATION', 400);
       }
 
-      const scoreNum = Number(item.score);
-      if (isNaN(scoreNum)) {
-        throw new AppError('Score must be a valid number.', 'ERR_VALIDATION', 400);
-      }
+      const isEmpty = item.score === undefined || item.score === null || item.score === '';
+      let scoreVal: number | null = null;
 
-      if (scoreNum < assessment.score_min || scoreNum > assessment.score_max) {
-        throw new AppError(
-          `Score ${scoreNum} is out of bounds for assessment limits [${assessment.score_min} - ${assessment.score_max}].`,
-          'ERR_VALIDATION',
-          400
-        );
+      if (!isEmpty) {
+        const scoreNum = Number(item.score);
+        if (isNaN(scoreNum)) {
+          throw new AppError('Score must be a valid number.', 'ERR_VALIDATION', 400);
+        }
+
+        if (scoreNum < assessment.score_min || scoreNum > assessment.score_max) {
+          throw new AppError(
+            `Score ${scoreNum} is out of bounds for assessment limits [${assessment.score_min} - ${assessment.score_max}].`,
+            'ERR_VALIDATION',
+            400
+          );
+        }
+        scoreVal = scoreNum;
       }
 
       // Check active enrollment in same semester
@@ -90,7 +97,7 @@ export async function saveScores(assessmentId: string, scores: ScoreInput[], act
       processedScores.push({
         student_id: item.student_id,
         enrollment_id: enrollment.id,
-        score: scoreNum,
+        score: scoreVal,
         note: item.note || null
       });
     }
@@ -136,6 +143,24 @@ export async function saveScores(assessmentId: string, scores: ScoreInput[], act
       }
     });
 
+    // 4. Audit Log
+    const actor = actorId ? await db('users').where('id', actorId).first() : null;
+    for (const item of processedScores) {
+      await createAuditLog({
+        user_id: actorId,
+        user_name: actor ? actor.name : null,
+        user_role: actor ? actor.role : null,
+        action: 'score_saved',
+        entity_type: 'academic_score',
+        new_value: {
+          assessment_id: assessmentId,
+          student_id: item.student_id,
+          score: item.score
+        },
+        description: `Saved academic score for student ${item.student_id} in assessment ${assessmentId}`
+      });
+    }
+
     return results;
   } catch (error) {
     if (error instanceof AppError) throw error;
@@ -147,14 +172,9 @@ export async function saveScores(assessmentId: string, scores: ScoreInput[], act
   }
 }
 
-export async function updateScore(id: string, score: number, note?: string) {
-  if (!id || score === undefined) {
-    throw new AppError('Score ID and score value are required.', 'ERR_VALIDATION', 400);
-  }
-
-  const scoreNum = Number(score);
-  if (isNaN(scoreNum)) {
-    throw new AppError('Score must be a valid number.', 'ERR_VALIDATION', 400);
+export async function updateScore(id: string, score: number | null | "" | undefined, note?: string, actorId?: string) {
+  if (!id) {
+    throw new AppError('Score ID is required.', 'ERR_VALIDATION', 400);
   }
 
   try {
@@ -167,23 +187,47 @@ export async function updateScore(id: string, score: number, note?: string) {
       throw new AppError(`Academic Score with ID ${id} not found.`, 'ERR_VALIDATION', 404);
     }
 
+    // Reuse assertNotLocked instead of manual lock check
+    await assertNotLocked(existing.assessment_id);
     const assessment = await getAssessmentById(existing.assessment_id);
-    if (assessment.status === 'locked') {
-      throw new AppError('Cannot update score. The assessment is locked.', 'ERR_VALIDATION', 400);
+
+    const isEmpty = score === undefined || score === null || score === '';
+    let scoreVal: number | null = null;
+
+    if (!isEmpty) {
+      const scoreNum = Number(score);
+      if (isNaN(scoreNum)) {
+        throw new AppError('Score must be a valid number.', 'ERR_VALIDATION', 400);
+      }
+
+      if (scoreNum < assessment.score_min || scoreNum > assessment.score_max) {
+        throw new AppError(
+          `Score ${scoreNum} is out of bounds for assessment limits [${assessment.score_min} - ${assessment.score_max}].`,
+          'ERR_VALIDATION',
+          400
+        );
+      }
+      scoreVal = scoreNum;
     }
 
-    if (scoreNum < assessment.score_min || scoreNum > assessment.score_max) {
-      throw new AppError(
-        `Score ${scoreNum} is out of bounds for assessment limits [${assessment.score_min} - ${assessment.score_max}].`,
-        'ERR_VALIDATION',
-        400
-      );
-    }
-
-    const patch: any = { score: scoreNum, updated_at: new Date() };
+    const patch: any = { score: scoreVal, updated_at: new Date() };
     if (note !== undefined) patch.note = note || null;
 
     await db('academic_scores').where('id', id).update(patch);
+
+    // Audit Log
+    const actor = actorId ? await db('users').where('id', actorId).first() : null;
+    await createAuditLog({
+      user_id: actorId || null,
+      user_name: actor ? actor.name : null,
+      user_role: actor ? actor.role : null,
+      action: 'score_updated',
+      entity_type: 'academic_score',
+      entity_id: id,
+      old_value: { score: existing.score, note: existing.note },
+      new_value: { score: scoreVal, note: note !== undefined ? note : existing.note },
+      description: `Updated academic score ID ${id}`
+    });
     
     return { ...existing, ...patch };
   } catch (error) {
@@ -196,7 +240,7 @@ export async function updateScore(id: string, score: number, note?: string) {
   }
 }
 
-export async function getStudentAcademicSummary(studentId: string, academicYearId: string, semesterId: string) {
+export async function getStudentAcademicSummary(studentId: string, academicYearId: string, semesterId: string, onlyPublishedAndLocked = false) {
   if (!studentId || !academicYearId || !semesterId) {
     throw new AppError('Student ID, Academic Year ID, and Semester ID are required.', 'ERR_VALIDATION', 400);
   }
@@ -206,25 +250,30 @@ export async function getStudentAcademicSummary(studentId: string, academicYearI
     const student = await db('students').where('id', studentId).whereNot('status', 'soft_deleted').first();
     if (!student) throw new AppError('Student not found.', 'ERR_VALIDATION', 404);
 
-    const scores = await db('academic_scores')
+    const query = db('academic_scores')
       .join('academic_assessments', 'academic_scores.assessment_id', 'academic_assessments.id')
       .join('subjects', 'academic_assessments.subject_id', 'subjects.id')
       .where('academic_scores.student_id', studentId)
       .where('academic_assessments.academic_year_id', academicYearId)
       .where('academic_assessments.semester_id', semesterId)
       .whereNot('academic_scores.lifecycle_status', 'soft_deleted')
-      .whereNot('academic_assessments.lifecycle_status', 'soft_deleted')
-      .select(
-        'academic_scores.score',
-        'academic_scores.note',
-        'academic_assessments.id as assessment_id',
-        'academic_assessments.title as assessment_title',
-        'academic_assessments.score_min',
-        'academic_assessments.score_max',
-        'subjects.id as subject_id',
-        'subjects.name as subject_name',
-        'subjects.code as subject_code'
-      );
+      .whereNot('academic_assessments.lifecycle_status', 'soft_deleted');
+
+    if (onlyPublishedAndLocked) {
+      query.whereIn('academic_assessments.status', ['published', 'locked']);
+    }
+
+    const scores = await query.select(
+      'academic_scores.score',
+      'academic_scores.note',
+      'academic_assessments.id as assessment_id',
+      'academic_assessments.title as assessment_title',
+      'academic_assessments.score_min',
+      'academic_assessments.score_max',
+      'subjects.id as subject_id',
+      'subjects.name as subject_name',
+      'subjects.code as subject_code'
+    );
 
     // Group by subject
     const subjectMap: Record<string, any> = {};
@@ -243,16 +292,18 @@ export async function getStudentAcademicSummary(studentId: string, academicYearI
       subjectMap[s.subject_id].scores.push({
         assessment_id: s.assessment_id,
         assessment_title: s.assessment_title,
-        score: Number(s.score),
+        score: s.score !== null ? Number(s.score) : null,
         note: s.note
       });
-      subjectMap[s.subject_id].total_score = subjectMap[s.subject_id].total_score.plus(new Decimal(s.score));
-      subjectMap[s.subject_id].count++;
+      if (s.score !== null) {
+        subjectMap[s.subject_id].total_score = subjectMap[s.subject_id].total_score.plus(new Decimal(s.score));
+        subjectMap[s.subject_id].count++;
+      }
     }
 
     const summary = Object.values(subjectMap).map((subj: any) => {
-      const avg = subj.total_score.dividedBy(subj.count);
-      const roundedAvg = avg.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+      const avg = subj.count > 0 ? subj.total_score.dividedBy(subj.count) : null;
+      const roundedAvg = avg ? avg.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : null;
 
       return {
         subject_id: subj.subject_id,
@@ -273,3 +324,4 @@ export async function getStudentAcademicSummary(studentId: string, academicYearI
     );
   }
 }
+

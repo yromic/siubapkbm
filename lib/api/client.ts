@@ -213,7 +213,6 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'list_class_promotion_rules':     { method: 'GET',  path: '/api/v1/promotion-rules' },
   'create_class_promotion_rule':    { method: 'POST', path: '/api/v1/promotion-rules' },
   'update_class_promotion_rule':    { method: 'PUT',  path: '/api/v1/promotion-rules/:id', idField: 'id' },
-  'deactivate_class_promotion_rule':{ method: 'POST', path: '/api/v1/promotion-rules/:id/deactivate', idField: 'id' },
 
   // Enrollments (additional)
   'list_student_enrollments':       { method: 'GET',  path: '/api/v1/enrollments' },

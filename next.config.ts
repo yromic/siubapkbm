@@ -1,3 +1,4 @@
+// Trigger dev server restart for clean compilation context
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {

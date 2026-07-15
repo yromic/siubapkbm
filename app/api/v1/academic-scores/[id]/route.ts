@@ -12,7 +12,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
         const actorId = (req as any).user?.id;
@@ -32,7 +32,7 @@ export async function PUT(
         }
 
         const body = await req.json();
-        const result = await updateScore(id, body.score, body.note);
+        const result = await updateScore(id, body.score, body.note, actorId);
         return successResponse(result, 'Academic score updated successfully.');
       } catch (error) {
         if (error instanceof AppError) {

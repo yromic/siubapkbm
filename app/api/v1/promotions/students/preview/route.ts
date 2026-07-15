@@ -10,7 +10,13 @@ export async function POST(req: NextRequest) {
     return withRole(['administrator'], req, async () => {
       try {
         const body = await req.json();
-        const result = await previewPromotion(body.source_class_id, body.target_class_id, body.academic_year_id, body.semester_id);
+        const result = await previewPromotion(
+          body.source_academic_year_id,
+          body.source_semester_id,
+          body.target_academic_year_id,
+          body.target_semester_id,
+          body.overrides
+        );
         return successResponse(result, 'Students promotion preview retrieved.');
       } catch (error) {
         if (error instanceof AppError) {

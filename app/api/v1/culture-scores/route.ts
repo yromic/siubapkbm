@@ -4,6 +4,7 @@ import { withRole } from '@/lib/middleware/withRole';
 import { saveCultureScores, listCultureScoresByDate } from '@/lib/services/cultureScoreService';
 import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
+import { db } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   return withAuth(req, async (req) => {
@@ -41,6 +42,27 @@ export async function GET(req: NextRequest) {
 
         if (!score_date || !class_id) {
           return errorResponse('score_date (YYYY-MM-DD) and class_id query parameters are required.', 'ERR_VALIDATION', 400);
+        }
+
+        const actorId = (req as any).user?.id;
+        const actor = await db('users').where('id', actorId).first();
+        if (!actor) {
+          return errorResponse('Unauthorized', 'ERR_UNAUTHORIZED', 401);
+        }
+
+        if (actor.role === 'teacher') {
+          const isAssigned = await db('class_teacher_assignments')
+            .where({
+              class_id: class_id,
+              teacher_user_id: actorId,
+              status: 'active'
+            })
+            .whereNot('lifecycle_status', 'soft_deleted')
+            .first();
+
+          if (!isAssigned) {
+            return errorResponse('You do not have permission to view scores for this class.', 'ERR_FORBIDDEN', 403);
+          }
         }
 
         const result = await listCultureScoresByDate(score_date, class_id);

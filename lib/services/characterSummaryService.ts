@@ -243,8 +243,17 @@ export function calculateSummaryFromScores(scores: any[]) {
   const i_score = am_count > 0 ? am_sum.dividedBy(am_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
   const t_score = br_count > 0 ? br_sum.dividedBy(br_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
 
-  const r_denom = sss_count + hb_count;
-  const r_score = r_denom > 0 ? sss_sum.plus(hb_sum).dividedBy(r_denom).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
+  const avg_sss = sss_count > 0 ? sss_sum.dividedBy(sss_count) : null;
+  const avg_hb = hb_count > 0 ? hb_sum.dividedBy(hb_count) : null;
+
+  let r_score = 0;
+  if (avg_sss !== null && avg_hb !== null) {
+    r_score = avg_sss.plus(avg_hb).dividedBy(2).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+  } else if (avg_sss !== null) {
+    r_score = avg_sss.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+  } else if (avg_hb !== null) {
+    r_score = avg_hb.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
+  }
 
   const a_score = ak_count > 0 ? ak_sum.dividedBy(ak_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
   const h_score = tm_count > 0 ? tm_sum.dividedBy(tm_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;

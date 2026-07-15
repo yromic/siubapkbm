@@ -18,6 +18,67 @@ export interface UserInput {
   phone?: string;
 }
 
+export function generateSoftDeletedIdentifier(original: string): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const randomSuffix = Math.random().toString(36).substring(2, 6);
+  return `deleted_${timestamp}_${randomSuffix}_${original}`;
+}
+
+export function extractOriginalIdentifier(deletedValue: string): string {
+  if (!deletedValue || !deletedValue.startsWith('deleted_')) {
+    return deletedValue;
+  }
+  const parts = deletedValue.split('_');
+  if (parts.length >= 5) {
+    return parts.slice(4).join('_');
+  }
+  return deletedValue;
+}
+
+export async function validateUserIdentifiers(
+  email?: string,
+  username?: string,
+  excludeUserId?: string,
+  trx?: any
+) {
+  const conn = trx || db;
+
+  if (email) {
+    const trimmedEmail = email.trim().toLowerCase();
+    const query = conn('users')
+      .where('email', trimmedEmail)
+      .whereNot('lifecycle_status', 'soft_deleted');
+    
+    if (excludeUserId) {
+      query.whereNot('id', excludeUserId);
+    }
+    
+    const existing = await query.first();
+    if (existing) {
+      throw new AppError('Email sudah terdaftar', 'ERR_VALIDATION', 400);
+    }
+  }
+
+  if (username) {
+    const trimmedUsername = username.trim();
+    const query = conn('users')
+      .where('username', trimmedUsername)
+      .whereNot('lifecycle_status', 'soft_deleted');
+
+    if (excludeUserId) {
+      query.whereNot('id', excludeUserId);
+    }
+
+    const existing = await query.first();
+    if (existing) {
+      throw new AppError('Username is already registered.', 'ERR_VALIDATION', 400);
+    }
+  }
+}
+
+
 export async function listUsers(
   filters: UserListFilter = {},
   page = 1,
@@ -117,19 +178,7 @@ export async function createUser(input: UserInput) {
 
   try {
     // 2. Check unique constraint
-    const existing = await db('users')
-      .where('username', input.username)
-      .orWhere('email', input.email)
-      .first();
-
-    if (existing) {
-      if (existing.username === input.username) {
-        throw new AppError('Username is already registered.', 'ERR_VALIDATION', 400);
-      }
-      if (existing.email === input.email) {
-        throw new AppError('Email is already registered.', 'ERR_VALIDATION', 400);
-      }
-    }
+    await validateUserIdentifiers(input.email, input.username);
 
     // 3. Hash password
     const saltRounds = process.env.SESSION_HASH_SALT ? parseInt(process.env.SESSION_HASH_SALT) : 10;
@@ -217,14 +266,7 @@ export async function updateUser(id: string, input: Partial<Omit<UserInput, 'pas
       if (!input.email.trim()) throw new AppError('Email cannot be empty.', 'ERR_VALIDATION', 400);
       
       // Check unique
-      const existingEmail = await db('users')
-        .where('email', input.email)
-        .whereNot('id', id)
-        .first();
-      
-      if (existingEmail) {
-        throw new AppError('Email is already registered by another user.', 'ERR_VALIDATION', 400);
-      }
+      await validateUserIdentifiers(input.email, undefined, id);
       patch.email = input.email;
     }
 
@@ -232,14 +274,7 @@ export async function updateUser(id: string, input: Partial<Omit<UserInput, 'pas
       if (!input.username.trim()) throw new AppError('Username cannot be empty.', 'ERR_VALIDATION', 400);
 
       // Check unique
-      const existingUsername = await db('users')
-        .where('username', input.username)
-        .whereNot('id', id)
-        .first();
-
-      if (existingUsername) {
-        throw new AppError('Username is already registered by another user.', 'ERR_VALIDATION', 400);
-      }
+      await validateUserIdentifiers(undefined, input.username, id);
       patch.username = input.username;
     }
 

@@ -41,7 +41,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
         const actorId = (req as any).user?.id;
@@ -70,7 +70,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
         const actorId = (req as any).user?.id;
@@ -101,7 +101,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
         const actorId = (req as any).user?.id;

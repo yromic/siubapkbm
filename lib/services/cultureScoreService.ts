@@ -34,6 +34,8 @@ export async function saveCultureScores(input: SaveCultureScoresInput, actorId: 
       throw new AppError('Actor user not found.', 'ERR_UNAUTHORIZED', 401);
     }
 
+    const normRole = String(actor.role).toLowerCase().trim();
+
     if (actor.role !== 'administrator') {
       const assignment = await db('class_teacher_assignments')
         .where({
@@ -56,32 +58,61 @@ export async function saveCultureScores(input: SaveCultureScoresInput, actorId: 
     }
 
     const processedScores: any[] = [];
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
 
     // 2. Validate input boundaries and student enrollments before transaction
     for (const item of input.scores) {
-      if (!item.student_id || !item.score_date) {
-        throw new AppError('student_id and score_date are required for each score item.', 'ERR_VALIDATION', 400);
+      const dateVal = item.score_date || (input as any).score_date;
+      if (!item.student_id || !dateVal) {
+        throw new AppError('student_id and score_date are required.', 'ERR_VALIDATION', 400);
       }
 
-      const scoreDate = new Date(item.score_date);
+      const scoreDate = new Date(dateVal);
       if (isNaN(scoreDate.getTime())) {
         throw new AppError('Invalid date format.', 'ERR_VALIDATION', 400);
       }
 
-      // Check fields range 0-4
-      const scoreKeys = ['sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'];
+      // Lock period verification
+      if (normRole !== 'administrator') {
+        const diffTime = now.getTime() - scoreDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (normRole === 'teacher' || normRole === 'guru') {
+          if (diffDays > 7) {
+            throw new AppError('Error: The period for editing culture scores on this date is locked.', 'ERR_PERIOD_LOCKED', 400);
+          }
+        } else if (normRole === 'admin') {
+          if (diffDays > 30) {
+            throw new AppError('Error: The period for editing culture scores on this date is locked.', 'ERR_PERIOD_LOCKED', 400);
+          }
+        } else {
+          throw new AppError('Error: Unknown role or locked period.', 'ERR_PERIOD_LOCKED', 400);
+        }
+      }
+
+      // Explicit mapping and validation (integers 1-4, empty/null to 0)
+      const scoreKeys = [
+        { key: 'sss', dbKey: 'sss_score' },
+        { key: 'am', dbKey: 'am_score' },
+        { key: 'hb', dbKey: 'hb_score' },
+        { key: 'asm', dbKey: 'asm_score' },
+        { key: 'br', dbKey: 'br_score' },
+        { key: 'ak', dbKey: 'ak_score' },
+        { key: 'tm', dbKey: 'tm_score' }
+      ];
       const scoreValues: Record<string, number> = {};
 
-      for (const k of scoreKeys) {
-        const val = (item as any)[k];
-        if (val !== undefined) {
+      for (const mapping of scoreKeys) {
+        const val = (item as any)[mapping.key] !== undefined ? (item as any)[mapping.key] : (item as any)[mapping.dbKey];
+        if (val !== undefined && val !== null && val !== '') {
           const num = Number(val);
-          if (isNaN(num) || num < 0 || num > 4) {
-            throw new AppError(`Indicator score "${k}" must be a number between 0 and 4. Received: ${val}`, 'ERR_VALIDATION', 400);
+          if (isNaN(num) || num < 1 || num > 4 || Math.floor(num) !== num) {
+            throw new AppError(`Indicator score "${mapping.key}" must be an integer between 1 and 4. Received: ${val}`, 'ERR_VALIDATION', 400);
           }
-          scoreValues[k] = num;
+          scoreValues[mapping.dbKey] = num;
         } else {
-          scoreValues[k] = 0; // Default to 0 if not provided
+          scoreValues[mapping.dbKey] = 0; // Default to 0 for database
         }
       }
 

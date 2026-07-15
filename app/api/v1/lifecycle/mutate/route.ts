@@ -120,6 +120,39 @@ export async function POST(req: NextRequest) {
           patch.deleted_by = (req as any).user.id;
           if ((entity_type === 'class' || entity_type === 'subject') && entity.code && !entity.code.includes('_soft_deleted_')) {
             patch.code = `${entity.code.substring(0, 30)}_soft_deleted_${Date.now()}`;
+          } else if (entity_type === 'user') {
+            const { generateSoftDeletedIdentifier } = require('@/lib/services/userService');
+            patch.email = generateSoftDeletedIdentifier(entity.email);
+            patch.username = generateSoftDeletedIdentifier(entity.username);
+          }
+        } else if (status === 'active') {
+          if (entity_type === 'user') {
+            const { extractOriginalIdentifier, validateUserIdentifiers } = require('@/lib/services/userService');
+            const originalEmail = extractOriginalIdentifier(entity.email);
+            const originalUsername = extractOriginalIdentifier(entity.username);
+            
+            // Check conflicts (excluding this user)
+            await validateUserIdentifiers(originalEmail, originalUsername, id);
+            
+            patch.email = originalEmail;
+            patch.username = originalUsername;
+            patch.deleted_at = null;
+            patch.deleted_by = null;
+          } else if (entity_type === 'class' || entity_type === 'subject') {
+            patch.deleted_at = null;
+            patch.deleted_by = null;
+            if (entity.code && entity.code.includes('_soft_deleted_')) {
+              const originalCode = entity.code.split('_soft_deleted_')[0];
+              const existing = await db(tableName)
+                .where('code', originalCode)
+                .whereNot('id', id)
+                .whereNot('lifecycle_status', 'soft_deleted')
+                .first();
+              if (existing) {
+                throw new AppError(`Cannot restore ${entity_type}. The original code (${originalCode}) is already taken.`, 'ERR_VALIDATION', 400);
+              }
+              patch.code = originalCode;
+            }
           }
         } else if (status === 'archived') {
           patch.archived_at = new Date();
@@ -144,8 +177,49 @@ export async function POST(req: NextRequest) {
           }
         }
 
+        // Check active student enrollments and active teacher assignments for classes
+        let classAssignmentsToTerminate: string[] = [];
+        if (entity_type === 'class' && status === 'soft_deleted') {
+          const activeEnrollment = await db('student_enrollments')
+            .where({
+              class_id: id,
+              status: 'active'
+            })
+            .whereNot('lifecycle_status', 'soft_deleted')
+            .first();
+
+          if (activeEnrollment) {
+            throw new AppError(
+              'Kelas tidak dapat dihapus karena masih memiliki siswa aktif. Pindahkan atau nonaktifkan enrollment terlebih dahulu.',
+              'ERR_VALIDATION',
+              400
+            );
+          }
+
+          const activeAssignments = await db('class_teacher_assignments')
+            .where({
+              class_id: id,
+              status: 'active'
+            })
+            .whereNot('lifecycle_status', 'soft_deleted')
+            .select('id');
+
+          classAssignmentsToTerminate = activeAssignments.map((a) => a.id);
+        }
+
         await db.transaction(async (trx) => {
           await trx(tableName).where('id', id).update(patch);
+
+          if (entity_type === 'class' && status === 'soft_deleted' && classAssignmentsToTerminate.length > 0) {
+            await trx('class_teacher_assignments')
+              .whereIn('id', classAssignmentsToTerminate)
+              .update({
+                status: 'inactive',
+                lifecycle_status: 'inactive',
+                effective_until: new Date(),
+                updated_at: new Date()
+              });
+          }
 
           if (entity_type === 'user' && entity.role === 'teacher') {
             if (status === 'soft_deleted') {
@@ -188,6 +262,9 @@ export async function POST(req: NextRequest) {
         let message = `${entity_type} status updated to ${status}.`;
         if (hasActiveAssignments) {
           message += ` Warning: Penugasan wali kelas aktif guru ini otomatis diakhiri karena akun guru dihapus.`;
+        }
+        if (entity_type === 'class' && status === 'soft_deleted' && classAssignmentsToTerminate.length > 0) {
+          message += ` Warning: Penugasan wali kelas aktif pada kelas ini otomatis diakhiri karena kelas dihapus.`;
         }
         return successResponse(updated, message);
       } catch (error) {

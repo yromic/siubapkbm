@@ -10,12 +10,14 @@ export async function POST(req: NextRequest) {
     return withRole(['administrator'], req, async () => {
       try {
         const body = await req.json();
+        const actor = (req as any).user;
         const result = await executePromotion(
-          body.source_class_id,
-          body.target_class_id,
-          body.student_ids,
-          body.academic_year_id,
-          body.semester_id
+          body.source_academic_year_id,
+          body.source_semester_id,
+          body.target_academic_year_id,
+          body.target_semester_id,
+          body.overrides || [],
+          actor
         );
         return successResponse(result, 'Students promotion executed successfully.');
       } catch (error) {
