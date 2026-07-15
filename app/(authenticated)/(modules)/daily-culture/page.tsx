@@ -23,6 +23,7 @@ import {
   CultureScoreRecord,
   SaveCultureScoreItem,
 } from "@/lib/api/culture";
+import { dbScoreToUi, uiScoreToDb } from "@/lib/utils/scoreMapper";
 
 type IndicatorKey = "sss" | "am" | "hb" | "asm" | "br" | "ak" | "tm";
 
@@ -42,6 +43,86 @@ const INDICATORS: IndicatorConfig[] = [
   { key: "ak", code: "AK", name: "Aktif Berkarya", description: "Semangat berkarya dan menghasilkan sesuatu." },
   { key: "tm", code: "TM", name: "Tolong Menolong", description: "Membantu teman dan orang lain yang membutuhkan." },
 ];
+
+const SCORE_OPTIONS = [
+  {
+    value: 1,
+    emoji: "😞",
+    label: "Perlu Bimbingan",
+    shortLabel: "PB",
+    activeClass: "bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-450 dark:border-rose-800 focus:ring-rose-500/30",
+  },
+  {
+    value: 2,
+    emoji: "😐",
+    label: "Cukup",
+    shortLabel: "C",
+    activeClass: "bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-450 dark:border-amber-800 focus:ring-amber-500/30",
+  },
+  {
+    value: 3,
+    emoji: "🙂",
+    label: "Baik",
+    shortLabel: "B",
+    activeClass: "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-800 focus:ring-emerald-500/30",
+  },
+  {
+    value: 4,
+    emoji: "🌟",
+    label: "Sangat Baik",
+    shortLabel: "SB",
+    activeClass: "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-950/40 dark:text-blue-450 dark:border-blue-800 focus:ring-blue-500/30",
+  },
+];
+
+interface ScoreSelectorProps {
+  value: number | null;
+  onChange: (val: number | null) => void;
+  disabled?: boolean;
+  isMobile?: boolean;
+}
+
+const ScoreSelector: React.FC<ScoreSelectorProps> = ({ value, onChange, disabled, isMobile = false }) => {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Skor Budaya"
+      className={`inline-flex items-center gap-1 bg-zinc-100/60 dark:bg-zinc-900/60 p-0.5 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50 ${
+        isMobile ? "w-full justify-between" : ""
+      }`}
+    >
+      {SCORE_OPTIONS.map((opt) => {
+        const isActive = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              onChange(isActive ? null : opt.value);
+            }}
+            title={opt.label}
+            aria-label={`${opt.label} (Skor ${opt.value})`}
+            aria-checked={isActive}
+            role="radio"
+            className={`
+              flex items-center justify-center rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed
+              ${isMobile ? "flex-1 py-1.5 px-1 gap-1 text-xs" : "w-7 h-7 text-sm"}
+              ${
+                isActive
+                  ? `${opt.activeClass} shadow-sm border font-semibold scale-105`
+                  : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200 border-transparent hover:bg-white dark:hover:bg-zinc-800 hover:shadow-xs"
+              }
+            `}
+          >
+            <span className="select-none">{opt.emoji}</span>
+            {isMobile && <span className="font-bold">{opt.shortLabel}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 interface ScoreRow {
   student: StudentSummary;
@@ -202,13 +283,13 @@ function DailyCulturePageContent() {
       const initialRows: ScoreRow[] = roster.map((student) => {
         const existing = scoreMap.get(student.id);
         const itemScores: Record<IndicatorKey, number | null> = {
-          sss: existing?.sss_score ?? null,
-          am: existing?.am_score ?? null,
-          hb: existing?.hb_score ?? null,
-          asm: existing?.asm_score ?? null,
-          br: existing?.br_score ?? null,
-          ak: existing?.ak_score ?? null,
-          tm: existing?.tm_score ?? null,
+          sss: dbScoreToUi(existing?.sss_score),
+          am: dbScoreToUi(existing?.am_score),
+          hb: dbScoreToUi(existing?.hb_score),
+          asm: dbScoreToUi(existing?.asm_score),
+          br: dbScoreToUi(existing?.br_score),
+          ak: dbScoreToUi(existing?.ak_score),
+          tm: dbScoreToUi(existing?.tm_score),
         };
 
         return {
@@ -306,13 +387,13 @@ function DailyCulturePageContent() {
         return {
           student_id: row.student.id,
           score_date: dateStr,
-          sss_score: row.scores.sss,
-          am_score: row.scores.am,
-          hb_score: row.scores.hb,
-          asm_score: row.scores.asm,
-          br_score: row.scores.br,
-          ak_score: row.scores.ak,
-          tm_score: row.scores.tm,
+          sss_score: uiScoreToDb(row.scores.sss),
+          am_score: uiScoreToDb(row.scores.am),
+          hb_score: uiScoreToDb(row.scores.hb),
+          asm_score: uiScoreToDb(row.scores.asm),
+          br_score: uiScoreToDb(row.scores.br),
+          ak_score: uiScoreToDb(row.scores.ak),
+          tm_score: uiScoreToDb(row.scores.tm),
         };
       });
 
@@ -479,7 +560,7 @@ function DailyCulturePageContent() {
                 <div>
                   <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">Daftar Input Skor</h2>
                   <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Gunakan tombol 1-4 untuk mengisi, atau ketuk X untuk mengosongkan.
+                  Klik atau ketuk emoji untuk memilih skor (1-4). Klik kembali untuk mengosongkan.
                   </p>
                 </div>
                 <div className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -530,18 +611,10 @@ function DailyCulturePageContent() {
                             return (
                               <td key={ind.key} className="py-3.5 px-3">
                                 <div className="flex items-center justify-center">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
+                                  <ScoreSelector
+                                    value={val}
                                     disabled={isReadOnly}
-                                    value={val === null ? "" : String(val)}
-                                    onChange={(e) => {
-                                      const valStr = e.target.value.replace(/[^1-4]/g, "");
-                                      const finalVal = valStr.length > 0 ? parseInt(valStr.slice(-1), 10) : null;
-                                      updateScoreValue(row.student.id, ind.key, finalVal);
-                                    }}
-                                    placeholder="-"
-                                    className="w-12 h-9 text-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#468432] disabled:opacity-60"
+                                    onChange={(newVal) => updateScoreValue(row.student.id, ind.key, newVal)}
                                   />
                                 </div>
                               </td>
@@ -630,19 +703,12 @@ function DailyCulturePageContent() {
                                   </p>
                                 </div>
 
-                                <div className="flex items-center gap-1 shrink-0 self-start sm:self-center">
-                                  <input
-                                    type="text"
-                                    inputMode="numeric"
+                                <div className="w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
+                                  <ScoreSelector
+                                    value={val}
                                     disabled={isReadOnly}
-                                    value={val === null ? "" : String(val)}
-                                    onChange={(e) => {
-                                      const valStr = e.target.value.replace(/[^1-4]/g, "");
-                                      const finalVal = valStr.length > 0 ? parseInt(valStr.slice(-1), 10) : null;
-                                      updateScoreValue(row.student.id, ind.key, finalVal);
-                                    }}
-                                    placeholder="-"
-                                    className="w-12 h-9 text-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#468432] disabled:opacity-60"
+                                    isMobile={true}
+                                    onChange={(newVal) => updateScoreValue(row.student.id, ind.key, newVal)}
                                   />
                                 </div>
                               </div>
