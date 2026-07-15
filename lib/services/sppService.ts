@@ -2,22 +2,55 @@ import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 
-export async function generateSppRecordsForStudent(studentId: string, academicYearId: string) {
+/**
+ * Generates monthly SPP payment records for a student in a given academic year.
+ *
+ * @param studentId       - Target student ID.
+ * @param academicYearId  - Target academic year ID.
+ * @param enrollmentDate  - (Optional) The date the student was enrolled in this academic year.
+ *                          When provided, records will only be generated for months that fall
+ *                          ON or AFTER the enrollment month. Earlier months are skipped to
+ *                          prevent "ghost arrears" for students who joined mid-year.
+ *                          Defaults to the academic year start date (generate all 12 months).
+ */
+export async function generateSppRecordsForStudent(
+  studentId: string,
+  academicYearId: string,
+  enrollmentDate?: Date
+) {
   const student = await db('students').where('id', studentId).first();
   const year = await db('academic_years').where('id', academicYearId).first();
   if (!student || !year) return;
 
   const sppAmount = Number(student.spp_amount || 250000.00);
 
-  const start = new Date(year.start_date);
-  const end = new Date(year.end_date);
-  let current = new Date(start);
-  current.setDate(1); // avoid end of month skip issues
+  const yearStart = new Date(year.start_date);
+  yearStart.setDate(1); // normalise to 1st of month
 
-  // Loop through 12 months of academic year
+  // Determine the effective starting month for this student's SPP.
+  // If an enrollmentDate is provided, use the later of (yearStart, enrollmentMonth).
+  let effectiveStart: Date;
+  if (enrollmentDate) {
+    const enrollMonth = new Date(enrollmentDate);
+    enrollMonth.setDate(1); // normalise to 1st of month
+    enrollMonth.setHours(0, 0, 0, 0);
+    effectiveStart = enrollMonth > yearStart ? enrollMonth : yearStart;
+  } else {
+    effectiveStart = yearStart;
+  }
+
+  let current = new Date(yearStart);
+
+  // Loop through all 12 months of the academic year
   for (let i = 0; i < 12; i++) {
     const m = current.getMonth() + 1;
     const y = current.getFullYear();
+
+    // Skip months that fall before the student's effective start month
+    if (current < effectiveStart) {
+      current.setMonth(current.getMonth() + 1);
+      continue;
+    }
 
     const existing = await db('spp_payments')
       .where({
@@ -142,6 +175,7 @@ export async function verifyPayment(
   try {
     const enrollment = await db('student_enrollments')
       .where({ student_id: input.student_id, status: 'active' })
+      .orderBy('created_at', 'asc')
       .first();
 
     const activeYear = await db('academic_years').where('is_active', 1).first();
@@ -150,8 +184,10 @@ export async function verifyPayment(
       throw new AppError('No active enrollment or academic year found.', 'ERR_VALIDATION', 400);
     }
 
-    // Ensure SPP records are generated
-    await generateSppRecordsForStudent(input.student_id, yearId);
+    // Ensure SPP records are generated, respecting the student's enrollment date
+    // so that months before enrollment are not created as ghost arrears.
+    const enrollmentDate = enrollment?.created_at ? new Date(enrollment.created_at) : undefined;
+    await generateSppRecordsForStudent(input.student_id, yearId, enrollmentDate);
 
     // Find target record:
     let targetRecord: any;

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { withRole } from '@/lib/middleware/withRole';
-import { getStudentAcademicSummary } from '@/lib/services/academicScoreService';
+import { getClassAcademicSummary } from '@/lib/services/academicScoreService';
 import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
 
@@ -21,14 +21,14 @@ export async function GET(
           return errorResponse('academic_year_id and semester_id query parameters are required.', 'ERR_VALIDATION', 400);
         }
 
-        const result = await getStudentAcademicSummary(id, academic_year_id, semester_id);
-        return successResponse(result, 'Student academic summary retrieved.');
+        const result = await getClassAcademicSummary(id, academic_year_id, semester_id);
+        return successResponse(result, 'Class academic summary retrieved.');
       } catch (error) {
         if (error instanceof AppError) {
           return errorResponse(error.message, error.code, error.statusCode);
         }
         return errorResponse(
-          error instanceof Error ? error.message : 'Database error retrieving academic summary.',
+          error instanceof Error ? error.message : 'Database error retrieving class academic summary.',
           'ERR_INTERNAL_SERVER',
           500
         );

@@ -157,8 +157,11 @@ export async function createEnrollment(input: EnrollmentInput) {
 
     // After transaction is committed, generate SPP records for this academic year.
     // Done outside the transaction so a generate failure doesn't roll back the enrollment.
+    // Pass the enrollment creation timestamp so months BEFORE enrollment are not generated,
+    // preventing ghost arrears for students who join mid-year.
     try {
-      await generateSppRecordsForStudent(input.student_id, input.academic_year_id);
+      const enrollmentDate = result.created_at ? new Date(result.created_at) : new Date();
+      await generateSppRecordsForStudent(input.student_id, input.academic_year_id, enrollmentDate);
     } catch (sppErr) {
       console.warn('[createEnrollment] SPP generation failed (non-fatal):', sppErr);
     }

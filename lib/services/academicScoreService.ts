@@ -218,7 +218,7 @@ export async function updateScore(id: string, score: number | null | "" | undefi
     // Audit Log
     const actor = actorId ? await db('users').where('id', actorId).first() : null;
     await createAuditLog({
-      user_id: actorId || null,
+      user_id: actorId || undefined,
       user_name: actor ? actor.name : null,
       user_role: actor ? actor.role : null,
       action: 'score_updated',
@@ -319,6 +319,111 @@ export async function getStudentAcademicSummary(studentId: string, academicYearI
     if (error instanceof AppError) throw error;
     throw new AppError(
       error instanceof Error ? error.message : 'Database error getting student academic summary',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
+export async function getClassAcademicSummary(classId: string, academicYearId: string, semesterId: string) {
+  if (!classId || !academicYearId || !semesterId) {
+    throw new AppError('Class ID, Academic Year ID, and Semester ID are required.', 'ERR_VALIDATION', 400);
+  }
+
+  try {
+    // 1. Get active students in class
+    const enrollments = await db('student_enrollments')
+      .join('students', 'student_enrollments.student_id', 'students.id')
+      .where({
+        'student_enrollments.class_id': classId,
+        'student_enrollments.academic_year_id': academicYearId,
+        'student_enrollments.semester_id': semesterId,
+        'student_enrollments.status': 'active'
+      })
+      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+      .select('students.id as student_id', 'students.full_name', 'students.nisn');
+
+    // 2. Get assessments for class
+    const assessments = await db('academic_assessments')
+      .where({
+        class_id: classId,
+        academic_year_id: academicYearId,
+        semester_id: semesterId
+      })
+      .whereNot('lifecycle_status', 'soft_deleted');
+
+    const assessmentIds = assessments.map(a => a.id);
+
+    // 3. Get all scores for these assessments
+    const scores = assessmentIds.length > 0
+      ? await db('academic_scores')
+          .whereIn('assessment_id', assessmentIds)
+          .whereNot('lifecycle_status', 'soft_deleted')
+      : [];
+
+    // Group scores by student and assessment
+    const scoresByStudent: Record<string, number[]> = {};
+    const scoresByAssessment: Record<string, Record<string, number>> = {};
+
+    for (const score of scores) {
+      if (score.score !== null && score.score !== undefined) {
+        if (!scoresByStudent[score.student_id]) {
+          scoresByStudent[score.student_id] = [];
+        }
+        scoresByStudent[score.student_id].push(Number(score.score));
+
+        if (!scoresByAssessment[score.assessment_id]) {
+          scoresByAssessment[score.assessment_id] = {};
+        }
+        scoresByAssessment[score.assessment_id][score.student_id] = Number(score.score);
+      }
+    }
+
+    // Map student summaries
+    const student_summaries = enrollments.map(student => {
+      const studentScores = scoresByStudent[student.student_id] || [];
+      const average_score = studentScores.length > 0
+        ? parseFloat((studentScores.reduce((sum, val) => sum + val, 0) / studentScores.length).toFixed(2))
+        : null;
+
+      return {
+        student_id: student.student_id,
+        full_name: student.full_name,
+        nisn: student.nisn,
+        average_score
+      };
+    });
+
+    // Map assessment summaries
+    const totalStudents = enrollments.length;
+    const assessment_summaries = assessments.map(assessment => {
+      const assessmentScores = scoresByAssessment[assessment.id] || {};
+      const gradedCount = Object.keys(assessmentScores).length;
+      const ungraded_students = totalStudents - gradedCount;
+      const completeness_percentage = totalStudents > 0
+        ? parseFloat(((gradedCount / totalStudents) * 100).toFixed(2))
+        : 100;
+
+      return {
+        assessment_id: assessment.id,
+        title: assessment.title,
+        status: assessment.status,
+        ungraded_students,
+        completeness_percentage
+      };
+    });
+
+    return {
+      class_id: classId,
+      academic_year_id: academicYearId,
+      semester_id: semesterId,
+      student_summaries,
+      assessment_summaries
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error getting class academic summary',
       'ERR_DATABASE',
       500
     );

@@ -37,17 +37,6 @@ export async function GET(
             parent_access_pin_hash,
             ...basicData
           } = result;
-          const statusMap: Record<string, string> = {
-            active: 'Aktif',
-            inactive: 'Tidak aktif',
-            graduated: 'Lulus',
-            transferred: 'Pindah',
-            withdrawn: 'Keluar',
-            deceased: 'Meninggal'
-          };
-          if (basicData.status && statusMap[basicData.status]) {
-            basicData.status = statusMap[basicData.status];
-          }
           return successResponse(basicData, 'Student details retrieved.');
         }
         return successResponse(result, 'Student details retrieved.');

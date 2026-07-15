@@ -34,6 +34,7 @@ export async function listUsersApi(
     includeArchived?: boolean;
     onlyArchived?: boolean;
     onlyDeleted?: boolean;
+    limit?: number;
   }
 ): Promise<UserWithProfile[]> {
   return apiRequest<UserWithProfile[]>("list_users", filters || {}, token);

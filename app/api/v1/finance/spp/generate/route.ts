@@ -13,11 +13,13 @@ export async function POST(req: NextRequest) {
         const enrollments = await db('student_enrollments')
           .where('status', 'active')
           .whereNot('lifecycle_status', 'soft_deleted')
-          .select('student_id', 'academic_year_id');
+          .select('student_id', 'academic_year_id', 'created_at');
 
         let generated = 0;
         for (const e of enrollments) {
-          await generateSppRecordsForStudent(e.student_id, e.academic_year_id);
+          // Pass the enrollment date so months before enrollment are not generated.
+          const enrollmentDate = e.created_at ? new Date(e.created_at) : undefined;
+          await generateSppRecordsForStudent(e.student_id, e.academic_year_id, enrollmentDate);
           generated++;
         }
 

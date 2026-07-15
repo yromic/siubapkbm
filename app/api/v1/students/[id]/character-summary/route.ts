@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
         const { searchParams } = new URL(req.url);

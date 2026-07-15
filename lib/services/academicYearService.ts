@@ -282,9 +282,11 @@ export async function setActiveAcademicYear(id: string) {
         const enrollments = await db('student_enrollments')
           .where({ academic_year_id: id, status: 'active' })
           .whereNot('lifecycle_status', 'soft_deleted')
-          .select('student_id', 'academic_year_id');
+          .select('student_id', 'academic_year_id', 'created_at');
         for (const e of enrollments) {
-          await generateSppRecordsForStudent(e.student_id, e.academic_year_id);
+          // Pass the enrollment date so months before enrollment are not generated.
+          const enrollmentDate = e.created_at ? new Date(e.created_at) : undefined;
+          await generateSppRecordsForStudent(e.student_id, e.academic_year_id, enrollmentDate);
         }
         console.log(`[setActiveAcademicYear] Generated SPP records for ${enrollments.length} enrollments in year ${id}`);
       } catch (err) {

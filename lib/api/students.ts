@@ -184,11 +184,12 @@ export async function listStudentsByClass(
   class_id: string,
   academic_year_id: string,
   semester_id: string,
-  token: string
+  token: string,
+  limit = 1000
 ): Promise<StudentSummary[]> {
   return apiRequest<StudentSummary[]>(
     "list_students_by_class",
-    { class_id, academic_year_id, semester_id },
+    { class_id, academic_year_id, semester_id, limit },
     token
   );
 }

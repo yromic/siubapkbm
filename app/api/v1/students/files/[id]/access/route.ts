@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         const file = await getStudentFileById(id);
 
         const userRole = (req as any).user?.role;
-        if (userRole === 'teacher' && (file.file_type === 'kk' || file.file_type === 'akta')) {
+        if (userRole === 'teacher' && (file.file_type === 'kk' || file.file_type === 'akta' || file.file_type === 'dokumen_lain')) {
           return errorResponse('Insufficient permissions to access sensitive documents.', 'ERR_FORBIDDEN', 403);
         }
 

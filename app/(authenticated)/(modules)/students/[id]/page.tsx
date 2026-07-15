@@ -244,9 +244,9 @@ export default function StudentDetailPage() {
   }, [showEnrollModal, loadEnrollmentMeta]);
 
   // Guard
-  if (!user || (user.role !== "administrator" && user.role !== "admin")) {
+  if (!user || (user.role !== "administrator" && user.role !== "admin" && user.role !== "teacher")) {
     return (
-      <ForbiddenState message="Halaman ini hanya dapat diakses oleh Administrator dan Operator." />
+      <ForbiddenState message="Halaman ini hanya dapat diakses oleh Administrator, Operator, dan Guru." />
     );
   }
 
@@ -370,7 +370,9 @@ export default function StudentDetailPage() {
     { key: "profil", label: "Profil" },
     { key: "enrollment", label: `Riwayat Kelas (${enrollments.length})` },
     { key: "documents", label: "Dokumen" },
-    { key: "pin", label: "PIN Orang Tua" },
+    ...(user.role === "administrator" || user.role === "admin"
+      ? [{ key: "pin", label: "PIN Orang Tua" as const }]
+      : []),
   ];
 
   return (
@@ -404,7 +406,7 @@ export default function StudentDetailPage() {
               <span className="text-sm text-zinc-500 font-mono">
                 NISN: {student.nisn}
               </span>
-              <LifecycleBadge status={student.lifecycle_status || (student.status === "Aktif" ? "ACTIVE" : "INACTIVE")} />
+              <LifecycleBadge status={student.lifecycle_status || student.status || "active"} />
               {activeEnrollment && (
                 <span className="text-xs text-zinc-400">
                   Kelas aktif: {enrollmentClassLabel(activeEnrollment)}
@@ -413,107 +415,109 @@ export default function StudentDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 ml-9 sm:ml-0 flex-wrap">
-          {(() => {
-            const currentStatus = (student.lifecycle_status || student.status || "active").toUpperCase();
-            return (
-              <>
-                <DropdownMenu.Root>
-                  <DropdownMenu.Trigger asChild>
-                    <button className="px-3.5 py-2 rounded-[12px] text-xs font-semibold border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-850 transition-colors outline-none cursor-pointer flex items-center gap-1.5">
-                      Tindakan
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                  </DropdownMenu.Trigger>
+        {(user.role === "administrator" || user.role === "admin") && (
+          <div className="flex items-center gap-2 ml-9 sm:ml-0 flex-wrap">
+            {(() => {
+              const currentStatus = (student.lifecycle_status || student.status || "active").toUpperCase();
+              return (
+                <>
+                  <DropdownMenu.Root>
+                    <DropdownMenu.Trigger asChild>
+                      <button className="px-3.5 py-2 rounded-[12px] text-xs font-semibold border border-zinc-200 dark:border-zinc-800 text-zinc-650 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-850 transition-colors outline-none cursor-pointer flex items-center gap-1.5">
+                        Tindakan
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </DropdownMenu.Trigger>
 
-                  <DropdownMenu.Portal>
-                    <DropdownMenu.Content
-                      align="end"
-                      sideOffset={5}
-                      className="z-50 min-w-[160px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[12px] p-1 shadow-lg outline-none"
-                    >
-                      {currentStatus !== "ARCHIVED" && currentStatus !== "SOFT_DELETED" && (
-                        <DropdownMenu.Item asChild>
-                          <Link
-                            href={`/students/${id}/edit`}
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content
+                        align="end"
+                        sideOffset={5}
+                        className="z-50 min-w-[160px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[12px] p-1 shadow-lg outline-none"
+                      >
+                        {currentStatus !== "ARCHIVED" && currentStatus !== "SOFT_DELETED" && (
+                          <DropdownMenu.Item asChild>
+                            <Link
+                              href={`/students/${id}/edit`}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                              Edit Data
+                            </Link>
+                          </DropdownMenu.Item>
+                        )}
+
+                        {currentStatus === "ACTIVE" && (
+                          <DropdownMenu.Item
+                            onClick={() => {
+                              setTargetStatus("INACTIVE");
+                              setConfirmOpen(true);
+                            }}
                             className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
                           >
-                            <Edit className="w-3.5 h-3.5" />
-                            Edit Data
-                          </Link>
-                        </DropdownMenu.Item>
-                      )}
+                            <Power className="w-3.5 h-3.5" />
+                            Nonaktifkan
+                          </DropdownMenu.Item>
+                        )}
 
-                      {currentStatus === "ACTIVE" && (
-                        <DropdownMenu.Item
-                          onClick={() => {
-                            setTargetStatus("INACTIVE");
-                            setConfirmOpen(true);
-                          }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                          Nonaktifkan
-                        </DropdownMenu.Item>
-                      )}
+                        {currentStatus === "INACTIVE" && (
+                          <>
+                            <DropdownMenu.Item
+                              onClick={() => {
+                                setTargetStatus("ACTIVE");
+                                setConfirmOpen(true);
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Aktifkan
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Item
+                              onClick={() => {
+                                setTargetStatus("ARCHIVED");
+                                setConfirmOpen(true);
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                              Arsipkan
+                            </DropdownMenu.Item>
+                          </>
+                        )}
 
-                      {currentStatus === "INACTIVE" && (
-                        <>
+                        {(currentStatus === "ARCHIVED" || currentStatus === "SOFT_DELETED") && (
                           <DropdownMenu.Item
                             onClick={() => {
                               setTargetStatus("ACTIVE");
                               setConfirmOpen(true);
                             }}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-emerald-650 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 outline-none transition-colors cursor-pointer font-semibold"
                           >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            Aktifkan
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Pulihkan Siswa
                           </DropdownMenu.Item>
+                        )}
+
+                        {currentStatus === "ARCHIVED" && (
                           <DropdownMenu.Item
                             onClick={() => {
-                              setTargetStatus("ARCHIVED");
+                              setTargetStatus("SOFT_DELETED");
                               setConfirmOpen(true);
                             }}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer"
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 outline-none transition-colors cursor-pointer"
                           >
-                            <Archive className="w-3.5 h-3.5" />
-                            Arsipkan
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Hapus (Soft Delete)
                           </DropdownMenu.Item>
-                        </>
-                      )}
-
-                      {(currentStatus === "ARCHIVED" || currentStatus === "SOFT_DELETED") && (
-                        <DropdownMenu.Item
-                          onClick={() => {
-                            setTargetStatus("ACTIVE");
-                            setConfirmOpen(true);
-                          }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-emerald-650 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 outline-none transition-colors cursor-pointer font-semibold"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          Pulihkan Siswa
-                        </DropdownMenu.Item>
-                      )}
-
-                      {currentStatus === "ARCHIVED" && (
-                        <DropdownMenu.Item
-                          onClick={() => {
-                            setTargetStatus("SOFT_DELETED");
-                            setConfirmOpen(true);
-                          }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 outline-none transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Hapus (Soft Delete)
-                        </DropdownMenu.Item>
-                      )}
-                    </DropdownMenu.Content>
-                  </DropdownMenu.Portal>
-                </DropdownMenu.Root>
-              </>
-            );
-          })()}
-        </div>
+                        )}
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
+                </>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {(() => {
@@ -801,7 +805,7 @@ export default function StudentDetailPage() {
           studentId={id}
           token={token}
           user={user}
-          mode="admin"
+          mode={user.role === 'teacher' ? 'teacher' : 'admin'}
         />
       )}
 

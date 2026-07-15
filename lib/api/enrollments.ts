@@ -45,9 +45,10 @@ export interface CreateEnrollmentPayload {
 // ─── Enrollment API Functions ─────────────────────────────────────────────────
 
 export async function listStudentEnrollments(
-  token: string
+  token: string,
+  params: Record<string, any> = {}
 ): Promise<EnrollmentRecord[]> {
-  return apiRequest<EnrollmentRecord[]>("list_student_enrollments", {}, token);
+  return apiRequest<EnrollmentRecord[]>("list_student_enrollments", params, token);
 }
 
 /** Returns enrollments for a specific student (client-side filtered) */
@@ -55,8 +56,9 @@ export async function getEnrollmentsForStudent(
   studentId: string,
   token: string
 ): Promise<EnrollmentRecord[]> {
-  const all = await listStudentEnrollments(token);
-  return all.filter((e) => e.student_id === studentId);
+  const response = await listStudentEnrollments(token, { limit: 100 }) as any;
+  const data = Array.isArray(response) ? response : (response?.data || []);
+  return data.filter((e: any) => e.student_id === studentId);
 }
 
 export async function getStudentActiveEnrollment(

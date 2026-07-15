@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { withRole } from '@/lib/middleware/withRole';
-import { previewRollover } from '@/lib/services/rolloverService';
+import { previewAssignmentRollover } from '@/lib/services/rolloverService';
 import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
 
@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     return withRole(['administrator'], req, async () => {
       try {
         const body = await req.json();
-        const result = await previewRollover(body.source_semester_id, body.target_semester_id);
+        const result = await previewAssignmentRollover(body.source_semester_id, body.target_semester_id);
         return successResponse(result, 'Assignments rollover preview retrieved.');
       } catch (error) {
         if (error instanceof AppError) {
@@ -25,3 +25,4 @@ export async function POST(req: NextRequest) {
     });
   });
 }
+

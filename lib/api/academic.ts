@@ -43,6 +43,7 @@ export interface ListAcademicAssessmentsPayload {
   subject_id?: string;
   academic_year_id?: string;
   semester_id?: string;
+  limit?: number;
 }
 
 export interface MyClassSubject {

@@ -27,14 +27,20 @@ import { humanizeError } from "@/lib/utils/ui-error";
 
 const LIMIT = 20;
 
-const LIFECYCLE_FILTER_OPTIONS: { label: string; value: string }[] = [
+const OPERATIONAL_FILTER_OPTIONS = [
   { label: "Operasional (Aktif & Nonaktif)", value: "ALL_OPERATIONAL" },
   { label: "Aktif saja", value: "ACTIVE" },
   { label: "Tidak Aktif saja", value: "INACTIVE" },
-  { label: "Lulus", value: "GRADUATED" },
-  { label: "Diarsipkan", value: "ARCHIVED" },
-  { label: "Terhapus", value: "SOFT_DELETED" },
+  { label: "Lulus saja", value: "GRADUATED" },
+  { label: "Pindah saja", value: "TRANSFERRED" },
+  { label: "Keluar saja", value: "WITHDRAWN" },
+  { label: "Meninggal saja", value: "DECEASED" },
   { label: "Semua", value: "Semua" },
+];
+
+const ARCHIVE_FILTER_OPTIONS = [
+  { label: "Terhapus saja", value: "SOFT_DELETED" },
+  { label: "Diarsipkan saja", value: "ARCHIVED" },
 ];
 
 export default function StudentsPage() {
@@ -46,6 +52,7 @@ export default function StudentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Server-side search, filter & pagination
+  const [viewArchive, setViewArchive] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [filterStatus, setFilterStatus] = useState<string>("ALL_OPERATIONAL");
@@ -59,10 +66,10 @@ export default function StudentsPage() {
   const [confirmTarget, setConfirmTarget] = useState<{ id: string; name: string; status: string } | null>(null);
   const [mutationLoading, setMutationLoading] = useState(false);
 
-  // Resets page to 1 when search or filter changes
+  // Resets page to 1 when search, tab, or filter changes
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filterStatus]);
+  }, [debouncedSearch, filterStatus, viewArchive]);
 
   const loadStudents = useCallback(async () => {
     if (!token) return;
@@ -70,10 +77,17 @@ export default function StudentsPage() {
     setError(null);
     try {
       let statusParam: string | undefined;
-      if (filterStatus === "ACTIVE") {
-        statusParam = "active";
-      } else if (filterStatus === "INACTIVE") {
-        statusParam = "inactive";
+      if (viewArchive) {
+        statusParam = filterStatus === "ARCHIVED" ? "archived" : "soft_deleted";
+      } else {
+        if (filterStatus === "ACTIVE") statusParam = "active";
+        else if (filterStatus === "INACTIVE") statusParam = "inactive";
+        else if (filterStatus === "GRADUATED") statusParam = "graduated";
+        else if (filterStatus === "TRANSFERRED") statusParam = "transferred";
+        else if (filterStatus === "WITHDRAWN") statusParam = "withdrawn";
+        else if (filterStatus === "DECEASED") statusParam = "deceased";
+        else if (filterStatus === "ARCHIVED") statusParam = "archived";
+        // ALL_OPERATIONAL sends undefined statusParam to let backend fetch operational
       }
 
       const result = await listStudents(token, {
@@ -168,6 +182,36 @@ export default function StudentsPage() {
         }
       />
 
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <button
+          onClick={() => {
+            setViewArchive(false);
+            setFilterStatus("ALL_OPERATIONAL");
+          }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+            !viewArchive
+              ? "border-[#468432] text-[#468432]"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Daftar Siswa
+        </button>
+        <button
+          onClick={() => {
+            setViewArchive(true);
+            setFilterStatus("SOFT_DELETED");
+          }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+            viewArchive
+              ? "border-[#468432] text-[#468432]"
+              : "border-transparent text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          Arsip / Terhapus
+        </button>
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -185,7 +229,7 @@ export default function StudentsPage() {
           onChange={(e) => setFilterStatus(e.target.value)}
           className="px-3.5 py-2.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]/30 focus:border-[#468432] cursor-pointer"
         >
-          {LIFECYCLE_FILTER_OPTIONS.map((opt) => (
+          {(viewArchive ? ARCHIVE_FILTER_OPTIONS : OPERATIONAL_FILTER_OPTIONS).map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

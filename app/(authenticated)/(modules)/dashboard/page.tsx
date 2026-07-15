@@ -310,27 +310,27 @@ export default function DashboardPage() {
 
     // Core sets needed for analytics
     promises.push(
-      apiRequest<any[]>("list_classes", {}, token).then(setClasses).catch(() => {})
+      apiRequest<any[]>("list_classes", { limit: 1000 }, token).then(setClasses).catch(() => {})
     );
     promises.push(
-      apiRequest<any[]>("list_subjects", {}, token).then(setSubjects).catch(() => {})
+      apiRequest<any[]>("list_subjects", { limit: 1000 }, token).then(setSubjects).catch(() => {})
     );
     promises.push(
-      listStudents(token).then(r => setStudents(r.data)).catch(() => {})
+      listStudents(token, { limit: 1000 }).then(r => setStudents(r.data)).catch(() => {})
     );
     promises.push(
-      listStudentEnrollments(token).then(setEnrollments).catch(() => {})
+      listStudentEnrollments(token, { limit: 1000 }).then(setEnrollments).catch(() => {})
     );
 
     if (user.role === "administrator" || user.role === "admin") {
       promises.push(
-        listUsersApi(token).then((res) => setTeachers(res.filter((u) => u.role === "teacher"))).catch(() => {})
+        listUsersApi(token, { limit: 1000 }).then((res) => setTeachers(res.filter((u) => u.role === "teacher"))).catch(() => {})
       );
       promises.push(
         searchAuditLogs(token, { page: 1, page_size: 10 }).then((res) => setAuditLogs(res.logs || [])).catch(() => {})
       );
       promises.push(
-        listAcademicAssessments(token).then(setAssessments).catch(() => {})
+        listAcademicAssessments(token, { limit: 1000 }).then(setAssessments).catch(() => {})
       );
     }
 
@@ -344,9 +344,9 @@ export default function DashboardPage() {
             
             // Parallel fetch teacher class data with correct 4 arguments
             await Promise.all([
-              listStudentsByClass(primaryClass.class_id, primaryClass.academic_year_id, primaryClass.semester_id, token)
+              listStudentsByClass(primaryClass.class_id, primaryClass.academic_year_id, primaryClass.semester_id, token, 1000)
                 .then(setTeacherStudents).catch(() => {}),
-              listAcademicAssessments(token, { class_id: primaryClass.class_id }).then(setTeacherAssessments).catch(() => {}),
+              listAcademicAssessments(token, { class_id: primaryClass.class_id, limit: 1000 }).then(setTeacherAssessments).catch(() => {}),
               getTeacherCultureCompleteness(token, { period_mode: "week", class_id: primaryClass.class_id }).then(setTeacherCulture).catch(() => {}),
               getClassAcademicSummary(token, {
                 class_id: primaryClass.class_id,

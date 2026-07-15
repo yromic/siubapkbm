@@ -195,13 +195,94 @@ export async function getParentDashboard(studentId: string) {
     sppStatus = sppRecord ? sppRecord.payment_status : 'not_generated';
   }
 
+  // Academic Summary calculation
+  let academic_summary = {
+    average_score: null as number | null,
+    completed_assessments: 0,
+    total_assessments: 0,
+    latest_assessment_date: null as string | null
+  };
+
+  if (enrollment) {
+    const classAssessments = await db('academic_assessments')
+      .where({
+        class_id: enrollment.class_id,
+        academic_year_id: enrollment.academic_year_id,
+        semester_id: enrollment.semester_id
+      })
+      .whereIn('status', ['published', 'locked'])
+      .whereNot('lifecycle_status', 'soft_deleted');
+
+    academic_summary.total_assessments = classAssessments.length;
+
+    if (classAssessments.length > 0) {
+      const assessmentIds = classAssessments.map(a => a.id);
+      const studentScores = await db('academic_scores')
+        .whereIn('assessment_id', assessmentIds)
+        .where('student_id', studentId)
+        .whereNot('lifecycle_status', 'soft_deleted');
+
+      const validScores = studentScores.filter(s => s.score !== null && s.score !== '');
+      academic_summary.completed_assessments = validScores.length;
+
+      if (validScores.length > 0) {
+        const sum = validScores.reduce((acc, curr) => acc + Number(curr.score), 0);
+        academic_summary.average_score = parseFloat((sum / validScores.length).toFixed(2));
+      }
+
+      const latest = classAssessments.reduce((prev, curr) => {
+        return new Date(prev.assessment_date) > new Date(curr.assessment_date) ? prev : curr;
+      });
+      academic_summary.latest_assessment_date = latest.assessment_date
+        ? new Date(latest.assessment_date).toISOString().split('T')[0]
+        : null;
+    }
+  }
+
+  // Character Summary calculation
+  let character_summary = null;
+  if (enrollment) {
+    const semSummary = await calculateAndGetSemesterSummary(studentId, enrollment.academic_year_id, enrollment.semester_id).catch(() => null);
+    if (semSummary) {
+      const f = semSummary.f_score !== null ? Number(semSummary.f_score) : null;
+      const i = semSummary.i_score !== null ? Number(semSummary.i_score) : null;
+      const t = semSummary.t_score !== null ? Number(semSummary.t_score) : null;
+      const r = semSummary.r_score !== null ? Number(semSummary.r_score) : null;
+      const a = semSummary.a_score !== null ? Number(semSummary.a_score) : null;
+      const h = semSummary.h_score !== null ? Number(semSummary.h_score) : null;
+
+      let overall_average = null;
+      const validScores = [f, i, t, r, a, h].filter(v => v !== null) as number[];
+      if (validScores.length > 0) {
+        overall_average = parseFloat((validScores.reduce((sum, val) => sum + val, 0) / validScores.length).toFixed(2));
+      }
+
+      character_summary = {
+        f,
+        i,
+        t,
+        r,
+        a,
+        h,
+        overall_average,
+        days_counted: semSummary.days_counted || 0,
+        period_label: enrollment.semester_name || "Semester Aktif"
+      };
+    }
+  }
+
   return {
     student: {
       id: student.id,
       full_name: student.full_name,
       nisn: student.nisn,
-      gender: student.gender
+      gender: student.gender,
+      class_name: enrollment?.class_name || null,
+      semester_name: enrollment?.semester_name || null,
+      academic_year_name: enrollment?.academic_year_name || null
     },
+    academic_summary,
+    character_summary,
     enrollment,
     spp_this_month: sppStatus
   };

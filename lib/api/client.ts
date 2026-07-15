@@ -79,7 +79,7 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'publish_academic_assessment':   { method: 'POST', path: '/api/v1/academic-assessments/:id/publish', idField: 'id' },
   'list_academic_scores_by_assessment': { method: 'GET', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
   'save_academic_scores':          { method: 'POST', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
-  'get_class_academic_summary':    { method: 'GET',  path: '/api/v1/students/:id/academic-summary', idField: 'class_id' },
+  'get_class_academic_summary':    { method: 'GET',  path: '/api/v1/classes/:id/academic-summary', idField: 'class_id' },
   'calculate_academic_completeness': { method: 'GET', path: '/api/v1/completeness/academic' },
   'list_my_class_subjects':        { method: 'GET',  path: '/api/v1/class-subjects/my' },
 
@@ -274,79 +274,38 @@ export async function apiRequest<T>(
   }
 
   if (action === "get_executive_dashboard_stats") {
-    // Aggregate data from available REST endpoints to satisfy ExecutiveDashboardStats shape.
-    // Fields not available in backend are returned with safe empty defaults.
-    const [schoolRaw, classesRaw, backupsRaw, sppRaw] = await Promise.allSettled([
+    // Fetch aggregated data from school dashboard endpoint directly.
+    const [schoolRaw, backupsRaw] = await Promise.allSettled([
       fetchRaw<any>("/api/v1/dashboards/school", "GET", {}, token),
-      fetchRaw<{ data: any[] }>("/api/v1/classes", "GET", {}, token),
       fetchRaw<{ data: any[] }>("/api/v1/backups", "GET", {}, token),
-      fetchRaw<{ data: any[] }>("/api/v1/finance/spp", "GET", {}, token),
     ]);
 
-    const school  = schoolRaw.status  === "fulfilled" ? schoolRaw.value  : null;
-    const classes = classesRaw.status === "fulfilled" ? (classesRaw.value?.data ?? []) : [];
+    const school = schoolRaw.status === "fulfilled" ? schoolRaw.value : null;
     const backups = backupsRaw.status === "fulfilled" ? (backupsRaw.value?.data ?? []) : [];
-    const sppList = sppRaw.status    === "fulfilled" ? (sppRaw.value?.data ?? []) : [];
-
-    // SPP chart: build monthly breakdown from list
-    const sppByMonth: Record<string, { Lunas: number; Belum: number }> = {};
-    for (const item of sppList) {
-      const key = `${item.payment_year ?? "?"}-${String(item.payment_month ?? "?").padStart(2, "0")}`;
-      if (!sppByMonth[key]) sppByMonth[key] = { Lunas: 0, Belum: 0 };
-      if (item.payment_status === "paid") sppByMonth[key].Lunas++;
-      else sppByMonth[key].Belum++;
-    }
-    const sppChartData = Object.entries(sppByMonth).slice(-6).map(([name, v]) => ({ name, ...v }));
-
-    // SPP completion rate
-    const totalSpp = sppList.length;
-    const paidSpp  = sppList.filter((s: any) => s.payment_status === "paid").length;
-    const sppCompletionRate = totalSpp > 0 ? Math.round((paidSpp / totalSpp) * 100) : 0;
-    const unpaidSppPercent  = totalSpp > 0 ? Math.round(((totalSpp - paidSpp) / totalSpp) * 100) : 0;
-
-    // Class academic averages (placeholder — names from class list)
-    const classAcademicAverages = (classes as any[]).slice(0, 8).map((c: any) => ({
-      name: c.name ?? "Kelas",
-      RataRata: 0,
-    }));
-
-    // Best class: first class name as safe default
-    const firstClass = (classes as any[])[0];
-    const bestClassAcademicName = firstClass?.name ?? "N/A";
-    const bestCultureClassName  = firstClass?.name ?? "N/A";
-
-    // Backup info
-    const lastBackup = (backups as any[])[0];
+    const lastBackup = backups[0];
 
     return {
-      teacherAttendanceRate:       0,
-      sppCompletionRate,
-      sppChartData:                sppChartData.length > 0 ? sppChartData : [{ name: "—", Lunas: 0, Belum: 0 }],
-      docCompletionRate:           0,
-      docPieChartData:             [{ name: "Lengkap", value: 0 }, { name: "Belum", value: 100 }],
-      fitrahRadarData:             [
-        { subject: "Akhlak", A: 0, fullMark: 100 },
-        { subject: "Ibadah", A: 0, fullMark: 100 },
-        { subject: "Akademik", A: 0, fullMark: 100 },
-        { subject: "Sosial", A: 0, fullMark: 100 },
-        { subject: "Fisik", A: 0, fullMark: 100 },
-      ],
+      teacherAttendanceRate:       school?.teacherAttendanceRate ?? 0,
+      sppCompletionRate:           school?.sppCompletionRate ?? 0,
+      sppChartData:                school?.sppChartData ?? [{ name: "—", Lunas: 0, Belum: 0 }],
+      docCompletionRate:           school?.docCompletionRate ?? 0,
+      docPieChartData:             school?.docPieChartData ?? [{ name: "Lengkap", value: 0 }, { name: "Belum", value: 100 }],
+      fitrahRadarData:             school?.fitrahRadarData ?? [],
       lastBackupTime:              lastBackup?.created_at ?? "Belum ada",
       lastBackupStatus:            lastBackup?.status ?? "unknown",
-      lastIntegrityCheckTime:      "N/A",
-      lastIntegrityCheckStatus:    "unknown",
-      bestClassAcademicName,
-      bestClassAcademicAvg:        "0.0",
-      mostActiveTeacherName:       "N/A",
-      mostActiveTeacherDesc:       "Data tidak tersedia",
-      bestCultureClassName,
-      bestCultureClassAvg:         "0.0",
-      classesWithoutWali:          [],
-      orphanStudentsCount:         0,
-      unpaidSppPercent,
-      failedLoginsCount:           0,
-      classAcademicAverages,
-      // Raw school dashboard data bonus fields (for future use)
+      lastIntegrityCheckTime:      school?.lastIntegrityCheckTime ?? "N/A",
+      lastIntegrityCheckStatus:    school?.lastIntegrityCheckStatus ?? "unknown",
+      bestClassAcademicName:       school?.bestClassAcademicName ?? "N/A",
+      bestClassAcademicAvg:        school?.bestClassAcademicAvg ?? "0.0",
+      mostActiveTeacherName:       school?.mostActiveTeacherName ?? "N/A",
+      mostActiveTeacherDesc:       school?.mostActiveTeacherDesc ?? "Data tidak tersedia",
+      bestCultureClassName:        school?.bestCultureClassName ?? "N/A",
+      bestCultureClassAvg:         school?.bestCultureClassAvg ?? "0.0",
+      classesWithoutWali:          school?.classesWithoutWali ?? [],
+      orphanStudentsCount:         school?.orphanStudentsCount ?? 0,
+      unpaidSppPercent:            school?.unpaidSppPercent ?? 0,
+      failedLoginsCount:           school?.failedLoginsCount ?? 0,
+      classAcademicAverages:       school?.classAcademicAverages ?? [],
       _school:                     school,
     } as unknown as T;
   }

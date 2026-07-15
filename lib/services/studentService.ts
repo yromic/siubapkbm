@@ -8,6 +8,21 @@ export interface StudentFilters {
   search?: string;
 }
 
+const statusMap: Record<string, string> = {
+  'Aktif': 'active',
+  'Tidak aktif': 'inactive',
+  'Lulus': 'graduated',
+  'Pindah': 'transferred',
+  'Keluar': 'withdrawn',
+  'Meninggal': 'deceased',
+  'active': 'active',
+  'inactive': 'inactive',
+  'graduated': 'graduated',
+  'transferred': 'transferred',
+  'withdrawn': 'withdrawn',
+  'deceased': 'deceased'
+};
+
 export interface StudentInput {
   nisn: string;
   nik?: string;
@@ -19,6 +34,7 @@ export interface StudentInput {
   phone?: string;
   affirmation?: string;
   special_needs?: string;
+  status?: string;
   family_card_number?: string;
   family_card_date?: string | Date;
   mother_name?: string;
@@ -41,10 +57,15 @@ export interface StudentInput {
 
 export async function listStudents(filters: StudentFilters = {}, page = 1, limit = 20) {
   try {
-    const query = db('students').whereNot('status', 'soft_deleted');
+    const query = db('students');
 
-    if (filters.status) {
-      query.where('status', filters.status);
+    if (filters.status === 'soft_deleted') {
+      query.where('status', 'soft_deleted');
+    } else {
+      query.whereNot('status', 'soft_deleted');
+      if (filters.status) {
+        query.where('status', filters.status);
+      }
     }
 
     if (filters.search) {
@@ -170,7 +191,7 @@ export async function createStudent(input: StudentInput) {
       province: input.province || null,
       spp_amount: input.spp_amount || null,
       parent_access_pin_hash: pinHash,
-      status: 'active',
+      status: statusMap[input.status || ''] || 'active',
       created_at: new Date(),
       updated_at: new Date()
     };
@@ -242,12 +263,16 @@ export async function updateStudent(id: string, input: Partial<Omit<StudentInput
       'nik', 'birth_place', 'religion', 'phone', 'affirmation', 'special_needs',
       'family_card_number', 'mother_name', 'mother_nik', 'father_name', 'father_nik',
       'guardian_name', 'guardian_nik', 'address_street', 'rt', 'rw', 'hamlet',
-      'village', 'district', 'city', 'province', 'spp_amount'
+      'village', 'district', 'city', 'province', 'spp_amount', 'status'
     ];
 
     for (const f of optionalFields) {
       if ((input as any)[f] !== undefined) {
-        patch[f] = (input as any)[f] || null;
+        if (f === 'status') {
+          patch[f] = statusMap[(input as any)[f] || ''] || 'active';
+        } else {
+          patch[f] = (input as any)[f] || null;
+        }
       }
     }
 

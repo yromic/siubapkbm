@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { withRole } from '@/lib/middleware/withRole';
-import { executeAssignmentRollover } from '@/lib/services/rolloverService';
+import { previewSubjectRollover } from '@/lib/services/rolloverService';
 import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
 
@@ -10,14 +10,14 @@ export async function POST(req: NextRequest) {
     return withRole(['administrator'], req, async () => {
       try {
         const body = await req.json();
-        const result = await executeAssignmentRollover(body.source_semester_id, body.target_semester_id);
-        return successResponse(result, 'Assignments rollover executed successfully.');
+        const result = await previewSubjectRollover(body.source_semester_id, body.target_semester_id);
+        return successResponse(result, 'Subjects rollover preview retrieved.');
       } catch (error) {
         if (error instanceof AppError) {
           return errorResponse(error.message, error.code, error.statusCode);
         }
         return errorResponse(
-          error instanceof Error ? error.message : 'Database error executing rollover.',
+          error instanceof Error ? error.message : 'Database error previewing subjects rollover.',
           'ERR_INTERNAL_SERVER',
           500
         );
@@ -25,4 +25,3 @@ export async function POST(req: NextRequest) {
     });
   });
 }
-
