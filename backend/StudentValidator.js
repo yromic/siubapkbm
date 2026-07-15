@@ -22,8 +22,8 @@ function validateStudent(data, isUpdate, excludeId) {
   // NISN format and uniqueness
   if (data.nisn) {
     var nisnStr = String(data.nisn).trim();
-    if (!/^\d{8,12}$/.test(nisnStr)) {
-      throw new Error("NISN must be numeric and between 8 to 12 digits.");
+    if (!/^\d{8,10}$/.test(nisnStr)) {
+      throw new Error("NISN harus berupa angka 8–10 digit.");
     }
     assertNoDuplicate(SHEETS.STUDENTS, 'nisn', nisnStr, excludeId);
   }

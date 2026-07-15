@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
+import { validateNisn } from '@/lib/validation/student';
 import { validateUserIdentifiers } from './userService';
 import fs from 'fs';
 import path from 'path';
@@ -267,8 +268,9 @@ async function validateStudentRows(
     const ctx: RowValidationContext = { rowErrors: [], rowWarnings: [] };
 
     const nisn = String(r.nisn ?? '').trim();
-    if (!nisn || nisn.length !== 10 || isNaN(Number(nisn))) {
-      ctx.rowErrors.push({ row_number: rowNum, field: 'nisn', message: `NISN harus 10 digit (diterima: "${nisn}")`, severity: 'error' });
+    const nisnError = validateNisn(nisn);
+    if (nisnError) {
+      ctx.rowErrors.push({ row_number: rowNum, field: 'nisn', message: `${nisnError} (diterima: "${nisn}")`, severity: 'error' });
     }
 
     const fullName = String(r.full_name ?? '').trim();

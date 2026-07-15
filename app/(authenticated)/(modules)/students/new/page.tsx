@@ -15,6 +15,7 @@ import {
   STUDENT_STATUSES,
   StudentStatus,
 } from "@/lib/api/students";
+import { validateNisn } from "@/lib/validation/student";
 
 // ─── Field helpers ────────────────────────────────────────────────────────────
 
@@ -195,8 +196,9 @@ export default function StudentCreatePage() {
       setError("Nama lengkap wajib diisi.");
       return;
     }
-    if (!nisn.trim() || !/^\d{8,12}$/.test(nisn.trim())) {
-      setError("NISN harus berupa angka 8–12 digit.");
+    const nisnError = validateNisn(nisn);
+    if (nisnError) {
+      setError(nisnError);
       return;
     }
     if (!birthDate) {

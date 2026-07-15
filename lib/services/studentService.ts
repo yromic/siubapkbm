@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 import { AppError } from '@/lib/errors';
+import { validateNisn } from '@/lib/validation/student';
 
 export interface StudentFilters {
   status?: string;
@@ -134,6 +135,11 @@ export async function createStudent(input: StudentInput) {
     throw new AppError('Missing required fields: nisn, full_name, birth_date, and gender are required.', 'ERR_VALIDATION', 400);
   }
 
+  const nisnError = validateNisn(input.nisn);
+  if (nisnError) {
+    throw new AppError(nisnError, 'ERR_VALIDATION', 400);
+  }
+
   const birthDate = new Date(input.birth_date);
   if (birthDate > new Date()) {
     throw new AppError('Birth date cannot be in the future.', 'ERR_VALIDATION', 400);
@@ -225,6 +231,11 @@ export async function updateStudent(id: string, input: Partial<Omit<StudentInput
 
     if (input.nisn !== undefined) {
       if (!input.nisn.trim()) throw new AppError('NISN cannot be empty.', 'ERR_VALIDATION', 400);
+      
+      const nisnError = validateNisn(input.nisn);
+      if (nisnError) {
+        throw new AppError(nisnError, 'ERR_VALIDATION', 400);
+      }
       
       const existing = await db('students')
         .where('nisn', input.nisn)
