@@ -253,3 +253,103 @@ export async function getActiveEnrollmentByStudent(studentId: string, semesterId
     );
   }
 }
+
+export async function bulkEnrollment(input: {
+  student_ids: string[];
+  class_id: string;
+  academic_year_id: string;
+  semester_id: string;
+}) {
+  if (!input.student_ids || !Array.isArray(input.student_ids) || input.student_ids.length === 0) {
+    throw new AppError('student_ids array is required.', 'ERR_VALIDATION', 400);
+  }
+  if (!input.class_id || !input.academic_year_id || !input.semester_id) {
+    throw new AppError('Missing required fields: class_id, academic_year_id, and semester_id are required.', 'ERR_VALIDATION', 400);
+  }
+
+  const enrolled: any[] = [];
+  const skipped: any[] = [];
+  const failed: any[] = [];
+
+  await db.transaction(async (trx) => {
+    // Validate relations
+    const classItem = await trx('classes').where('id', input.class_id).whereNot('lifecycle_status', 'soft_deleted').first();
+    if (!classItem) throw new AppError('Class not found or deleted.', 'ERR_VALIDATION', 400);
+
+    const yearItem = await trx('academic_years').where('id', input.academic_year_id).whereNot('lifecycle_status', 'soft_deleted').first();
+    if (!yearItem) throw new AppError('Academic Year not found or deleted.', 'ERR_VALIDATION', 400);
+
+    const semesterItem = await trx('semesters').where('id', input.semester_id).whereNot('lifecycle_status', 'soft_deleted').first();
+    if (!semesterItem) throw new AppError('Semester not found or deleted.', 'ERR_VALIDATION', 400);
+
+    for (const studentId of input.student_ids) {
+      try {
+        const student = await trx('students').where('id', studentId).whereNot('status', 'soft_deleted').first();
+        if (!student) {
+          skipped.push({
+            student_id: studentId,
+            reason: 'Student not found or deleted.'
+          });
+          continue;
+        }
+
+        const existingActive = await trx('student_enrollments')
+          .where({
+            student_id: studentId,
+            semester_id: input.semester_id,
+            status: 'active'
+          })
+          .whereNot('lifecycle_status', 'soft_deleted')
+          .first();
+
+        if (existingActive) {
+          skipped.push({
+            student_id: studentId,
+            student_name: student.full_name,
+            nisn: student.nisn,
+            reason: 'Siswa sudah terdaftar aktif di semester ini.'
+          });
+          continue;
+        }
+
+        const id = uuidv4();
+        const newItem = {
+          id,
+          student_id: studentId,
+          class_id: input.class_id,
+          academic_year_id: input.academic_year_id,
+          semester_id: input.semester_id,
+          status: 'active',
+          lifecycle_status: 'active',
+          created_at: new Date(),
+          updated_at: new Date()
+        };
+
+        await trx('student_enrollments').insert(newItem);
+
+        enrolled.push({
+          student_id: studentId,
+          student_name: student.full_name,
+          nisn: student.nisn,
+          enrollment_id: id
+        });
+      } catch (err: any) {
+        failed.push({
+          student_id: studentId,
+          reason: err instanceof Error ? err.message : 'Database error'
+        });
+      }
+    }
+  });
+
+  // Generate SPP records outside the transaction so failures don't roll back insertions
+  for (const student of enrolled) {
+    try {
+      await generateSppRecordsForStudent(student.student_id, input.academic_year_id, new Date());
+    } catch (sppErr) {
+      console.warn('[bulkEnrollment] SPP generation failed (non-fatal) for student:', student.student_id, sppErr);
+    }
+  }
+
+  return { enrolled, skipped, failed };
+}

@@ -371,7 +371,7 @@ export default function StudentDetailPage() {
     { key: "enrollment", label: `Riwayat Kelas (${enrollments.length})` },
     { key: "documents", label: "Dokumen" },
     ...(user.role === "administrator" || user.role === "admin"
-      ? [{ key: "pin", label: "PIN Orang Tua" as const }]
+      ? [{ key: "pin" as Tab, label: "PIN Orang Tua" }]
       : []),
   ];
 

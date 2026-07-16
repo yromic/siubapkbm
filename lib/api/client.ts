@@ -178,7 +178,9 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'assign_subject_to_class':        { method: 'POST', path: '/api/v1/class-subjects' },
   'unassign_subject_from_class':    { method: 'DELETE', path: '/api/v1/class-subjects/:id', idField: 'id' },
 
-  // Teacher Profiles & Assignments
+  // Bulk Enrollment
+  'bulk_enrollment':                { method: 'POST', path: '/api/v1/enrollments/bulk' },
+
   'list_teacher_profiles':          { method: 'GET',  path: '/api/v1/teachers' },
   'create_teacher_profile':         { method: 'POST', path: '/api/v1/teachers' },
   'update_teacher_profile':         { method: 'PUT',  path: '/api/v1/teachers/:id', idField: 'id' },

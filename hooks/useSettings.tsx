@@ -57,14 +57,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         apiRequest<Record<string, string>>("get_app_settings", {}, token),
       ]);
 
-      setAcademicYears(years);
-      setSemesters(sems);
+      const yearsData = Array.isArray(years) ? years : (years as any).data || [];
+      const semsData = Array.isArray(sems) ? sems : (sems as any).data || [];
+
+      setAcademicYears(yearsData);
+      setSemesters(semsData);
 
       const activeYearId = settings.active_academic_year_id;
       const activeSemId = settings.active_semester_id;
 
-      const activeY = years.find((y) => y.id === activeYearId) || null;
-      const activeS = sems.find((s) => s.id === activeSemId) || null;
+      const activeY = yearsData.find((y: any) => y.id === activeYearId) || null;
+      const activeS = semsData.find((s: any) => s.id === activeSemId) || null;
 
       setActiveAcademicYear(activeY);
       setActiveSemester(activeS);

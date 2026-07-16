@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
+import { useRouter } from "next/navigation";
 import { apiRequest, mutateLifecycleStatus } from "@/lib/api/client";
 import { PageHeader, ResponsiveContainer, LoadingState, EmptyState, ForbiddenState } from "@/components/ui-states";
 import { DatePicker } from "@/components/ui/date-picker";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { X, MoreVertical, Edit, Archive, CheckCircle, Trash2, Power, RotateCcw } from "lucide-react";
+import { X, MoreVertical, Edit, Archive, CheckCircle, Trash2, Power, RotateCcw, Eye } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { notify } from "@/lib/notify";
 import { LifecycleBadge } from "@/components/lifecycle-badge";
@@ -64,6 +65,7 @@ const LIFECYCLE_FILTER_OPTIONS = [
 export default function ClassesPage() {
   const { token, user } = useAuth();
   const { academicYears, semesters, activeAcademicYear, activeSemester } = useSettings();
+  const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<"classes" | "assignments">("classes");
   
@@ -477,6 +479,14 @@ export default function ClassesPage() {
                                     sideOffset={5}
                                     className="z-50 min-w-[160px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[12px] p-1 shadow-lg outline-none"
                                   >
+                                    <DropdownMenu.Item
+                                      onClick={() => router.push(`/classes/${cls.id}?year=${activeAcademicYear?.id || ""}&sem=${activeSemester?.id || ""}`)}
+                                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 outline-none transition-colors cursor-pointer font-semibold"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      Detail Kelas
+                                    </DropdownMenu.Item>
+
                                     {currentStatus !== "ARCHIVED" && currentStatus !== "SOFT_DELETED" && (
                                       <DropdownMenu.Item
                                         onClick={() => handleOpenClassModal(cls)}

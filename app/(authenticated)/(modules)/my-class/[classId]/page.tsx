@@ -12,6 +12,7 @@ import {
   ForbiddenState,
 } from "@/components/ui-states";
 import { listStudentsByClass, StudentSummary } from "@/lib/api/students";
+import { useSettings } from "@/hooks/useSettings";
 
 type StudentStatus = string;
 
@@ -37,6 +38,10 @@ export default function MyClassRosterPage() {
   const semesterId = searchParams.get("sem") ?? "";
 
   const { token, user } = useAuth();
+  const { activeAcademicYear, activeSemester } = useSettings();
+
+  const yearId = academicYearId || activeAcademicYear?.id || "";
+  const semId = semesterId || activeSemester?.id || "";
 
   const [students, setStudents] = useState<StudentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +50,7 @@ export default function MyClassRosterPage() {
 
   const loadRoster = useCallback(async () => {
     if (!token || !classId) return;
-    if (!academicYearId || !semesterId) {
+    if (!yearId || !semId) {
       setStudents([]);
       setLoading(false);
       setError("Periode kelas tidak lengkap. Buka kelas melalui halaman Kelas Saya.");
@@ -56,8 +61,8 @@ export default function MyClassRosterPage() {
     try {
       const data = await listStudentsByClass(
         classId,
-        academicYearId,
-        semesterId,
+        yearId,
+        semId,
         token
       );
       setStudents(data);
@@ -67,7 +72,7 @@ export default function MyClassRosterPage() {
     } finally {
       setLoading(false);
     }
-  }, [token, classId, academicYearId, semesterId]);
+  }, [token, classId, yearId, semId]);
 
   useEffect(() => {
     setTimeout(() => loadRoster(), 0);

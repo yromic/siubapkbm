@@ -82,6 +82,7 @@ const IMPORT_TYPE_MAP: Record<string, string> = {
   class_subjects: 'class_subject', class_subject: 'class_subject',
   academic_scores: 'academic_score', academic_score: 'academic_score',
   culture_scores: 'culture_score', culture_score: 'culture_score',
+  enrollments: 'enrollment', enrollment: 'enrollment',
 };
 
 function normaliseImportType(raw: string): string {
@@ -215,6 +216,8 @@ export async function parseAndValidate(
       return validateAcademicScoreRows(importLogId, fileName, rows, columns);
     case 'culture_score':
       return validateCultureScoreRows(importLogId, fileName, rows, columns);
+    case 'enrollment':
+      return validateEnrollmentRows(importLogId, fileName, rows, columns);
     default:
       throw new AppError(`Unsupported import type: ${importType}`, 'ERR_VALIDATION', 400);
   }
@@ -324,6 +327,122 @@ async function validateStudentRows(
     total_rows: rows.length, valid_rows: validCount, invalid_rows: errorCount,
     create_count: createCount, update_count: updateCount, skip_count: 0,
     error_count: errorCount,
+    warning_count: previewRows.filter(r => r.status === 'warning').length,
+    status: rows.length > 0 && validCount === 0 ? 'failed' : 'previewed',
+    preview_rows: previewRows, errors: topLevelErrors,
+  };
+}
+
+// ============================================================================
+//  ENROLLMENT ROWS
+// ============================================================================
+async function validateEnrollmentRows(
+  importLogId: string, fileName: string, rows: any[], columns: string[]
+): Promise<ImportSessionResult> {
+  const REQUIRED = ['nisn', 'class_code'];
+  const missing = REQUIRED.filter(col => !columns.includes(col));
+  if (missing.length > 0) {
+    throw new AppError(`Kolom wajib tidak ditemukan: ${missing.join(', ')}`, 'ERR_VALIDATION', 400);
+  }
+
+  const activeYearId = await getActiveAcademicYearId();
+  const activeSemId = await getActiveSemesterId();
+  if (!activeYearId || !activeSemId) {
+    throw new AppError('Tahun ajaran atau semester aktif tidak ditemukan.', 'ERR_VALIDATION', 400);
+  }
+
+  const previewRows: any[] = [];
+  const topLevelErrors: any[] = [];
+  let validCount = 0, errorCount = 0, createCount = 0;
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowNum = i + 2;
+    const r = rows[i];
+    const ctx: RowValidationContext = { rowErrors: [], rowWarnings: [] };
+
+    const nisn = String(r.nisn ?? '').trim();
+    const classCode = String(r.class_code ?? '').trim();
+
+    if (!nisn) {
+      ctx.rowErrors.push({ row_number: rowNum, field: 'nisn', message: 'NISN wajib diisi', severity: 'error' });
+    }
+    if (!classCode) {
+      ctx.rowErrors.push({ row_number: rowNum, field: 'class_code', message: 'Kode kelas wajib diisi', severity: 'error' });
+    }
+
+    let studentId = '';
+    let studentName = '';
+    let classId = '';
+    let className = '';
+
+    if (nisn) {
+      const student = await db('students').where('nisn', nisn).whereNot('status', 'soft_deleted').first();
+      if (!student) {
+        ctx.rowErrors.push({ row_number: rowNum, field: 'nisn', message: `Siswa dengan NISN "${nisn}" tidak ditemukan`, severity: 'error' });
+      } else {
+        studentId = student.id;
+        studentName = student.full_name;
+      }
+    }
+
+    if (classCode) {
+      const classItem = await db('classes').where('code', classCode).whereNot('lifecycle_status', 'soft_deleted').first();
+      if (!classItem) {
+        ctx.rowErrors.push({ row_number: rowNum, field: 'class_code', message: `Kelas dengan kode "${classCode}" tidak ditemukan`, severity: 'error' });
+      } else {
+        classId = classItem.id;
+        className = classItem.name;
+      }
+    }
+
+    if (studentId && classId) {
+      const existingActive = await db('student_enrollments')
+        .where({
+          student_id: studentId,
+          semester_id: activeSemId,
+          status: 'active'
+        })
+        .whereNot('lifecycle_status', 'soft_deleted')
+        .first();
+
+      if (existingActive) {
+        ctx.rowWarnings.push({
+          row_number: rowNum,
+          field: 'nisn',
+          message: `Siswa sudah terdaftar aktif di semester ini (Kelas ID: ${existingActive.class_id})`,
+          severity: 'warning'
+        });
+      }
+    }
+
+    let operation: 'create' | 'update' | 'error' = 'create';
+    if (ctx.rowErrors.length > 0) {
+      operation = 'error';
+      errorCount++;
+      topLevelErrors.push(...ctx.rowErrors);
+    } else {
+      validCount++;
+      createCount++;
+    }
+
+    r.student_id = studentId;
+    r.class_id = classId;
+    r.academic_year_id = activeYearId;
+    r.semester_id = activeSemId;
+
+    previewRows.push(makeRowPayload(
+      rowNum,
+      operation,
+      nisn,
+      studentName ? `${studentName} -> ${className || classCode}` : `Baris ${rowNum}`,
+      ctx
+    ));
+  }
+
+  return {
+    import_log_id: importLogId, import_type: 'enrollment', file_name: fileName,
+    total_rows: rows.length, valid_rows: validCount, invalid_rows: errorCount,
+    create_count: createCount, update_count: 0, skip_count: 0, error_count: errorCount,
     warning_count: previewRows.filter(r => r.status === 'warning').length,
     status: rows.length > 0 && validCount === 0 ? 'failed' : 'previewed',
     preview_rows: previewRows, errors: topLevelErrors,
@@ -944,6 +1063,10 @@ export async function confirmImportSession(
     const result = await confirmCultureScoreRows(rows, validated.preview_rows, confirmErrors, successCount, errorCount, importedIds, processedRows, actorId);
     successCount = result.successCount;
     errorCount = result.errorCount;
+  } else if (normType === 'enrollment') {
+    const result = await confirmEnrollmentRows(rows, validated.preview_rows, confirmErrors, successCount, errorCount, importedIds, processedRows);
+    successCount = result.successCount;
+    errorCount = result.errorCount;
   }
 
   const finalStatus: 'success' | 'partial_success' | 'failed' =
@@ -1038,6 +1161,71 @@ async function confirmStudentRows(
       }
     }
   });
+  return { successCount, errorCount };
+}
+
+async function confirmEnrollmentRows(
+  rows: any[],
+  previewRows: any[],
+  confirmErrors: any[],
+  successCount: number,
+  errorCount: number,
+  importedIds: string[],
+  processedRows: Array<{ row_number: number; entity_id: string; action: string }>
+): Promise<ConfirmResult> {
+  const { bulkEnrollment } = require('./enrollmentService');
+
+  for (const previewRow of previewRows) {
+    if (previewRow.operation === 'error') {
+      errorCount++;
+      confirmErrors.push(...(previewRow.errors ?? []));
+      continue;
+    }
+
+    const rawRow = rows[previewRow.row_number - 2];
+    if (!rawRow) { errorCount++; continue; }
+
+    try {
+      const result = await bulkEnrollment({
+        student_ids: [rawRow.student_id],
+        class_id: rawRow.class_id,
+        academic_year_id: rawRow.academic_year_id,
+        semester_id: rawRow.semester_id
+      });
+
+      if (result.enrolled && result.enrolled.length > 0) {
+        successCount++;
+        importedIds.push(result.enrolled[0].enrollment_id);
+        processedRows.push({
+          row_number: previewRow.row_number,
+          entity_id: result.enrolled[0].enrollment_id,
+          action: 'create'
+        });
+      } else if (result.skipped && result.skipped.length > 0) {
+        // Skipped/already active is handled as processed (no crash) but logged as skip
+        successCount++;
+        processedRows.push({
+          row_number: previewRow.row_number,
+          entity_id: 'skipped',
+          action: 'skip'
+        });
+      } else if (result.failed && result.failed.length > 0) {
+        errorCount++;
+        confirmErrors.push({
+          row_number: previewRow.row_number,
+          message: result.failed[0].reason,
+          severity: 'error'
+        });
+      }
+    } catch (err) {
+      errorCount++;
+      confirmErrors.push({
+        row_number: previewRow.row_number,
+        message: err instanceof Error ? err.message : 'Database error',
+        severity: 'error',
+      });
+    }
+  }
   return { successCount, errorCount };
 }
 

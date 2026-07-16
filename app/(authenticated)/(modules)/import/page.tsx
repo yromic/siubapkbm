@@ -14,7 +14,7 @@ import { ImportHistory } from "@/components/import/import-history";
 import { downloadBase64File } from "@/lib/utils/files";
 
 const ALL_TYPES: Array<{ value: ImportType; label: string }> = [
-  { value: "students", label: "Siswa" }, { value: "teachers", label: "Guru" }, { value: "classes", label: "Kelas" }, { value: "subjects", label: "Mata pelajaran" }, { value: "class_subjects", label: "Mapel kelas" }, { value: "academic_scores", label: "Nilai akademik" }, { value: "culture_scores", label: "Nilai budaya" },
+  { value: "students", label: "Siswa" }, { value: "teachers", label: "Guru" }, { value: "classes", label: "Kelas" }, { value: "subjects", label: "Mata pelajaran" }, { value: "class_subjects", label: "Mapel kelas" }, { value: "academic_scores", label: "Nilai akademik" }, { value: "culture_scores", label: "Nilai budaya" }, { value: "enrollments", label: "Enrollment Siswa" },
 ];
 
 function errorMessage(error: unknown) {

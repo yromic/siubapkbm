@@ -103,6 +103,16 @@ const TEMPLATES: Record<string, { required_columns: string[]; optional_columns: 
         tm_score: '4'
       }
     ]
+  },
+  enrollments: {
+    required_columns: ['nisn', 'class_code'],
+    optional_columns: [],
+    sample_rows: [
+      {
+        nisn: '1234567890',
+        class_code: 'X-A'
+      }
+    ]
   }
 };
 
@@ -124,6 +134,7 @@ export async function GET(
         if (normalizedType === 'class_subject') normalizedType = 'class_subjects';
         if (normalizedType === 'academic_score') normalizedType = 'academic_scores';
         if (normalizedType === 'culture_score') normalizedType = 'culture_scores';
+        if (normalizedType === 'enrollment') normalizedType = 'enrollments';
 
         const template = TEMPLATES[normalizedType];
 

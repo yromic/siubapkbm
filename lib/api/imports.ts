@@ -7,7 +7,8 @@ export type ImportType =
   | "subjects"
   | "class_subjects"
   | "academic_scores"
-  | "culture_scores";
+  | "culture_scores"
+  | "enrollments";
 
 export type ImportOperation = "create" | "update" | "skip" | "error";
 export type ImportRowStatus = "valid" | "warning" | "invalid";
