@@ -380,6 +380,29 @@ export async function changeStudentStatus(id: string, status: string, actorId: s
   }
 }
 
+/**
+ * Returns the canonical count of active students.
+ * "Active" is defined as: status IN ('active', 'Aktif') AND lifecycle_status != 'soft_deleted'.
+ * This is the single source of truth for any dashboard or KPI that needs this number.
+ */
+export async function countActiveStudents(): Promise<number> {
+  try {
+    const res = await db('students')
+      .whereIn('status', ['active', 'Aktif'])
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .count('id as count')
+      .first();
+    return Number(res?.count || 0);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error counting active students',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
 export async function resetParentPin(id: string, parentPin: string) {
   if (!id || !parentPin) {
     throw new AppError('Student ID and parent PIN are required.', 'ERR_VALIDATION', 400);

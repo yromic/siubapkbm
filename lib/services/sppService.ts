@@ -429,3 +429,109 @@ export async function getClassArrears(classId: string) {
   }
 }
 
+/**
+ * Returns all SPP statistics needed by the dashboard in a single call.
+ * Business rules:
+ *  - 'paid' and 'verified' both count as paid (same canonical rule as listPayments).
+ *  - This-month summary uses payment_month / payment_year columns.
+ *  - Chart shows last 6 months, aggregated in SQL (no full-table load).
+ *  - Completion rate is computed from all non-deleted records across all time.
+ *
+ * @param month - current calendar month (1-indexed)
+ * @param year  - current calendar year
+ */
+export async function getSppDashboardStats(
+  month: number,
+  year: number
+): Promise<{
+  this_month: Record<string, number>;
+  chart_data: Array<{ name: string; Lunas: number; Belum: number }>;
+  completion_rate: number;
+  unpaid_percent: number;
+}> {
+  try {
+    // --- 1. This-month summary by payment_status ---
+    const monthSummary = await db('spp_payments')
+      .where({ payment_month: month, payment_year: year })
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .select('payment_status')
+      .count('id as count')
+      .groupBy('payment_status');
+
+    const thisMonth: Record<string, number> = { unpaid: 0, paid: 0, pending: 0, verified: 0 };
+    for (const item of monthSummary) {
+      thisMonth[item.payment_status] = Number((item as any).count || 0);
+    }
+
+    // --- 2. Overall completion rate (paid + verified) ---
+    const totalRes = await db('spp_payments')
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .count('id as count')
+      .first();
+    const totalSpp = Number(totalRes?.count || 0);
+
+    const paidRes = await db('spp_payments')
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .whereIn('payment_status', ['paid', 'verified'])
+      .count('id as count')
+      .first();
+    const paidSpp = Number(paidRes?.count || 0);
+
+    const completionRate = totalSpp > 0 ? Math.round((paidSpp / totalSpp) * 100) : 0;
+    const unpaidPercent = totalSpp > 0 ? Math.round(((totalSpp - paidSpp) / totalSpp) * 100) : 0;
+
+    // --- 3. Chart: last 6 months, aggregated in SQL ---
+    const monthWindows: Array<{ m: number; y: number; key: string }> = [];
+    const cur = new Date(year, month - 1, 1);
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(cur.getFullYear(), cur.getMonth() - i, 1);
+      monthWindows.push({
+        m: d.getMonth() + 1,
+        y: d.getFullYear(),
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      });
+    }
+
+    const chartRows = await db('spp_payments')
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .where(function () {
+        for (const w of monthWindows) {
+          this.orWhere({ payment_month: w.m, payment_year: w.y });
+        }
+      })
+      .select('payment_year', 'payment_month', 'payment_status')
+      .count('id as count')
+      .groupBy('payment_year', 'payment_month', 'payment_status');
+
+    const chartMap: Record<string, { Lunas: number; Belum: number }> = {};
+    for (const w of monthWindows) {
+      chartMap[w.key] = { Lunas: 0, Belum: 0 };
+    }
+    for (const row of chartRows) {
+      const key = `${row.payment_year}-${String(row.payment_month).padStart(2, '0')}`;
+      if (!chartMap[key]) continue;
+      const n = Number((row as any).count || 0);
+      if (row.payment_status === 'paid' || row.payment_status === 'verified') {
+        chartMap[key].Lunas += n;
+      } else {
+        chartMap[key].Belum += n;
+      }
+    }
+
+    const chartData = monthWindows.map(w => ({ name: w.key, ...chartMap[w.key] }));
+
+    return {
+      this_month: thisMonth,
+      chart_data: chartData,
+      completion_rate: completionRate,
+      unpaid_percent: unpaidPercent
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error calculating SPP dashboard stats',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}

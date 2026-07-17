@@ -78,3 +78,25 @@ export async function searchAuditLogs(
     );
   }
 }
+
+/**
+ * Returns the count of failed login events recorded in the audit log within a rolling window.
+ * This is the canonical security metric — unlike SUM(failed_login_attempts) on the users table,
+ * which is a transient lockout counter that resets to 0 after a successful login.
+ *
+ * @param hours - rolling window in hours (default: 24)
+ */
+export async function getFailedLoginCount(hours = 24): Promise<number> {
+  try {
+    const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const res = await db('audit_logs')
+      .where('action', 'login_failed')
+      .where('created_at', '>=', since)
+      .count('id as count')
+      .first();
+    return Number(res?.count || 0);
+  } catch {
+    // Security metrics are non-critical; return 0 rather than throw
+    return 0;
+  }
+}

@@ -473,3 +473,101 @@ export async function getClassCharacterSummary(
     );
   }
 }
+
+/**
+ * Returns the FITRAH radar chart data for a semester.
+ * Reads from character_semester_summaries and computes AVG per dimension in SQL.
+ * Fallback (all zeros) is returned here if no summaries exist — dashboard never owns this logic.
+ *
+ * @param semesterId - active semester ID
+ */
+export async function getFitrahRadarDataForSemester(
+  semesterId: string
+): Promise<Array<{ subject: string; A: number; fullMark: number }>> {
+  const DEFAULT: Array<{ subject: string; A: number; fullMark: number }> = [
+    { subject: 'Fathonah', A: 0, fullMark: 4 },
+    { subject: 'Istiqamah', A: 0, fullMark: 4 },
+    { subject: 'Tanggung Jawab', A: 0, fullMark: 4 },
+    { subject: 'Ramah', A: 0, fullMark: 4 },
+    { subject: 'Amanah', A: 0, fullMark: 4 },
+    { subject: 'Harmonis', A: 0, fullMark: 4 }
+  ];
+
+  if (!semesterId) return DEFAULT;
+
+  try {
+    const averages = await db('character_semester_summaries')
+      .where({ semester_id: semesterId })
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .select(
+        db.raw('AVG(f_score) as f'),
+        db.raw('AVG(i_score) as i'),
+        db.raw('AVG(t_score) as t'),
+        db.raw('AVG(r_score) as r'),
+        db.raw('AVG(a_score) as a'),
+        db.raw('AVG(h_score) as h')
+      )
+      .first();
+
+    if (!averages || averages.f === null) return DEFAULT;
+
+    return [
+      { subject: 'Fathonah', A: parseFloat(Number(averages.f || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Istiqamah', A: parseFloat(Number(averages.i || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Tanggung Jawab', A: parseFloat(Number(averages.t || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Ramah', A: parseFloat(Number(averages.r || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Amanah', A: parseFloat(Number(averages.a || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Harmonis', A: parseFloat(Number(averages.h || 0).toFixed(2)), fullMark: 4 }
+    ];
+  } catch {
+    return DEFAULT;
+  }
+}
+
+/**
+ * Returns the class with the highest average culture (FITRAH) score for a semester.
+ * AVG is computed across all 6 FITRAH dimensions per class via SQL GROUP BY.
+ * Fully semester-scoped — no all-time leakage.
+ *
+ * @param semesterId - active semester ID
+ * @param classes    - array of { id, name } for active classes
+ */
+export async function getBestCultureClassAverage(
+  semesterId: string,
+  classes: Array<{ id: string; name: string }>
+): Promise<{ name: string; avg: number } | null> {
+  if (!semesterId || !classes || classes.length === 0) return null;
+
+  try {
+    const classIds = classes.map(c => c.id);
+
+    const rows = await db('character_semester_summaries')
+      .join(
+        'student_enrollments',
+        'character_semester_summaries.student_enrollment_id',
+        'student_enrollments.id'
+      )
+      .where('student_enrollments.semester_id', semesterId)
+      .where('student_enrollments.status', 'active')
+      .whereIn('student_enrollments.class_id', classIds)
+      .whereNot('character_semester_summaries.lifecycle_status', 'soft_deleted')
+      .groupBy('student_enrollments.class_id')
+      .select(
+        'student_enrollments.class_id',
+        db.raw('AVG((character_semester_summaries.f_score + character_semester_summaries.i_score + character_semester_summaries.t_score + character_semester_summaries.r_score + character_semester_summaries.a_score + character_semester_summaries.h_score) / 6.0) as culture_avg')
+      )
+      .orderBy('culture_avg', 'desc')
+      .limit(1);
+
+    if (!rows || rows.length === 0) return null;
+
+    const top = rows[0] as { class_id: string; culture_avg: string | number };
+    const avg = parseFloat(Number(top.culture_avg || 0).toFixed(2));
+    if (avg === 0) return null;
+
+    const cls = classes.find(c => c.id === top.class_id);
+    return { name: cls?.name ?? 'N/A', avg };
+  } catch {
+    return null;
+  }
+}

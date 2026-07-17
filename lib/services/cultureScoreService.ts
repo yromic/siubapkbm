@@ -270,3 +270,47 @@ export async function getStudentCultureScores(studentId: string, academicYearId:
     );
   }
 }
+
+/**
+ * Returns students with active enrollment in the given semester who have no culture scores
+ * recorded for that semester.
+ *
+ * Temporal scoping: the LEFT JOIN is constrained to culture_scores.semester_id,
+ * eliminating the cross-semester leakage where a student with past-semester scores
+ * would not appear in this semester's watchlist.
+ *
+ * @param semesterId - active semester ID
+ * @param limit      - max rows to return (default 50)
+ */
+export async function getStudentsWithoutCultureScores(
+  semesterId: string,
+  limit = 50
+): Promise<Array<{ id: string; full_name: string; nisn: string; reason: string }>> {
+  if (!semesterId) return [];
+
+  const rows = await db('student_enrollments')
+    .join('students', 'student_enrollments.student_id', 'students.id')
+    .leftJoin(
+      db('culture_scores')
+        .where('semester_id', semesterId)
+        .whereNot('lifecycle_status', 'soft_deleted')
+        .select('student_id')
+        .as('scored_students'),
+      'students.id',
+      'scored_students.student_id'
+    )
+    .where('student_enrollments.semester_id', semesterId)
+    .where('student_enrollments.status', 'active')
+    .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+    .whereNull('scored_students.student_id')
+    .select(
+      'students.id',
+      'students.full_name',
+      'students.nisn',
+      db.raw("'no_culture_scores' as reason")
+    )
+    .groupBy('students.id', 'students.full_name', 'students.nisn')
+    .limit(limit);
+
+  return rows as Array<{ id: string; full_name: string; nisn: string; reason: string }>;
+}

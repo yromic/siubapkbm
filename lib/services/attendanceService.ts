@@ -199,3 +199,42 @@ export async function getDailyRoster(date: string) {
     );
   }
 }
+
+/**
+ * Returns the teacher attendance rate for a given month/year.
+ * The business rule (present + late = attended) lives here.
+ * Dashboard should pass the current calendar month and year.
+ *
+ * @param month - 1-indexed calendar month (1=Jan … 12=Dec)
+ * @param year  - 4-digit calendar year
+ */
+export async function getAttendanceRate(
+  month: number,
+  year: number
+): Promise<{ rate: number; present: number; total: number }> {
+  try {
+    const baseQuery = db('teacher_attendance')
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .whereRaw('MONTH(date) = ?', [month])
+      .whereRaw('YEAR(date) = ?', [year]);
+
+    const totalRes = await baseQuery.clone().count('id as count').first();
+    const total = Number(totalRes?.count || 0);
+
+    const presentRes = await baseQuery
+      .clone()
+      .whereIn('status', ['present', 'late'])
+      .count('id as count')
+      .first();
+    const present = Number(presentRes?.count || 0);
+
+    const rate = total > 0 ? Math.round((present / total) * 100) : 100;
+    return { rate, present, total };
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error calculating attendance rate',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}

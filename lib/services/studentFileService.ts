@@ -191,3 +191,72 @@ export async function setupStorageFolders() {
     directories: dirs
   };
 }
+
+/**
+ * Mandatory document types that a student must have to be considered "complete".
+ * Ownership: this array is the single source of truth.
+ * Dashboard must never hardcode document type names.
+ */
+const MANDATORY_DOC_TYPES = ['kk', 'akta'] as const;
+
+/**
+ * Returns document completion statistics for all active students.
+ * "Complete" = the student has at least one non-deleted file for each mandatory doc type.
+ * Active student = status IN ('active', 'Aktif') AND lifecycle_status != 'soft_deleted'.
+ * All counting is done in SQL — no JS-level row iteration.
+ */
+export async function getDocumentCompletionStats(): Promise<{
+  total_active: number;
+  with_mandatory_docs: number;
+  completion_rate: number;
+  pie_data: Array<{ name: string; value: number }>;
+}> {
+  try {
+    // Count all active students
+    const totalRes = await db('students')
+      .whereIn('status', ['active', 'Aktif'])
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .count('id as count')
+      .first();
+    const totalActive = Number(totalRes?.count || 0);
+
+    // Count students who have at least one non-deleted file for EACH mandatory type.
+    // Strategy: subquery counts distinct mandatory file types per student,
+    // then we filter for those who have all MANDATORY_DOC_TYPES.length types covered.
+    const mandatoryCount = MANDATORY_DOC_TYPES.length;
+
+    const withDocsRes = await db('students')
+      .whereIn('status', ['active', 'Aktif'])
+      .whereNot('students.lifecycle_status', 'soft_deleted')
+      .whereExists(function () {
+        this.from('student_files')
+          .whereRaw('student_files.student_id = students.id')
+          .whereIn('student_files.file_type', MANDATORY_DOC_TYPES as unknown as string[])
+          .whereNot('student_files.lifecycle_status', 'soft_deleted')
+          .groupBy('student_files.student_id')
+          .havingRaw('COUNT(DISTINCT student_files.file_type) >= ?', [mandatoryCount]);
+      })
+      .count('students.id as count')
+      .first();
+    const withDocs = Number(withDocsRes?.count || 0);
+
+    const completionRate = totalActive > 0 ? Math.round((withDocs / totalActive) * 100) : 0;
+
+    return {
+      total_active: totalActive,
+      with_mandatory_docs: withDocs,
+      completion_rate: completionRate,
+      pie_data: [
+        { name: 'Lengkap', value: withDocs },
+        { name: 'Belum Lengkap', value: totalActive - withDocs }
+      ]
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error calculating document completion stats',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}

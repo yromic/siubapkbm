@@ -459,3 +459,87 @@ export async function getClassAcademicSummary(classId: string, academicYearId: s
   }
 }
 
+/**
+ * Returns the academic average score per class for a given semester.
+ * Uses the canonical enrollment_id join (not the looser student_id cross-join).
+ * This prevents double-counting scores for students who transferred between classes.
+ *
+ * @param semesterId - active semester ID
+ * @param classes    - array of { id, name } objects for active classes
+ */
+export async function getClassAcademicAverages(
+  semesterId: string,
+  classes: Array<{ id: string; name: string }>
+): Promise<Array<{ name: string; RataRata: number }>> {
+  if (!semesterId || !classes || classes.length === 0) return [];
+
+  const results: Array<{ name: string; RataRata: number }> = [];
+
+  for (const cls of classes) {
+    const avg = await db('academic_scores')
+      // Canonical join: enrollment_id → student_enrollments.id (not student_id cross-join)
+      .join('student_enrollments', 'academic_scores.student_enrollment_id', 'student_enrollments.id')
+      .join('academic_assessments', 'academic_scores.assessment_id', 'academic_assessments.id')
+      .where('student_enrollments.class_id', cls.id)
+      .where('student_enrollments.status', 'active')
+      .where('student_enrollments.semester_id', semesterId)
+      .where('academic_assessments.semester_id', semesterId)
+      .whereNot('academic_scores.lifecycle_status', 'soft_deleted')
+      .whereNot('academic_assessments.lifecycle_status', 'soft_deleted')
+      .avg('academic_scores.score as avgScore')
+      .first();
+
+    results.push({
+      name: cls.name,
+      RataRata: parseFloat(Number(avg?.avgScore || 0).toFixed(2))
+    });
+  }
+
+  return results;
+}
+
+/**
+ * Returns students with active enrollment in the given semester who have no academic scores
+ * recorded for any assessment in that same semester.
+ *
+ * Temporal scoping: the LEFT JOIN is constrained to academic_assessments.semester_id
+ * so that historical scores from past semesters do NOT mask a student's absence this semester.
+ *
+ * @param semesterId - active semester ID
+ * @param limit      - max rows to return (default 50)
+ */
+export async function getStudentsWithoutScores(
+  semesterId: string,
+  limit = 50
+): Promise<Array<{ id: string; full_name: string; nisn: string; reason: string }>> {
+  if (!semesterId) return [];
+
+  const rows = await db('student_enrollments')
+    .join('students', 'student_enrollments.student_id', 'students.id')
+    .leftJoin(
+      db('academic_scores')
+        .join('academic_assessments', 'academic_scores.assessment_id', 'academic_assessments.id')
+        .where('academic_assessments.semester_id', semesterId)
+        .whereNot('academic_scores.lifecycle_status', 'soft_deleted')
+        .whereNot('academic_assessments.lifecycle_status', 'soft_deleted')
+        .select('academic_scores.student_enrollment_id')
+        .as('scored_enrollments'),
+      'student_enrollments.id',
+      'scored_enrollments.student_enrollment_id'
+    )
+    .where('student_enrollments.semester_id', semesterId)
+    .where('student_enrollments.status', 'active')
+    .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+    .whereNull('scored_enrollments.student_enrollment_id')
+    .select(
+      'students.id',
+      'students.full_name',
+      'students.nisn',
+      db.raw("'no_academic_scores' as reason")
+    )
+    .groupBy('students.id', 'students.full_name', 'students.nisn')
+    .limit(limit);
+
+  return rows as Array<{ id: string; full_name: string; nisn: string; reason: string }>;
+}
+
