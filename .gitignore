@@ -43,3 +43,10 @@ next-env.d.ts
 # local storage
 storage/
 
+# Tambahan khusus untuk menghemat token AI
+.continue/
+.vscode/
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+bun.lockb

@@ -43,6 +43,7 @@ export interface StudentRecord {
 /** Limited student record — returned for teacher role */
 export interface StudentSummary {
   id: string;
+  student_id?: string;
   student_enrollment_id?: string;
   nisn: string;
   full_name: string;
@@ -185,11 +186,35 @@ export async function listStudentsByClass(
   academic_year_id: string,
   semester_id: string,
   token: string,
-  limit = 1000
+  limit = 1000,
+  assessment_date?: string
 ): Promise<StudentSummary[]> {
   return apiRequest<StudentSummary[]>(
     "list_students_by_class",
-    { class_id, academic_year_id, semester_id, limit },
+    { class_id, academic_year_id, semester_id, limit, assessment_date },
+    token
+  );
+}
+
+/**
+ * getAssessmentRoster
+ *
+ * Fetches the temporally-correct student roster for a given assessment.
+ * Unlike listStudentsByClass(), this function sends only the assessment_id —
+ * the backend resolves assessment_date directly from the database and keeps it
+ * as a JS Date object through to the Knex binding, avoiding the ISO-string
+ * serialization bug that caused MySQL DATE() to evaluate one day early.
+ *
+ * Use this function on the grading page and any other context where the student
+ * list must reflect "who was enrolled on the day of the assessment".
+ */
+export async function getAssessmentRoster(
+  assessment_id: string,
+  token: string
+): Promise<StudentSummary[]> {
+  return apiRequest<StudentSummary[]>(
+    "get_assessment_roster",
+    { assessment_id },
     token
   );
 }

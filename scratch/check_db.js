@@ -15,7 +15,7 @@ const config = {
 const db = knex(config);
 
 async function run() {
-  const tables = ['teacher_profiles', 'users', 'classes', 'subjects', 'class_teacher_assignments'];
+  const tables = ['class_subjects', 'subjects'];
   for (const table of tables) {
     console.log(`--- Columns for ${table} ---`);
     try {
@@ -24,6 +24,13 @@ async function run() {
     } catch (err) {
       console.error(`Error showing columns for ${table}:`, err.message);
     }
+  }
+  try {
+    const rows = await db('class_subjects').select('*').limit(5);
+    console.log('--- class_subjects rows ---');
+    console.log(rows);
+  } catch (err) {
+    console.error('Error fetching class_subjects rows:', err.message);
   }
   process.exit(0);
 }

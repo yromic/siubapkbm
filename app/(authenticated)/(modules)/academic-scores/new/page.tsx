@@ -213,7 +213,7 @@ export default function CreateAcademicAssessmentPage() {
               >
                 <option value="">{subjectLoading ? "Memuat mapel..." : "Pilih mapel"}</option>
                 {subjects.map((item) => (
-                  <option key={`${item.class_id}-${item.subject_id}`} value={item.subject_id}>
+                  <option key={item.class_subject_id} value={item.subject_id}>
                     {item.subject_name} {item.subject_code ? `(${item.subject_code})` : ""}
                   </option>
                 ))}

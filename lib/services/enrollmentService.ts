@@ -7,6 +7,7 @@ export interface EnrollmentFilters {
   student_id?: string;
   class_id?: string;
   semester_id?: string;
+  assessment_date?: string | Date;
 }
 
 export interface EnrollmentInput {
@@ -35,6 +36,15 @@ export async function listEnrollments(filters: EnrollmentFilters = {}, page = 1,
 
     if (filters.semester_id) {
       query.where('student_enrollments.semester_id', filters.semester_id);
+    }
+
+    if (filters.assessment_date) {
+      const dateVal = filters.assessment_date;
+      query.where(db.raw('DATE(student_enrollments.enrolled_at)'), '<=', dateVal)
+        .andWhere(function(qb: any) {
+          qb.whereNull('student_enrollments.withdrawn_at')
+            .orWhere(db.raw('DATE(student_enrollments.withdrawn_at)'), '>=', dateVal);
+        });
     }
 
     const totalQuery = query.clone();
@@ -68,6 +78,85 @@ export async function listEnrollments(filters: EnrollmentFilters = {}, page = 1,
     if (error instanceof AppError) throw error;
     throw new AppError(
       error instanceof Error ? error.message : 'Database error listing student enrollments',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
+/**
+ * getAssessmentRoster
+ *
+ * Returns the list of students who were enrolled in the class on the date of
+ * a given assessment, applying the same temporal predicate used by saveScores().
+ *
+ * Critically: assessment_date is read directly from the academic_assessments table
+ * and kept as a JS Date object through to the Knex binding.  It is never converted
+ * to a string, so Knex sends it to MySQL via the binary protocol — which means
+ * MySQL receives a proper DATETIME value and DATE() evaluates correctly relative
+ * to the server's SYSTEM timezone.
+ *
+ * This function is intentionally separate from listEnrollments() so that the
+ * temporal business rule (grading-only) does not affect any other callers.
+ */
+export async function getAssessmentRoster(assessmentId: string) {
+  if (!assessmentId) {
+    throw new AppError('Assessment ID is required.', 'ERR_VALIDATION', 400);
+  }
+
+  try {
+    // Step 1 — fetch the assessment and keep assessment_date as a Date object.
+    const assessment = await db('academic_assessments')
+      .where('id', assessmentId)
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .first();
+
+    if (!assessment) {
+      throw new AppError(
+        `Assessment with ID ${assessmentId} not found.`,
+        'ERR_ASSESSMENT_NOT_FOUND',
+        404
+      );
+    }
+
+    // assessment.assessment_date is a JS Date object here (Knex converts MySQL DATE).
+    // We do NOT convert it to a string — it must remain a Date so Knex uses the
+    // MySQL binary protocol binding, which evaluates correctly under SYSTEM timezone.
+    const assessmentDate: Date = assessment.assessment_date;
+
+    // Step 2 — query enrollments with the temporal predicate.
+    const items = await db('student_enrollments')
+      .join('students', 'student_enrollments.student_id', 'students.id')
+      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+      .where('student_enrollments.class_id', assessment.class_id)
+      .where('student_enrollments.semester_id', assessment.semester_id)
+      .where('student_enrollments.academic_year_id', assessment.academic_year_id)
+      .where(db.raw('DATE(student_enrollments.enrolled_at)'), '<=', assessmentDate)
+      .andWhere(function (qb: any) {
+        qb.whereNull('student_enrollments.withdrawn_at')
+          .orWhere(db.raw('DATE(student_enrollments.withdrawn_at)'), '>=', assessmentDate);
+      })
+      .select(
+        'student_enrollments.id as student_enrollment_id',
+        'students.id',
+        'students.full_name',
+        'students.nisn',
+        'students.gender',
+        'students.birth_date',
+        'students.birth_place',
+        'students.religion',
+        'students.phone',
+        'student_enrollments.status',
+        'student_enrollments.enrolled_at',
+        'student_enrollments.withdrawn_at'
+      )
+      .orderBy('students.full_name', 'asc');
+
+    return items;
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error fetching assessment roster',
       'ERR_DATABASE',
       500
     );
@@ -145,6 +234,8 @@ export async function createEnrollment(input: EnrollmentInput) {
         semester_id: input.semester_id,
         status: 'active',
         lifecycle_status: 'active',
+        enrolled_at: new Date(),
+        withdrawn_at: null,
         created_at: new Date(),
         updated_at: new Date()
       };
@@ -199,7 +290,17 @@ export async function updateEnrollment(id: string, input: { status?: string; lif
       if (!allowedStatus.includes(input.status)) {
         throw new AppError('Invalid enrollment status value.', 'ERR_VALIDATION', 400);
       }
+      
+      if (input.status === 'active' && item.status !== 'active') {
+        throw new AppError('Withdrawn or finalized enrollments cannot be reactivated. A new enrollment must be created instead.', 'ERR_VALIDATION', 400);
+      }
+
       patch.status = input.status;
+      if (input.status === 'inactive') {
+        if (!item.withdrawn_at) {
+          patch.withdrawn_at = new Date();
+        }
+      }
     }
 
     if (input.lifecycle_status !== undefined) {
@@ -321,6 +422,8 @@ export async function bulkEnrollment(input: {
           semester_id: input.semester_id,
           status: 'active',
           lifecycle_status: 'active',
+          enrolled_at: new Date(),
+          withdrawn_at: null,
           created_at: new Date(),
           updated_at: new Date()
         };

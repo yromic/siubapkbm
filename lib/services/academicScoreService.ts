@@ -76,14 +76,18 @@ export async function saveScores(assessmentId: string, scores: ScoreInput[], act
         scoreVal = scoreNum;
       }
 
-      // Check active enrollment in same semester
+      // Check active enrollment or historical participation in same semester
       const enrollment = await db('student_enrollments')
         .where({
           student_id: item.student_id,
-          semester_id: assessment.semester_id,
-          status: 'active'
+          semester_id: assessment.semester_id
         })
         .whereNot('lifecycle_status', 'soft_deleted')
+        .andWhere(db.raw('DATE(enrolled_at)'), '<=', assessment.assessment_date)
+        .andWhere(function(qb: any) {
+          qb.whereNull('withdrawn_at')
+            .orWhere(db.raw('DATE(withdrawn_at)'), '>=', assessment.assessment_date);
+        })
         .first();
 
       if (!enrollment) {
@@ -331,19 +335,7 @@ export async function getClassAcademicSummary(classId: string, academicYearId: s
   }
 
   try {
-    // 1. Get active students in class
-    const enrollments = await db('student_enrollments')
-      .join('students', 'student_enrollments.student_id', 'students.id')
-      .where({
-        'student_enrollments.class_id': classId,
-        'student_enrollments.academic_year_id': academicYearId,
-        'student_enrollments.semester_id': semesterId,
-        'student_enrollments.status': 'active'
-      })
-      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
-      .select('students.id as student_id', 'students.full_name', 'students.nisn');
-
-    // 2. Get assessments for class
+    // 1. Get assessments for class
     const assessments = await db('academic_assessments')
       .where({
         class_id: classId,
@@ -354,24 +346,17 @@ export async function getClassAcademicSummary(classId: string, academicYearId: s
 
     const assessmentIds = assessments.map(a => a.id);
 
-    // 3. Get all scores for these assessments
+    // 2. Get all scores for these assessments
     const scores = assessmentIds.length > 0
       ? await db('academic_scores')
           .whereIn('assessment_id', assessmentIds)
           .whereNot('lifecycle_status', 'soft_deleted')
       : [];
 
-    // Group scores by student and assessment
-    const scoresByStudent: Record<string, number[]> = {};
+    // Group scores by assessment and student
     const scoresByAssessment: Record<string, Record<string, number>> = {};
-
     for (const score of scores) {
       if (score.score !== null && score.score !== undefined) {
-        if (!scoresByStudent[score.student_id]) {
-          scoresByStudent[score.student_id] = [];
-        }
-        scoresByStudent[score.student_id].push(Number(score.score));
-
         if (!scoresByAssessment[score.assessment_id]) {
           scoresByAssessment[score.assessment_id] = {};
         }
@@ -379,11 +364,74 @@ export async function getClassAcademicSummary(classId: string, academicYearId: s
       }
     }
 
-    // Map student summaries
-    const student_summaries = enrollments.map(student => {
-      const studentScores = scoresByStudent[student.student_id] || [];
-      const average_score = studentScores.length > 0
-        ? parseFloat((studentScores.reduce((sum, val) => sum + val, 0) / studentScores.length).toFixed(2))
+    // 3. For each assessment, compute its own temporal roster to calculate statistics.
+    // Also compile the union of all students who have ever been in any of these rosters.
+    const allStudentsMap: Record<string, { student_id: string; full_name: string; nisn: string; scores: number[] }> = {};
+
+    const assessment_summaries = [];
+    for (const assessment of assessments) {
+      const assessmentDate: Date = assessment.assessment_date;
+
+      // Query the roster for this assessment on its specific date
+      const roster = await db('student_enrollments')
+        .join('students', 'student_enrollments.student_id', 'students.id')
+        .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+        .where('student_enrollments.class_id', classId)
+        .where('student_enrollments.semester_id', semesterId)
+        .where('student_enrollments.academic_year_id', academicYearId)
+        .where(db.raw('DATE(student_enrollments.enrolled_at)'), '<=', assessmentDate)
+        .andWhere(function (qb: any) {
+          qb.whereNull('student_enrollments.withdrawn_at')
+            .orWhere(db.raw('DATE(student_enrollments.withdrawn_at)'), '>=', assessmentDate);
+        })
+        .select('students.id as student_id', 'students.full_name', 'students.nisn');
+
+      const rosterStudentIds = new Set(roster.map(r => r.student_id));
+      const assessmentScores = scoresByAssessment[assessment.id] || {};
+
+      // Filter graded counts to only include students currently in the roster for this assessment
+      let gradedCount = 0;
+      for (const studentId of Object.keys(assessmentScores)) {
+        if (rosterStudentIds.has(studentId)) {
+          gradedCount++;
+        }
+      }
+
+      const totalStudents = roster.length;
+      const ungraded_students = totalStudents - gradedCount;
+      const completeness_percentage = totalStudents > 0
+        ? parseFloat(((gradedCount / totalStudents) * 100).toFixed(2))
+        : 100;
+
+      assessment_summaries.push({
+        assessment_id: assessment.id,
+        title: assessment.title,
+        status: assessment.status,
+        ungraded_students,
+        completeness_percentage
+      });
+
+      // Populate student list for overall student summaries
+      for (const student of roster) {
+        if (!allStudentsMap[student.student_id]) {
+          allStudentsMap[student.student_id] = {
+            student_id: student.student_id,
+            full_name: student.full_name,
+            nisn: student.nisn,
+            scores: []
+          };
+        }
+        const scoreVal = assessmentScores[student.student_id];
+        if (scoreVal !== undefined) {
+          allStudentsMap[student.student_id].scores.push(scoreVal);
+        }
+      }
+    }
+
+    // Map student summaries using the gathered student score averages
+    const student_summaries = Object.values(allStudentsMap).map(student => {
+      const average_score = student.scores.length > 0
+        ? parseFloat((student.scores.reduce((sum, val) => sum + val, 0) / student.scores.length).toFixed(2))
         : null;
 
       return {
@@ -391,25 +439,6 @@ export async function getClassAcademicSummary(classId: string, academicYearId: s
         full_name: student.full_name,
         nisn: student.nisn,
         average_score
-      };
-    });
-
-    // Map assessment summaries
-    const totalStudents = enrollments.length;
-    const assessment_summaries = assessments.map(assessment => {
-      const assessmentScores = scoresByAssessment[assessment.id] || {};
-      const gradedCount = Object.keys(assessmentScores).length;
-      const ungraded_students = totalStudents - gradedCount;
-      const completeness_percentage = totalStudents > 0
-        ? parseFloat(((gradedCount / totalStudents) * 100).toFixed(2))
-        : 100;
-
-      return {
-        assessment_id: assessment.id,
-        title: assessment.title,
-        status: assessment.status,
-        ungraded_students,
-        completeness_percentage
       };
     });
 

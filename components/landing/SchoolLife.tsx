@@ -6,19 +6,19 @@ import { motion } from "framer-motion";
 
 const activities = [
   {
-    image: "/images/activities/activity-1.webp",
+    image: "/images/activities/poto.jpeg",
     title: "07.00 - 09.00: Prime Time Halaqoh Quran",
     desc: "Memulai hari dengan pikiran segar bersama Al-Qur'an. Siswa dikelompokkan secara silang berdasarkan tingkat kemampuan riil membaca mereka (TaRL), bukan usia. Menghindari tekanan mental dan rasa minder pada anak.",
     category: "Pagi Hari"
   },
   {
-    image: "/images/activities/activity-2.webp",
+    image: "/images/activities/poto 2.jpeg",
     title: "09.00 - Siang: Blok Akademik & Diniyyah Esensial",
     desc: "KBM dinamis yang berfokus penuh pada literasi pemahaman kritis dan matematika dasar dengan alat peraga nyata, meminimalkan ceramah satu arah. Menjauhkan anak dari rumus hafalan abstrak yang memusingkan.",
     category: "Siang Hari"
   },
   {
-    image: "/images/activities/activity-3.webp",
+    image: "/images/activities/poto 5.jpeg",
     title: "Jumat Eksplorasi: Project & Life Skills Day",
     desc: "Bebas dari materi teori. Satu hari penuh didedikasikan untuk penciptaan seni kriya 2D halal, koding dasar, dan keterampilan hidup (life skills) agar anak aktif berkarya langsung dengan tangannya.",
     category: "Hari Jumat"

@@ -16,7 +16,7 @@ import { notify } from "@/lib/notify";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { InfoBanner } from "@/components/ui/info-banner";
 import { UX_COPY } from "@/lib/ux-copy";
-import { StudentSummary, listStudentsByClass } from "@/lib/api/students";
+import { StudentSummary, getAssessmentRoster } from "@/lib/api/students";
 import {
   AcademicAssessment,
   AcademicScore,
@@ -93,12 +93,10 @@ export default function AcademicScoreEntryPage() {
     try {
       const detail = await getAcademicAssessmentDetail(assessmentId, token);
       const [roster, scores] = await Promise.all([
-        listStudentsByClass(
-          detail.class_id,
-          detail.academic_year_id,
-          detail.semester_id,
-          token
-        ),
+        // getAssessmentRoster sends only the assessment_id — the backend resolves
+        // assessment_date directly from the DB and keeps it as a JS Date object
+        // through to the Knex binding, preventing the ISO-string serialization bug.
+        getAssessmentRoster(assessmentId, token),
         listAcademicScoresByAssessment(detail.id, token),
       ]);
 

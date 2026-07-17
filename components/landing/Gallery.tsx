@@ -22,7 +22,7 @@ const galleryData: GalleryItem[] = [
     category: "Olahraga"
   },
   {
-    image: "/images/gallery/gallery (3).webp",
+    image: "/images/activities/poto 3.jpeg",
     title: "Pendampingan Bermain di Klinik Trisula",
     category: "Akademis"
   },
@@ -37,12 +37,12 @@ const galleryData: GalleryItem[] = [
     category: "Eksplorasi"
   },
   {
-    image: "/images/gallery/gallery (6).webp",
+    image: "/images/activities/poto 2.jpeg",
     title: "Pembelajaran Literasi Menggunakan Media Konkret",
     category: "Akademis"
   },
   {
-    image: "/images/gallery/gallery (7).webp",
+    image: "/images/activities/poto 7.jpeg",
     title: "Diskusi Kelompok Sosiosentris (Jean Piaget)",
     category: "Akademis"
   },

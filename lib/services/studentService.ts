@@ -344,6 +344,7 @@ export async function changeStudentStatus(id: string, status: string, actorId: s
           .update({
             status: 'inactive',
             lifecycle_status: 'inactive',
+            withdrawn_at: new Date(),
             updated_at: new Date()
           });
 

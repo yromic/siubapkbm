@@ -11,25 +11,10 @@ import {
   EmptyState,
   ForbiddenState,
 } from "@/components/ui-states";
-import { listStudentsByClass, StudentSummary } from "@/lib/api/students";
+import { StudentSummary } from "@/lib/api/students";
 import { useSettings } from "@/hooks/useSettings";
-
-type StudentStatus = string;
-
-function StatusBadge({ status }: { status: StudentStatus }) {
-  const isActive = status === "Aktif";
-  return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-        isActive
-          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-      }`}
-    >
-      {status}
-    </span>
-  );
-}
+import { StatusBadge } from "@/components/status-badge";
+import { useClassRoster } from "@/hooks/useClassRoster";
 
 export default function MyClassRosterPage() {
   const { classId } = useParams<{ classId: string }>();
@@ -43,36 +28,20 @@ export default function MyClassRosterPage() {
   const yearId = academicYearId || activeAcademicYear?.id || "";
   const semId = semesterId || activeSemester?.id || "";
 
-  const [students, setStudents] = useState<StudentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const loadRoster = useCallback(async () => {
-    if (!token || !classId) return;
-    if (!yearId || !semId) {
-      setStudents([]);
-      setLoading(false);
-      setError("Periode kelas tidak lengkap. Buka kelas melalui halaman Kelas Saya.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listStudentsByClass(
-        classId,
-        yearId,
-        semId,
-        token
-      );
-      setStudents(data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal memuat daftar siswa.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, classId, yearId, semId]);
+  const {
+    students,
+    loading,
+    error,
+    loadRoster,
+  } = useClassRoster(
+    classId,
+    yearId,
+    semId,
+    token,
+    "Periode kelas tidak lengkap. Buka kelas melalui halaman Kelas Saya."
+  );
 
   useEffect(() => {
     setTimeout(() => loadRoster(), 0);

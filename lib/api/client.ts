@@ -79,6 +79,9 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'publish_academic_assessment':   { method: 'POST', path: '/api/v1/academic-assessments/:id/publish', idField: 'id' },
   'list_academic_scores_by_assessment': { method: 'GET', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
   'save_academic_scores':          { method: 'POST', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
+  // Grading roster — assessment_date stays server-side as a Date object; never serialized to a URL param.
+  'get_assessment_roster':         { method: 'GET',  path: '/api/v1/academic-assessments/:id/roster', idField: 'assessment_id' },
+
   'get_class_academic_summary':    { method: 'GET',  path: '/api/v1/classes/:id/academic-summary', idField: 'class_id' },
   'calculate_academic_completeness': { method: 'GET', path: '/api/v1/completeness/academic' },
   'list_my_class_subjects':        { method: 'GET',  path: '/api/v1/class-subjects/my' },
@@ -163,6 +166,7 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
 
   // Classes
   'list_classes':                   { method: 'GET',  path: '/api/v1/classes' },
+  'get_class_detail':               { method: 'GET',  path: '/api/v1/classes/:id', idField: 'id' },
   'create_class':                   { method: 'POST', path: '/api/v1/classes' },
   'update_class':                   { method: 'PUT',  path: '/api/v1/classes/:id', idField: 'id' },
   'deactivate_class':               { method: 'POST', path: '/api/v1/classes/:id/deactivate', idField: 'id' },

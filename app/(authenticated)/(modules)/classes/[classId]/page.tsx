@@ -11,29 +11,15 @@ import {
   EmptyState,
   ForbiddenState,
 } from "@/components/ui-states";
-import { listStudentsByClass, StudentSummary } from "@/lib/api/students";
+import { StudentSummary } from "@/lib/api/students";
 import { useSettings } from "@/hooks/useSettings";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X, Search, ArrowLeft } from "lucide-react";
 import { apiRequest } from "@/lib/api/client";
 import { notify } from "@/lib/notify";
-
-type StudentStatus = string;
-
-function StatusBadge({ status }: { status: StudentStatus }) {
-  const isActive = status === "Aktif";
-  return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-        isActive
-          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-          : "bg-zinc-100 text-zinc-650 dark:bg-zinc-800 dark:text-zinc-400"
-      }`}
-    >
-      {status}
-    </span>
-  );
-}
+import { StatusBadge } from "@/components/status-badge";
+import { useClassRoster } from "@/hooks/useClassRoster";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function AdminClassDetailPage() {
   const { classId } = useParams() as { classId: string };
@@ -47,10 +33,12 @@ export default function AdminClassDetailPage() {
   const yearId = academicYearId || activeAcademicYear?.id || "";
   const semId = semesterId || activeSemester?.id || "";
 
-  const [students, setStudents] = useState<StudentSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [classDetail, setClassDetail] = useState<any>(null);
+
+  // Unenroll states
+  const [unenrollTarget, setUnenrollTarget] = useState<any>(null);
+  const [unenrollLoading, setUnenrollLoading] = useState(false);
 
   // Bulk enrollment states
   const [showBulkEnrollModal, setShowBulkEnrollModal] = useState(false);
@@ -61,31 +49,36 @@ export default function AdminClassDetailPage() {
   const [bulkSubmitLoading, setBulkSubmitLoading] = useState(false);
   const [bulkResult, setBulkResult] = useState<any | null>(null);
 
-  const loadRoster = useCallback(async () => {
-    if (!token || !classId) return;
-    if (!yearId || !semId) {
-      setStudents([]);
-      setLoading(false);
-      setError("Periode tahun ajaran dan semester tidak lengkap. Silakan buka dari daftar kelas.");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listStudentsByClass(
-        classId,
-        yearId,
-        semId,
-        token
-      );
-      setStudents(data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal memuat daftar siswa.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [token, classId, yearId, semId]);
+  const {
+    students,
+    loading,
+    error,
+    loadRoster,
+  } = useClassRoster(
+    classId,
+    yearId,
+    semId,
+    token,
+    "Periode tahun ajaran dan semester tidak lengkap. Silakan buka dari daftar kelas."
+  );
+
+  // Fetch Class Metadata
+  useEffect(() => {
+    if (!token || !classId || !yearId || !semId) return;
+    const fetchClassDetail = async () => {
+      try {
+        const res = await apiRequest<any>(
+          "get_class_detail",
+          { id: classId, year: yearId, sem: semId },
+          token || undefined
+        );
+        setClassDetail(res);
+      } catch (err) {
+        console.error("Gagal memuat metadata kelas:", err);
+      }
+    };
+    fetchClassDetail();
+  }, [classId, yearId, semId, token]);
 
   const fetchEligibleStudents = useCallback(async () => {
     if (!token || !semId) return;
@@ -170,6 +163,25 @@ export default function AdminClassDetailPage() {
     }
   };
 
+  const handleUnenrollSubmit = async () => {
+    if (!unenrollTarget || !token) return;
+    setUnenrollLoading(true);
+    try {
+      await apiRequest<any>(
+        "change_student_enrollment_status",
+        { id: unenrollTarget.student_enrollment_id, status: "inactive" },
+        token || undefined
+      );
+      notify.success("Siswa berhasil dikeluarkan dari kelas.");
+      loadRoster();
+      setUnenrollTarget(null);
+    } catch (err: any) {
+      notify.error(err.message || "Gagal mengeluarkan siswa.");
+    } finally {
+      setUnenrollLoading(false);
+    }
+  };
+
   useEffect(() => {
     setTimeout(() => loadRoster(), 0);
   }, [loadRoster]);
@@ -193,8 +205,8 @@ export default function AdminClassDetailPage() {
   return (
     <ResponsiveContainer className="space-y-6">
       <PageHeader
-        title="Manajemen Kelas & Roster Siswa"
-        description={`Kelas ID: ${classId}`}
+        title={classDetail ? `${classDetail.name} (Tingkat ${classDetail.level})` : "Manajemen Kelas & Roster Siswa"}
+        description={classDetail ? `Wali Kelas: ${classDetail.teacher_name} · Tahun Ajaran: ${classDetail.academic_year_name} · Semester: ${classDetail.semester_name}` : `Kelas ID: ${classId}`}
         actions={
           <div className="flex items-center gap-3">
             <button
@@ -301,12 +313,20 @@ export default function AdminClassDetailPage() {
                       <StatusBadge status={student.status} />
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <Link
-                        href={`/students/${student.id}`}
-                        className="text-xs font-semibold text-[#468432] hover:text-emerald-700 dark:text-emerald-400 transition-colors"
-                      >
-                        Profil Siswa
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          href={`/students/${student.student_id}`}
+                          className="text-xs font-semibold text-[#468432] hover:text-emerald-700 dark:text-emerald-400 transition-colors"
+                        >
+                          Profil Siswa
+                        </Link>
+                        <button
+                          onClick={() => setUnenrollTarget(student)}
+                          className="text-xs font-semibold text-red-650 hover:text-red-700 transition-colors cursor-pointer"
+                        >
+                          Keluarkan
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -471,6 +491,20 @@ export default function AdminClassDetailPage() {
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
+
+      <ConfirmDialog
+        open={unenrollTarget !== null}
+        onOpenChange={(open) => { if (!open) setUnenrollTarget(null); }}
+        title="Keluarkan Siswa dari Kelas?"
+        description={
+          unenrollTarget
+            ? `Apakah Anda yakin ingin mengeluarkan siswa "${unenrollTarget.full_name}" dari kelas ini? Status pendaftaran siswa akan diubah menjadi tidak aktif.`
+            : ""
+        }
+        confirmLabel={unenrollLoading ? "Mengeluarkan..." : "Ya, Keluarkan"}
+        variant="destructive"
+        onConfirm={handleUnenrollSubmit}
+      />
     </ResponsiveContainer>
   );
 }

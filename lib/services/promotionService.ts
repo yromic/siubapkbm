@@ -478,6 +478,8 @@ export async function executePromotion(
               semester_id: targetSemesterId,
               status: 'active',
               lifecycle_status: 'active',
+              enrolled_at: new Date(),
+              withdrawn_at: null,
               created_at: new Date(),
               updated_at: new Date()
             });

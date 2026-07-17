@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
         const student_id = searchParams.get('student_id') || undefined;
         const class_id = searchParams.get('class_id') || undefined;
         const semester_id = searchParams.get('semester_id') || undefined;
+        const assessment_date = searchParams.get('assessment_date') || undefined;
         const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = parseInt(searchParams.get('limit') || '20', 10);
 
@@ -37,17 +38,20 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        const result = await listEnrollments({ student_id, class_id, semester_id }, page, limit);
-        if ((req as any).user.role === 'teacher') {
-          const mappedData = result.data.map((item: any) => ({
+        const result = await listEnrollments({ student_id, class_id, semester_id, assessment_date }, page, limit);
+        const mappedData = result.data.map((item: any) => {
+          const mappedItem = {
             ...item,
-            id: item.student_id, // ensure student ID is returned as 'id' for profile links
-            student_enrollment_id: item.id, // the enrollment ID
-            status: item.status === 'active' ? 'Aktif' : item.status === 'inactive' ? 'Tidak aktif' : item.status
-          }));
-          return successResponse({ ...result, data: mappedData }, 'Enrollments list retrieved.');
-        }
-        return successResponse(result, 'Enrollments list retrieved.');
+            student_id: item.student_id,
+            student_enrollment_id: item.id,
+          };
+          if ((req as any).user.role === 'teacher') {
+            mappedItem.id = item.student_id; // ensure student ID is returned as 'id' for profile links
+            mappedItem.status = item.status === 'active' ? 'Aktif' : item.status === 'inactive' ? 'Tidak aktif' : item.status;
+          }
+          return mappedItem;
+        });
+        return successResponse({ ...result, data: mappedData }, 'Enrollments list retrieved.');
       } catch (error) {
         if (error instanceof AppError) {
           return errorResponse(error.message, error.code, error.statusCode);

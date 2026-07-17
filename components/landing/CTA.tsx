@@ -9,7 +9,6 @@ export default function CTA() {
   return (
     <section className="w-full py-20 bg-white dark:bg-zinc-950 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
-        
         {/* Banner container */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -28,7 +27,9 @@ export default function CTA() {
               Mari Bermitra Menjaga Fitrah Tumbuh Kembang Ananda
             </h2>
             <p className="font-plus-jakarta text-zinc-100 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-              Pendidikan adalah perjalanan jangka panjang. Mari jadwalkan sesi konsultasi santai dengan tim pendidik kami untuk memahami bagaimana SIUBA mendukung masa keemasan putra-putri Ayah Bunda.
+              Pendidikan adalah perjalanan jangka panjang. Mari jadwalkan sesi
+              konsultasi santai dengan tim pendidik kami untuk memahami
+              bagaimana SIUBA mendukung masa keemasan putra-putri Ayah Bunda.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
@@ -51,9 +52,7 @@ export default function CTA() {
               </Link>
             </div>
           </div>
-
         </motion.div>
-
       </div>
     </section>
   );
