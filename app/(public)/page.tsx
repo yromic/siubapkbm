@@ -1,68 +1,62 @@
 import React from "react";
-import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
-import Hero from "@/components/landing/Hero";
-import WhyChooseUs from "@/components/landing/WhyChooseUs";
-import About from "@/components/landing/About";
-import Programs from "@/components/landing/Programs";
-import SchoolLife from "@/components/landing/SchoolLife";
-import Gallery from "@/components/landing/Gallery";
-import Achievements from "@/components/landing/Achievements";
-import Testimonials from "@/components/landing/Testimonials";
-import Principal from "@/components/landing/Principal";
-import FAQ from "@/components/landing/FAQ";
-import CTA from "@/components/landing/CTA";
 import Footer from "@/components/landing/Footer";
+import { getWebsiteConfig } from "@/lib/services/websiteConfigService";
+import { getNavigationMenu } from "@/lib/services/navigationService";
+import { getActiveSections, Section } from "@/lib/services/sectionService";
+import { ComponentRegistry } from "@/components/landing/registry";
 
-export const metadata: Metadata = {
-  title: "SIUBA - Sekolah Dasar Alternatif Pilihan Utama",
-  description: "Pendidikan dasar kesetaraan (Paket A) berbasis adab Islami di bawah lingkungan belajar minimalis yang aman secara psikologis. Resmi dan diakui negara.",
-  alternates: {
-    canonical: "/",
-  },
-  openGraph: {
-    title: "SIUBA - Sekolah Dasar Alternatif Pilihan Utama",
-    description: "Menumbuhkan fitrah anak secara utuh dan tangguh di bawah bimbingan tutor berkompeten dengan kurikulum esensial bebas tekanan.",
-    url: "https://siuba.sch.id",
-    siteName: "SIUBA",
-    locale: "id_ID",
-    type: "website",
-    images: [
-      {
-        url: "/images/activities/activity-1.webp",
-        width: 1200,
-        height: 900,
-        alt: "Aktivitas Belajar SIUBA",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "SIUBA - Sekolah Dasar Alternatif Pilihan Utama",
-    description: "Pendidikan dasar kesetaraan (Paket A) berbasis adab Islami di bawah lingkungan belajar minimalis yang aman secara psikologis.",
-    images: ["/images/activities/activity-1.webp"],
-  },
-};
+// Next.js dynamic rendering since it relies on DB configuration
+export const dynamic = "force-dynamic";
 
-export default function PublicLandingPage() {
+export default async function PublicLandingPage() {
+  let config;
+  let navbarMenu;
+  let sections: Section[] = [];
+  
+  try {
+    config = await getWebsiteConfig();
+    navbarMenu = await getNavigationMenu("navbar");
+    sections = await getActiveSections(false);
+  } catch (error) {
+    console.error("Error retrieving website config or sections:", error);
+  }
+
+  // Fallback defaults if DB call completely fails
+  const schoolName = config?.school_name || "SIUBA (Paket A PKBM Baitusyukur Learning Center)";
+  const shortName = config?.short_name || "SIUBA";
+  const tagline = config?.tagline || "Sekolah Dasar Alternatif Pilihan Utama dengan kurikulum esensial bebas tekanan dan penanaman adab Islami berlandaskan sunnah.";
+  const canonicalUrl = config?.seo_defaults?.canonical_base_url || "https://siuba.sch.id";
+  const phoneRaw = config?.contact_phone_raw || "+6289655496283";
+  const email = config?.contact_email || "pkbmpaketasiuba@gmail.com";
+  const logoUrl = config?.logo?.url || `${canonicalUrl}/favicon.ico`;
+  const principalPhotoUrl = config?.principal_photo?.url || `${canonicalUrl}/images/principal/principal.jpg`;
+
   // Structured JSON-LD Data for SEO
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "School",
-    "name": "SIUBA (Paket A PKBM Baitusyukur Learning Center)",
-    "description": "Sekolah Dasar Alternatif Pilihan Utama dengan kurikulum esensial bebas tekanan dan penanaman adab Islami berlandaskan sunnah.",
-    "url": "https://siuba.sch.id",
-    "telephone": "+6289655496283",
+    "@type": "EducationalOrganization",
+    "name": schoolName,
+    "alternateName": shortName,
+    "url": canonicalUrl,
+    "logo": logoUrl,
+    "image": principalPhotoUrl,
+    "description": tagline,
     "address": {
       "@type": "PostalAddress",
-      "streetAddress": "Jl. Letjend Suprapto, Putotan, Sidomulyo",
-      "addressLocality": "Kabupaten Semarang",
-      "addressRegion": "Kecamatan Ungaran Timur",
-      "postalCode": "50514",
+      "streetAddress": config?.address_street || "Jl. Letjend Suprapto, Putotan, Sidomulyo",
+      "addressLocality": config?.address_district || "Kecamatan Ungaran Timur",
+      "addressRegion": config?.address_regency || "Kabupaten Semarang",
+      "postalCode": config?.address_postal_code || "50514",
       "addressCountry": "ID"
     },
-    "openingHours": "Mo-Fr 07:00-15:30",
-    "image": "https://siuba.sch.id/images/principal/principal.jpg"
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": phoneRaw,
+      "contactType": "customer service",
+      "email": email
+    },
+    "sameAs": config?.social_media ? Object.values(config.social_media).filter(Boolean) : []
   };
 
   return (
@@ -74,46 +68,38 @@ export default function PublicLandingPage() {
       />
 
       {/* Floating Navbar */}
-      <Navbar />
+      <Navbar menuItems={navbarMenu?.links} shortName={shortName} />
 
       {/* Main Sections */}
       <main>
-        {/* Hero Section */}
-        <Hero />
-
-        {/* Why Choose Us */}
-        <WhyChooseUs />
-
-        {/* About School */}
-        <About />
-
-        {/* Featured Programs */}
-        <Programs />
-
-        {/* School Life Storytelling */}
-        <SchoolLife />
-
-        {/* Dynamic Gallery */}
-        <Gallery />
-
-        {/* Achievements Card Grid */}
-        <Achievements />
-
-        {/* Testimonials Carousel */}
-        <Testimonials />
-
-        {/* Principal Greeting */}
-        <Principal />
-
-        {/* Collapsible FAQ Accordion */}
-        <FAQ />
-
-        {/* Call to Action */}
-        <CTA />
+        {sections.length > 0 ? (
+          sections.map((section) => {
+            const Component = ComponentRegistry[section.type];
+            if (!Component) return null;
+            return (
+              <Component
+                key={section.id}
+                title={section.title}
+                subtitle={section.subtitle}
+                badge={section.badge}
+                content={section.content}
+                items={section.items}
+              />
+            );
+          })
+        ) : (
+          /* Static hardcoded fallback elements if no database content exists */
+          <>
+            {/* Fallback references just render static components directly */}
+            {Object.values(ComponentRegistry).map((Component, index) => (
+              <Component key={index} />
+            ))}
+          </>
+        )}
       </main>
 
       {/* Footer */}
-      <Footer />
+      <Footer config={config} />
     </div>
   );
 }

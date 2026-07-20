@@ -34,6 +34,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  Layout,
 } from "lucide-react";
 
 interface MenuItem {
@@ -156,6 +157,13 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["administrator", "admin"],
     category: "sistem",
     icon: <RefreshCw className="w-5 h-5" />,
+  },
+  {
+    name: "Kelola Landing Page",
+    href: "/settings/cms-landing",
+    roles: ["administrator", "admin"],
+    category: "sistem",
+    icon: <Layout className="w-5 h-5" />,
   },
   {
     name: "Dokumen",

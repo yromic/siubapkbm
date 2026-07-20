@@ -34,15 +34,59 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL("https://siuba.sch.id"),
-  title: "SIUBA Akademik & Karakter",
-  description: "Sistem Informasi Monitoring Akademik dan Karakter Siswa PKBM",
-  robots: {
-    index: true,
-    follow: true,
-  },
-};
+import { getWebsiteConfig } from "@/lib/services/websiteConfigService";
+
+export async function generateMetadata() {
+  try {
+    const config = await getWebsiteConfig();
+    const title = `${config.school_name} - ${config.tagline}`;
+    const description = config.seo_defaults?.default_description || config.tagline;
+    const logoUrl = config.logo?.url || "/favicon.ico";
+    const canonical = config.seo_defaults?.canonical_base_url || "https://siuba.sch.id";
+    
+    return {
+      metadataBase: new URL(canonical),
+      title: {
+        default: title,
+        template: `%s | ${config.short_name}`,
+      },
+      description,
+      keywords: config.seo_defaults?.default_keywords || [],
+      icons: {
+        icon: config.favicon?.url || "/favicon.ico",
+        apple: config.favicon?.url || "/favicon.ico",
+      },
+      openGraph: {
+        title,
+        description,
+        url: canonical,
+        siteName: config.school_name,
+        images: [
+          {
+            url: config.seo_defaults?.default_og_image || logoUrl,
+            alt: config.school_name,
+          },
+        ],
+        type: "website",
+      },
+      twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: [config.seo_defaults?.default_og_image || logoUrl],
+      },
+      alternates: {
+        canonical,
+      },
+    };
+  } catch (error) {
+    return {
+      metadataBase: new URL("https://siuba.sch.id"),
+      title: "SIUBA - Sekolah Dasar Alternatif",
+      description: "Pendidikan dasar kesetaraan berbasis adab Islami",
+    };
+  }
+}
 
 export default function RootLayout({
   children,

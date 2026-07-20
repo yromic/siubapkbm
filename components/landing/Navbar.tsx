@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Menu, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const navItems = [
+const defaultNavItems = [
   { label: "Tentang", href: "#tentang" },
   { label: "Pendekatan", href: "#pendekatan" },
   { label: "Metode", href: "#program" },
@@ -13,7 +13,13 @@ const navItems = [
   { label: "Hubungi Kami", href: "#kontak" }
 ];
 
-export default function Navbar() {
+interface NavbarProps {
+  menuItems?: Array<{ label: string; url: string }>;
+  shortName?: string;
+}
+
+export default function Navbar({ menuItems, shortName = "SIUBA" }: NavbarProps) {
+  const navItems = menuItems && menuItems.length > 0 ? menuItems.map(item => ({ label: item.label, href: item.url })) : defaultNavItems;
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -42,7 +48,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="#beranda" className="flex items-center gap-2" aria-label="SIUBA Beranda">
             <span className="font-fredoka text-2xl font-bold bg-gradient-to-r from-brand-emerald-600 to-brand-lime-500 bg-clip-text text-transparent">
-              SIUBA
+              {shortName}
             </span>
           </Link>
 
