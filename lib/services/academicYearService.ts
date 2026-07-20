@@ -453,3 +453,18 @@ export async function archiveAcademicYear(id: string, actorId: string) {
     );
   }
 }
+
+/**
+ * Returns the active academic year if it exists.
+ */
+export async function getActiveAcademicYear(): Promise<any> {
+  try {
+    return await db("academic_years").where("is_active", 1).first();
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error retrieving active academic year',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}

@@ -211,7 +211,7 @@ export async function getDailyRoster(date: string) {
 export async function getAttendanceRate(
   month: number,
   year: number
-): Promise<{ rate: number; present: number; total: number }> {
+): Promise<{ rate: number | null; present: number; total: number }> {
   try {
     const baseQuery = db('teacher_attendance')
       .whereNot('lifecycle_status', 'soft_deleted')
@@ -228,11 +228,43 @@ export async function getAttendanceRate(
       .first();
     const present = Number(presentRes?.count || 0);
 
-    const rate = total > 0 ? Math.round((present / total) * 100) : 100;
+    const rate = total > 0 ? Math.round((present / total) * 100) : null;
     return { rate, present, total };
   } catch (error) {
     throw new AppError(
       error instanceof Error ? error.message : 'Database error calculating attendance rate',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
+/**
+ * Returns the attendance summary (grouped by status count) for a specific teacher and calendar month/year.
+ */
+export async function getTeacherAttendanceSummary(
+  teacherId: string,
+  month: number,
+  year: number
+): Promise<Record<string, number>> {
+  try {
+    const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+    const attendanceRes = await db("teacher_attendance")
+      .where("teacher_id", teacherId)
+      .where("date", ">=", monthStart)
+      .whereNot("lifecycle_status", "soft_deleted")
+      .select("status")
+      .count("id as count")
+      .groupBy("status");
+
+    const attendanceStats: Record<string, number> = {};
+    for (const a of attendanceRes) {
+      attendanceStats[a.status] = Number((a as any).count || 0);
+    }
+    return attendanceStats;
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error calculating teacher attendance summary',
       'ERR_DATABASE',
       500
     );

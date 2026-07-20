@@ -463,18 +463,50 @@ export async function getSppDashboardStats(
       thisMonth[item.payment_status] = Number((item as any).count || 0);
     }
 
-    // --- 2. Overall completion rate (paid + verified) ---
-    const totalRes = await db('spp_payments')
+    // --- 2. Overall completion rate (paid + verified) for the ACTIVE SEMESTER ---
+    const activeSemester = await db('semesters')
+      .where('is_active', 1)
       .whereNot('lifecycle_status', 'soft_deleted')
-      .count('id as count')
       .first();
+
+    const monthsList: Array<{ month: number; year: number }> = [];
+    if (activeSemester) {
+      const start = new Date(activeSemester.start_date);
+      const end = new Date(activeSemester.end_date);
+      let current = new Date(start.getFullYear(), start.getMonth(), 1);
+      const last = new Date(end.getFullYear(), end.getMonth(), 1);
+      while (current <= last) {
+        monthsList.push({
+          month: current.getMonth() + 1,
+          year: current.getFullYear()
+        });
+        current.setMonth(current.getMonth() + 1);
+      }
+    }
+
+    const totalQuery = db('spp_payments').whereNot('lifecycle_status', 'soft_deleted');
+    const paidQuery = db('spp_payments').whereNot('lifecycle_status', 'soft_deleted').whereIn('payment_status', ['paid', 'verified']);
+
+    if (monthsList.length > 0) {
+      totalQuery.where(function() {
+        for (const m of monthsList) {
+          this.orWhere({ payment_month: m.month, payment_year: m.year });
+        }
+      });
+      paidQuery.where(function() {
+        for (const m of monthsList) {
+          this.orWhere({ payment_month: m.month, payment_year: m.year });
+        }
+      });
+    } else {
+      totalQuery.whereRaw('1 = 0');
+      paidQuery.whereRaw('1 = 0');
+    }
+
+    const totalRes = await totalQuery.count('id as count').first();
     const totalSpp = Number(totalRes?.count || 0);
 
-    const paidRes = await db('spp_payments')
-      .whereNot('lifecycle_status', 'soft_deleted')
-      .whereIn('payment_status', ['paid', 'verified'])
-      .count('id as count')
-      .first();
+    const paidRes = await paidQuery.count('id as count').first();
     const paidSpp = Number(paidRes?.count || 0);
 
     const completionRate = totalSpp > 0 ? Math.round((paidSpp / totalSpp) * 100) : 0;

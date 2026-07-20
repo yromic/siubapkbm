@@ -1,4 +1,4 @@
-// Trigger dev server restart for clean compilation context
+// Trigger dev server restart for clean compilation context: 1721484590
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {

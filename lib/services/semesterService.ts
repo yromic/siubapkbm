@@ -398,3 +398,20 @@ export async function archiveSemester(id: string, actorId: string) {
     );
   }
 }
+
+/**
+ * Returns the active semester for a given academic year.
+ */
+export async function getActiveSemester(academicYearId: string): Promise<any> {
+  try {
+    return await db("semesters")
+      .where({ academic_year_id: academicYearId, is_active: 1 })
+      .first();
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error retrieving active semester',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}

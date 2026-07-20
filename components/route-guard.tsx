@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { LoadingState } from "./ui-states";
 import LandingLoadingScreen from "./landing/LandingLoadingScreen";
+import { isPublicRoute as checkIsPublicRoute } from "@/lib/routes";
 
 export function RouteGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -15,11 +16,7 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     const isAuthRoute = pathname === "/login";
-    const isPublicRoute =
-      pathname === "/" ||
-      pathname === "/parent" ||
-      pathname?.startsWith("/parent/") ||
-      ["/gallery", "/profile", "/admission", "/contact"].includes(pathname);
+    const isPublicRoute = checkIsPublicRoute(pathname);
 
     if (!user && !isAuthRoute && !isPublicRoute) {
       // Direct unauthenticated users to login

@@ -215,7 +215,7 @@ export async function getDocumentCompletionStats(): Promise<{
     // Count all active students
     const totalRes = await db('students')
       .whereIn('status', ['active', 'Aktif'])
-      .whereNot('lifecycle_status', 'soft_deleted')
+      .whereNull('deleted_at')
       .count('id as count')
       .first();
     const totalActive = Number(totalRes?.count || 0);
@@ -227,7 +227,7 @@ export async function getDocumentCompletionStats(): Promise<{
 
     const withDocsRes = await db('students')
       .whereIn('status', ['active', 'Aktif'])
-      .whereNot('students.lifecycle_status', 'soft_deleted')
+      .whereNull('students.deleted_at')
       .whereExists(function () {
         this.from('student_files')
           .whereRaw('student_files.student_id = students.id')

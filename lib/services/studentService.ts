@@ -389,7 +389,7 @@ export async function countActiveStudents(): Promise<number> {
   try {
     const res = await db('students')
       .whereIn('status', ['active', 'Aktif'])
-      .whereNot('lifecycle_status', 'soft_deleted')
+      .whereNull('deleted_at')
       .count('id as count')
       .first();
     return Number(res?.count || 0);
@@ -403,13 +403,42 @@ export async function countActiveStudents(): Promise<number> {
   }
 }
 
+/**
+ * Returns the count of orphan students for a given semester.
+ * Orphan students are active students who do not have an active enrollment in the specified semester.
+ */
+export async function countOrphanStudents(semesterId: string): Promise<number> {
+  try {
+    const res = await db("students")
+      .whereIn("students.status", ["active", "Aktif"])
+      .whereNull("students.deleted_at")
+      .whereNotExists(function () {
+        this.select(db.raw("1"))
+          .from("student_enrollments")
+          .whereRaw("student_enrollments.student_id = students.id")
+          .where({ semester_id: semesterId, status: "active" })
+          .whereNot("student_enrollments.lifecycle_status", "soft_deleted");
+      })
+      .count("students.id as count")
+      .first();
+    return Number(res?.count || 0);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error counting orphan students',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
 export async function resetParentPin(id: string, parentPin: string) {
   if (!id || !parentPin) {
     throw new AppError('Student ID and parent PIN are required.', 'ERR_VALIDATION', 400);
   }
 
   try {
-    const student = await db('students').where('id', id).whereNot('status', 'soft_deleted').first();
+    const student = await db('students').where('id', id).whereNull('deleted_at').first();
     if (!student) {
       throw new AppError(`Student with ID ${id} not found.`, 'ERR_STUDENT_NOT_FOUND', 404);
     }
@@ -431,3 +460,65 @@ export async function resetParentPin(id: string, parentPin: string) {
     );
   }
 }
+
+export async function getStudentsDataQualityStats(semesterId?: string): Promise<{
+  studentsWithoutPinCount: number;
+  duplicateNIKCount: number;
+  duplicateNISNCount: number;
+  orphanStudentCount: number;
+  missingBirthdateCount: number;
+}> {
+  try {
+    const withoutPinRes = await db('students')
+      .whereIn('status', ['active', 'Aktif'])
+      .whereNull('deleted_at')
+      .whereNull('parent_access_pin_hash')
+      .count('id as count')
+      .first();
+    
+    const dupNikRes = await db.raw(`
+      SELECT COUNT(*) as count FROM (
+        SELECT nik FROM students 
+        WHERE nik IS NOT NULL AND nik <> '' AND deleted_at IS NULL
+        GROUP BY nik 
+        HAVING COUNT(id) > 1
+      ) as dups
+    `);
+    const duplicateNIKCount = Number(dupNikRes[0]?.[0]?.count || dupNikRes[0]?.count || 0);
+
+    const dupNisnRes = await db.raw(`
+      SELECT COUNT(*) as count FROM (
+        SELECT nisn FROM students 
+        WHERE nisn IS NOT NULL AND nisn <> '' AND deleted_at IS NULL
+        GROUP BY nisn 
+        HAVING COUNT(id) > 1
+      ) as dups
+    `);
+    const duplicateNISNCount = Number(dupNisnRes[0]?.[0]?.count || dupNisnRes[0]?.count || 0);
+
+    const orphanCount = semesterId ? await countOrphanStudents(semesterId) : 0;
+
+    const missingBirthdateRes = await db('students')
+      .whereIn('status', ['active', 'Aktif'])
+      .whereNull('deleted_at')
+      .whereNull('birth_date')
+      .count('id as count')
+      .first();
+
+    return {
+      studentsWithoutPinCount: Number(withoutPinRes?.count || 0),
+      duplicateNIKCount,
+      duplicateNISNCount,
+      orphanStudentCount: orphanCount,
+      missingBirthdateCount: Number(missingBirthdateRes?.count || 0)
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error calculating student data quality',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { StaffUser, LoginResponse, CurrentUserResponse, apiRequest, ApiError } from "@/lib/api/client";
+import { isPublicRoute } from "@/lib/routes";
 
 interface AuthContextType {
   user: StaffUser | null;
@@ -39,7 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       clearSession();
       if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-        router.push("/login?expired=true");
+        const isPublic = isPublicRoute(window.location.pathname);
+        if (!isPublic) {
+          router.push("/login?expired=true");
+        }
       }
     } finally {
       setLoading(false);

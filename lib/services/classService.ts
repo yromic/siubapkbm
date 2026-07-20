@@ -221,3 +221,22 @@ export async function deactivateClass(id: string) {
     );
   }
 }
+
+/**
+ * Returns the count of active classes.
+ */
+export async function countActiveClasses(): Promise<number> {
+  try {
+    const res = await db("classes")
+      .where("lifecycle_status", "active")
+      .count("id as count")
+      .first();
+    return Number(res?.count || 0);
+  } catch (error) {
+    throw new AppError(
+      error instanceof Error ? error.message : 'Database error counting active classes',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}

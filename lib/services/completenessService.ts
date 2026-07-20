@@ -56,7 +56,7 @@ export async function getCultureCompleteness(classId: string, academicYearId: st
       .distinct('score_date');
 
     const totalDays = datesRes.length;
-    if (totalDays === 0) return 100;
+    if (totalDays === 0) return 0;
 
     const expectedCount = studentIds.length * totalDays;
 

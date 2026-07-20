@@ -2,7 +2,10 @@ import { useState, useCallback } from "react";
 import { apiRequest } from "@/lib/api/client";
 
 export interface ExecutiveDashboardStats {
-  teacherAttendanceRate: number;
+  total_students: number;
+  total_teachers: number;
+  total_classes: number;
+  teacherAttendanceRate: number | null;
   sppCompletionRate: number;
   sppChartData: Array<{ name: string; Lunas: number; Belum: number }>;
   docCompletionRate: number;
@@ -22,6 +25,27 @@ export interface ExecutiveDashboardStats {
   orphanStudentsCount: number;
   unpaidSppPercent: number;
   failedLoginsCount: number;
+  academicCompletion: number | null;
+  characterCompletion: number;
+  overallHealthScore: number;
+  healthCategory: "Sangat Baik" | "Baik" | "Perlu Perhatian" | "Kritis";
+  qualityStats: {
+    studentsWithoutPinCount: number;
+    duplicateNIKCount: number;
+    duplicateNISNCount: number;
+    orphanStudentCount: number;
+    missingBirthdateCount: number;
+  };
+  academicStatusStats: {
+    final: number;
+    belumFinal: number;
+    belumIsi: number;
+  };
+  cultureStatusStats: {
+    lengkap: number;
+    sebagian: number;
+    kosong: number;
+  };
   classAcademicAverages: Array<{ name: string; RataRata: number }>;
 }
 

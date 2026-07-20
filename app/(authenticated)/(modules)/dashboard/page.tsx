@@ -219,8 +219,9 @@ export default function DashboardPage() {
   }, [token, user, assessments, activeAcademicYear, activeSemester, fetchMonitoringData, fetchExecutiveStats]);
 
   // Real stats calculated from useMonitoringData
+  // Real stats resolved from statsData (orchestrated in dashboardService)
   const realAcademicStats = useMemo(() => {
-    if (!academicData) {
+    if (!statsData?.academicStatusStats) {
       return {
         final: 0,
         belumIsi: 0,
@@ -228,14 +229,12 @@ export default function DashboardPage() {
         loading: true
       };
     }
-    const final = academicData.filter(item => item.status === "Final").length;
-    const belumFinal = academicData.filter(item => item.status === "Belum Final").length;
-    const belumIsi = academicData.filter(item => item.status === "Belum Membuat Assessment").length;
+    const { final, belumFinal, belumIsi } = statsData.academicStatusStats;
     return { final, belumIsi, belumFinal, loading: false };
-  }, [academicData]);
+  }, [statsData]);
 
   const realCultureStats = useMemo(() => {
-    if (!cultureData || cultureData.length === 0) {
+    if (!statsData?.cultureStatusStats) {
       return {
         lengkap: 0,
         sebagian: 0,
@@ -243,18 +242,16 @@ export default function DashboardPage() {
         loading: true
       };
     }
-    const total = cultureData.length;
-    const lengkapCount = cultureData.filter(item => item.status === "Lengkap").length;
-    const sebagianCount = cultureData.filter(item => item.status === "Sebagian").length;
-    const kosongCount = cultureData.filter(item => item.status === "Belum Ada Input").length;
+    const { lengkap, sebagian, kosong } = statsData.cultureStatusStats;
+    const total = (lengkap + sebagian + kosong) || 1;
 
     return {
-      lengkap: Math.round((lengkapCount / total) * 100),
-      sebagian: Math.round((sebagianCount / total) * 100),
-      kosong: Math.round((kosongCount / total) * 100),
+      lengkap: Math.round((lengkap / total) * 100),
+      sebagian: Math.round((sebagian / total) * 100),
+      kosong: Math.round((kosong / total) * 100),
       loading: false
     };
-  }, [cultureData]);
+  }, [statsData]);
 
   // Translators for human-centered audit logs
   const formatAuditAction = (action: string) => {
@@ -383,48 +380,18 @@ export default function DashboardPage() {
 
   // --- AGGREGATORS & HEALTH SCORE COMPUTATIONS (SECTION 2 - ADMIN) ---
   const aggregators = useMemo(() => {
-    if (loading) return null;
-
-    // 1. Academic Completion Rate
-    const totalAssessmentsCount = assessments.length;
-    const completedAssessmentsCount = assessments.filter(a => a.status === "locked").length;
-    const academicCompletion = totalAssessmentsCount > 0 
-      ? Math.round((completedAssessmentsCount / totalAssessmentsCount) * 100) 
-      : 0;
-
-    // 2. Character Completion Rate
-    const characterCompletion = realCultureStats.loading ? 0 : realCultureStats.lengkap;
-
-    // 3. Teacher Attendance Rate
-    const teacherAttendance = statsData ? statsData.teacherAttendanceRate : 0;
-
-    // 4. SPP Completion Rate
-    const sppCompletion = statsData ? statsData.sppCompletionRate : 0;
-
-    // 5. Document Completion Rate
-    const docCompletion = statsData ? statsData.docCompletionRate : 0;
-
-    // Overall School Health Score
-    const overallHealthScore = Math.round(
-      (academicCompletion + characterCompletion + teacherAttendance + sppCompletion + docCompletion) / 5
-    );
-
-    let healthCategory: "Sangat Baik" | "Baik" | "Perlu Perhatian" | "Kritis" = "Baik";
-    if (overallHealthScore >= 90) healthCategory = "Sangat Baik";
-    else if (overallHealthScore >= 75) healthCategory = "Baik";
-    else if (overallHealthScore >= 50) healthCategory = "Perlu Perhatian";
-    else healthCategory = "Kritis";
+    if (!statsData) return null;
 
     return {
-      academicCompletion,
-      characterCompletion,
-      teacherAttendance,
-      sppCompletion,
-      docCompletion,
-      overallHealthScore,
-      healthCategory
+      academicCompletion: statsData.academicCompletion,
+      characterCompletion: statsData.characterCompletion ?? 0,
+      teacherAttendance: statsData.teacherAttendanceRate,
+      sppCompletion: statsData.sppCompletionRate ?? 0,
+      docCompletion: statsData.docCompletionRate ?? 0,
+      overallHealthScore: statsData.overallHealthScore ?? 0,
+      healthCategory: statsData.healthCategory ?? "Baik"
     };
-  }, [loading, assessments, statsData, realCultureStats]);
+  }, [statsData]);
 
   // --- CRITICAL ALERTS SELECTOR (SECTION 5 - ADMIN) ---
   const criticalAlerts = useMemo(() => {
@@ -518,25 +485,27 @@ export default function DashboardPage() {
   }, [assessments, statsData]);
 
   // --- DATA QUALITY CHECKER (SECTION 6 - OPERATOR) ---
-  const studentsWithoutPinCount = useMemo(() => {
-    return students.filter(s => s.status === "Aktif" && !s.has_parent_pin).length;
-  }, [students]);
+  const studentsWithoutPinCount = statsData?.qualityStats?.studentsWithoutPinCount ?? 0;
 
   const dataQualityStats = useMemo(() => {
-    const duplicateNIKs = students.filter((s, idx) => s.nik && students.findIndex(x => x.nik === s.nik) !== idx);
-    const duplicateNISNs = students.filter((s, idx) => s.nisn && students.findIndex(x => x.nisn === s.nisn) !== idx);
-    
-    const enrolledStudentIds = new Set(enrollments.filter(e => e.status === "active").map(e => e.student_id));
-    const orphanStudents = students.filter(s => s.status === "Aktif" && !enrolledStudentIds.has(s.id));
-    
+    if (!statsData?.qualityStats) {
+      return {
+        duplicateNIKCount: 0,
+        duplicateNISNCount: 0,
+        orphanStudentCount: 0,
+        missingBirthdateCount: 0,
+        hasQualityIssue: false
+      };
+    }
+    const { duplicateNIKCount, duplicateNISNCount, orphanStudentCount, missingBirthdateCount } = statsData.qualityStats;
     return {
-      duplicateNIKCount: duplicateNIKs.length,
-      duplicateNISNCount: duplicateNISNs.length,
-      orphanStudentCount: orphanStudents.length,
-      missingBirthdateCount: students.filter(s => !s.birth_date).length,
-      hasQualityIssue: duplicateNIKs.length > 0 || duplicateNISNs.length > 0 || orphanStudents.length > 0
+      duplicateNIKCount,
+      duplicateNISNCount,
+      orphanStudentCount,
+      missingBirthdateCount,
+      hasQualityIssue: duplicateNIKCount > 0 || duplicateNISNCount > 0 || orphanStudentCount > 0
     };
-  }, [students, enrollments]);
+  }, [statsData]);
 
   // --- TEACHER PENDING TASKS CALCULATOR (SECTION 3 - GURU) ---
   const teacherPendingTasks = useMemo(() => {
@@ -667,7 +636,7 @@ export default function DashboardPage() {
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Siswa aktif</span>
               <div className="flex items-baseline gap-1.5 mt-2">
                 <span className="text-2xl font-black text-zinc-900 dark:text-zinc-500 font-data">
-                  {students.filter(s => s.status === "Aktif").length}
+                  {statsData?.total_students ?? 0}
                 </span>
                 <span className="text-[10px] text-zinc-400">anak</span>
               </div>
@@ -676,7 +645,7 @@ export default function DashboardPage() {
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Guru aktif</span>
               <div className="flex items-baseline gap-1.5 mt-2">
                 <span className="text-2xl font-black text-zinc-900 dark:text-zinc-500 font-data">
-                  {teachers.length}
+                  {statsData?.total_teachers ?? 0}
                 </span>
                 <span className="text-[10px] text-zinc-400">pengajar</span>
               </div>
@@ -685,7 +654,7 @@ export default function DashboardPage() {
               <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Kelas aktif</span>
               <div className="flex items-baseline gap-1.5 mt-2">
                 <span className="text-2xl font-black text-zinc-900 dark:text-zinc-500 font-data">
-                  {classes.length}
+                  {statsData?.total_classes ?? 0}
                 </span>
                 <span className="text-[10px] text-zinc-400">tingkat</span>
               </div>
@@ -739,10 +708,14 @@ export default function DashboardPage() {
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs">
                         <span className="text-zinc-500 font-medium">Ketuntasan akademik</span>
-                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">{aggregators.academicCompletion}%</span>
+                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">
+                          {aggregators.academicCompletion === null || aggregators.academicCompletion === undefined
+                            ? "Belum ada assessment"
+                            : `${aggregators.academicCompletion}%`}
+                        </span>
                       </div>
                       <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${aggregators.academicCompletion}%` }}></div>
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${aggregators.academicCompletion ?? 0}%` }}></div>
                       </div>
                     </div>
 
@@ -759,10 +732,14 @@ export default function DashboardPage() {
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs">
                         <span className="text-zinc-500 font-medium">Kehadiran guru</span>
-                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">{aggregators.teacherAttendance}%</span>
+                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">
+                          {aggregators.teacherAttendance === null || aggregators.teacherAttendance === undefined
+                            ? "Belum ada data"
+                            : `${aggregators.teacherAttendance}%`}
+                        </span>
                       </div>
                       <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${aggregators.teacherAttendance}%` }}></div>
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${aggregators.teacherAttendance ?? 0}%` }}></div>
                       </div>
                     </div>
 
@@ -1071,15 +1048,15 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
               <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Siswa terdaftar</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{students.length}</span>
+              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{statsData?.total_students ?? 0}</span>
             </div>
             <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
               <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Total guru</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{teachers.length}</span>
+              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{statsData?.total_teachers ?? 0}</span>
             </div>
             <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
               <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Total kelas</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{classes.length}</span>
+              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{statsData?.total_classes ?? 0}</span>
             </div>
             <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
               <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Mata pelajaran</span>
@@ -1103,7 +1080,7 @@ export default function DashboardPage() {
               <div className="p-3 bg-white dark:bg-[#171717] rounded-[16px] border border-amber-100 dark:border-amber-950/20 shadow-sm flex items-center justify-between">
                 <div>
                   <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-50">Siswa belum terdaftar kelas</h4>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Terdapat {students.filter(s => s.status === "Aktif" && !studentClassMap[s.id]).length} siswa belum terdaftar di kelas manapun.</p>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Terdapat {statsData?.qualityStats?.orphanStudentCount ?? 0} siswa belum terdaftar di kelas manapun.</p>
                 </div>
                 <Link href="/students" className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[10px] rounded-lg cursor-pointer">Atur</Link>
               </div>

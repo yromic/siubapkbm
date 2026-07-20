@@ -291,7 +291,10 @@ export async function apiRequest<T>(
     const lastBackup = backups[0];
 
     return {
-      teacherAttendanceRate:       school?.teacherAttendanceRate ?? 0,
+      total_students:              school?.total_students ?? 0,
+      total_teachers:              school?.total_teachers ?? 0,
+      total_classes:               school?.total_classes ?? 0,
+      teacherAttendanceRate:       school?.teacherAttendanceRate !== undefined ? school.teacherAttendanceRate : null,
       sppCompletionRate:           school?.sppCompletionRate ?? 0,
       sppChartData:                school?.sppChartData ?? [{ name: "—", Lunas: 0, Belum: 0 }],
       docCompletionRate:           school?.docCompletionRate ?? 0,
@@ -312,6 +315,19 @@ export async function apiRequest<T>(
       unpaidSppPercent:            school?.unpaidSppPercent ?? 0,
       failedLoginsCount:           school?.failedLoginsCount ?? 0,
       classAcademicAverages:       school?.classAcademicAverages ?? [],
+      academicCompletion:          school?.academicCompletion !== undefined ? school.academicCompletion : null,
+      characterCompletion:         school?.characterCompletion ?? 0,
+      overallHealthScore:          school?.overallHealthScore ?? 0,
+      healthCategory:              school?.healthCategory ?? "Baik",
+      qualityStats:                school?.qualityStats ?? {
+        studentsWithoutPinCount: 0,
+        duplicateNIKCount: 0,
+        duplicateNISNCount: 0,
+        orphanStudentCount: 0,
+        missingBirthdateCount: 0
+      },
+      academicStatusStats:         school?.academicStatusStats ?? { final: 0, belumFinal: 0, belumIsi: 0 },
+      cultureStatusStats:          school?.cultureStatusStats ?? { lengkap: 0, sebagian: 0, kosong: 0 },
       _school:                     school,
     } as unknown as T;
   }
