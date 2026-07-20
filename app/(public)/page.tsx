@@ -17,6 +17,9 @@ import Footer from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "SIUBA - Sekolah Dasar Alternatif Pilihan Utama",
   description: "Pendidikan dasar kesetaraan (Paket A) berbasis adab Islami di bawah lingkungan belajar minimalis yang aman secara psikologis. Resmi dan diakui negara.",
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     title: "SIUBA - Sekolah Dasar Alternatif Pilihan Utama",
     description: "Menumbuhkan fitrah anak secara utuh dan tangguh di bawah bimbingan tutor berkompeten dengan kurikulum esensial bebas tekanan.",
@@ -24,11 +27,20 @@ export const metadata: Metadata = {
     siteName: "SIUBA",
     locale: "id_ID",
     type: "website",
+    images: [
+      {
+        url: "/images/activities/activity-1.webp",
+        width: 1200,
+        height: 900,
+        alt: "Aktivitas Belajar SIUBA",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "SIUBA - Sekolah Dasar Alternatif Pilihan Utama",
     description: "Pendidikan dasar kesetaraan (Paket A) berbasis adab Islami di bawah lingkungan belajar minimalis yang aman secara psikologis.",
+    images: ["/images/activities/activity-1.webp"],
   },
 };
 

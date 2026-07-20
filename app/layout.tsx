@@ -35,8 +35,13 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://siuba.sch.id"),
   title: "SIUBA Akademik & Karakter",
   description: "Sistem Informasi Monitoring Akademik dan Karakter Siswa PKBM",
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
