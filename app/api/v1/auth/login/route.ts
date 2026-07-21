@@ -9,7 +9,8 @@ import {
   getSecuritySettingNum, 
   getProgressiveDelayMs, 
   applyDelay, 
-  verifyTurnstile, 
+  generateAltchaChallenge,
+  verifyAltchaChallenge,
   encryptMfaToken 
 } from '@/lib/auth/securityUtils';
 import { db } from '@/lib/db';
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { identifier, password, turnstileToken } = body;
+    const { identifier, password, altchaPayload } = body;
 
     if (!identifier || !password) {
       return errorResponse(
@@ -48,29 +49,36 @@ export async function POST(req: NextRequest) {
       .first();
     const attempts = attemptRecord ? attemptRecord.attempts : 0;
 
-    // 3. Cloudflare Turnstile Verification (if threshold reached)
-    const turnstileEnabled = await getSecuritySettingBool('TURNSTILE_ENABLED', false);
-    const turnstileThreshold = await getSecuritySettingNum('TURNSTILE_THRESHOLD', 3);
+    // 3. ALTCHA Verification (if threshold reached)
+    const altchaEnabled = await getSecuritySettingBool('ALTCHA_ENABLED', true);
+    const altchaThreshold = await getSecuritySettingNum('ALTCHA_THRESHOLD', 3);
     
-    if (turnstileEnabled && attempts >= turnstileThreshold) {
-      const siteKey = await getSecuritySetting('TURNSTILE_SITE_KEY', process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '');
+    if (altchaEnabled && attempts >= altchaThreshold) {
+      const hmacKey = process.env.ALTCHA_HMAC_KEY;
+      if (!hmacKey) {
+        throw new AppError('ALTCHA HMAC key is not configured.', 'ERR_ALTCHA_CONFIG', 500);
+      }
+      const difficulty = await getSecuritySettingNum('ALTCHA_DIFFICULTY', 50000);
+      const maxAge = await getSecuritySettingNum('ALTCHA_MAX_AGE_SECONDS', 300);
       
-      if (!turnstileToken) {
+      if (!altchaPayload) {
+        const challenge = generateAltchaChallenge(hmacKey, difficulty, maxAge);
         return errorResponse(
           'Verification is required to login.',
-          'ERR_TURNSTILE_REQUIRED',
+          'ERR_ALTCHA_REQUIRED',
           400,
-          { siteKey }
+          { challenge }
         );
       }
       
-      const isTurnstileValid = await verifyTurnstile(turnstileToken, ip);
-      if (!isTurnstileValid) {
+      const isAltchaValid = await verifyAltchaChallenge(altchaPayload, hmacKey);
+      if (!isAltchaValid) {
+        const challenge = generateAltchaChallenge(hmacKey, difficulty, maxAge);
         return errorResponse(
           'Verification failed. Please complete the captcha.',
-          'ERR_TURNSTILE_REQUIRED',
+          'ERR_ALTCHA_REQUIRED',
           400,
-          { siteKey }
+          { challenge }
         );
       }
     }

@@ -10,8 +10,9 @@ import { getSecuritySettingNum } from '@/lib/auth/securityUtils';
  * atomicity and prevent race conditions on concurrent login requests.
  */
 export async function checkRateLimit(ip: string, endpoint: string, identifier?: string): Promise<boolean> {
-  if (process.env.NODE_ENV !== 'production' && !process.env.FORCE_RATE_LIMIT) return true;
   if (!ip) return true; // Fail-safe: allow if IP is not provided
+  
+  const isDevBypass = process.env.NODE_ENV !== 'production' && !process.env.FORCE_RATE_LIMIT;
   
   // Composite key containing both IP and the user identifier
   const rateLimitKey = identifier ? `${ip}:${identifier.trim().toLowerCase()}` : ip;
@@ -88,7 +89,7 @@ export async function checkRateLimit(ip: string, endpoint: string, identifier?: 
       }
     });
     
-    return allowed;
+    return isDevBypass ? true : allowed;
   } catch (error) {
     console.error('Rate limiter database error:', error);
     return true; // Fail-safe: allow if DB fails

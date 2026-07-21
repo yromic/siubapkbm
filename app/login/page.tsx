@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, ApiError } from "@/lib/api/client";
 import { Loader2 } from "lucide-react";
-import { Turnstile } from "@/components/Turnstile";
+import { Altcha } from "@/components/Altcha";
 
 export default function LoginPage() {
   const { refreshCurrentUser } = useAuth();
@@ -14,9 +14,9 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [showExpiredAlert, setShowExpiredAlert] = useState(false);
 
-  // Turnstile state
-  const [siteKey, setSiteKey] = useState<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState("");
+  // ALTCHA state
+  const [altchaChallenge, setAltchaChallenge] = useState<any>(null);
+  const [altchaPayload, setAltchaPayload] = useState("");
 
   // MFA state
   const [mfaRequired, setMfaRequired] = useState(false);
@@ -57,7 +57,7 @@ export default function LoginPage() {
       }>("login", {
         identifier: trimmedIdentifier,
         password: trimmedPassword,
-        turnstileToken
+        altchaPayload
       });
 
       if (res.mfaRequired && res.tempToken) {
@@ -78,10 +78,10 @@ export default function LoginPage() {
           setError(`Akun terkunci, coba lagi dalam ${minutes} menit`);
         } else if (err.code === "ERR_INACTIVE_ACCOUNT") {
           setError("Akun tidak aktif, hubungi administrator");
-        } else if (err.code === "ERR_TURNSTILE_REQUIRED") {
+        } else if (err.code === "ERR_ALTCHA_REQUIRED") {
           setError("Verifikasi keamanan diperlukan.");
-          if (err.details && typeof err.details.siteKey === "string") {
-            setSiteKey(err.details.siteKey);
+          if (err.details && typeof err.details.challenge === "object") {
+            setAltchaChallenge(err.details.challenge);
           }
         } else {
           setError(err.message);
@@ -213,14 +213,14 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {siteKey && (
-              <Turnstile siteKey={siteKey} onVerify={setTurnstileToken} />
+            {altchaChallenge && (
+              <Altcha challenge={altchaChallenge} onVerify={setAltchaPayload} />
             )}
 
             <div>
               <button
                 type="submit"
-                disabled={loading || (siteKey !== null && !turnstileToken)}
+                disabled={loading || (altchaChallenge !== null && !altchaPayload)}
                 className="flex w-full justify-center items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 px-4 py-3.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-500/10"
               >
                 {loading ? (

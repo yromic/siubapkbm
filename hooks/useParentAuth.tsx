@@ -9,7 +9,7 @@ interface ParentAuthContextType {
   profile: ParentProfile | null;
   token: string | null;
   loading: boolean;
-  login: (nisn: string, birth_date: string, pin: string, turnstileToken?: string) => Promise<void>;
+  login: (nisn: string, birth_date: string, pin: string, altchaPayload?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearSession: () => void;
@@ -56,9 +56,9 @@ export function ParentAuthProvider({ children }: { children: React.ReactNode }) 
     }
   }, [refreshProfile]);
 
-  const login = async (nisn: string, birth_date: string, pin: string, turnstileToken?: string) => {
+  const login = async (nisn: string, birth_date: string, pin: string, altchaPayload?: string) => {
     try {
-      await loginParentApi(nisn, birth_date, pin, turnstileToken);
+      await loginParentApi(nisn, birth_date, pin, altchaPayload);
       setToken("cookie_session");
       
       // Fetch full whitelist-safe profile details

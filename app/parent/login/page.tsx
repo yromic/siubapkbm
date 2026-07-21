@@ -8,7 +8,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
-import { Turnstile } from "@/components/Turnstile";
+import { Altcha } from "@/components/Altcha";
 
 export default function ParentLoginPage() {
   const { login } = useParentAuth();
@@ -19,9 +19,9 @@ export default function ParentLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [showExpiredAlert, setShowExpiredAlert] = useState(false);
 
-  // Turnstile state
-  const [siteKey, setSiteKey] = useState<string | null>(null);
-  const [turnstileToken, setTurnstileToken] = useState("");
+  // ALTCHA state
+  const [altchaChallenge, setAltchaChallenge] = useState<any>(null);
+  const [altchaPayload, setAltchaPayload] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -57,12 +57,12 @@ export default function ParentLoginPage() {
 
     setLoading(true);
     try {
-      await login(trimmedNisn, trimmedBirthDate, trimmedPin, turnstileToken);
+      await login(trimmedNisn, trimmedBirthDate, trimmedPin, altchaPayload);
     } catch (err: any) {
-      if (err && err.code === "ERR_TURNSTILE_REQUIRED") {
+      if (err && err.code === "ERR_ALTCHA_REQUIRED") {
         setError("Verifikasi keamanan diperlukan.");
-        if (err.details && typeof err.details.siteKey === "string") {
-          setSiteKey(err.details.siteKey);
+        if (err.details && typeof err.details.challenge === "object") {
+          setAltchaChallenge(err.details.challenge);
         }
       } else if (err && typeof err === "object" && "code" in err) {
         setError(humanizeError(err));
@@ -154,14 +154,14 @@ export default function ParentLoginPage() {
             </div>
           </div>
 
-          {siteKey && (
-            <Turnstile siteKey={siteKey} onVerify={setTurnstileToken} />
+          {altchaChallenge && (
+            <Altcha challenge={altchaChallenge} onVerify={setAltchaPayload} />
           )}
 
           <div className="pt-2">
             <button
               type="submit"
-              disabled={loading || (siteKey !== null && !turnstileToken)}
+              disabled={loading || (altchaChallenge !== null && !altchaPayload)}
               className="flex w-full justify-center items-center gap-2 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] px-4 py-3.5 text-sm font-semibold text-white transition-colors disabled:opacity-55 disabled:cursor-not-allowed shadow-lg shadow-[#468432]/10 cursor-pointer"
             >
               {loading ? (

@@ -20,9 +20,9 @@ export async function loginParentApi(
   nisn: string,
   birth_date: string,
   pin: string,
-  turnstileToken?: string
+  altchaPayload?: string
 ): Promise<ParentLoginResponse> {
-  return apiRequest<ParentLoginResponse>("parent_login", { nisn, birth_date, pin, turnstileToken });
+  return apiRequest<ParentLoginResponse>("parent_login", { nisn, birth_date, pin, altchaPayload });
 }
 
 

@@ -1,6 +1,10 @@
 import { db } from '@/lib/db';
 const { authenticator } = require('otplib');
 import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
+
+import { validateAltchaConfig } from './altchaConfig';
+export { validateAltchaConfig };
 
 /**
  * Gets a configuration value from the `app_settings` table, falling back to env variables, then defaultValue.
@@ -63,38 +67,131 @@ export async function applyDelay(ms: number): Promise<void> {
 /**
  * Verifies Cloudflare Turnstile response token server-side.
  */
-export async function verifyTurnstile(token: string, ip?: string): Promise<boolean> {
-  const enabled = await getSecuritySettingBool('TURNSTILE_ENABLED', false);
-  if (!enabled) return true;
+// Memory cache for replay protection of solved ALTCHA signatures
+const altchaReplayCache = new Set<string>();
+
+/**
+ * Generates an ALTCHA challenge.
+ */
+export function generateAltchaChallenge(hmacKey: string, difficulty: number, maxAgeSeconds: number) {
+  const expiry = Date.now() + maxAgeSeconds * 1000;
+  const salt = crypto.randomBytes(16).toString('hex') + '?' + expiry;
+  const number = crypto.randomInt(0, difficulty);
   
-  if (!token) return false;
+  // Create challenge hash
+  const challenge = crypto.createHash('sha256').update(salt + number).digest('hex');
   
-  const secretKey = await getSecuritySetting('TURNSTILE_SECRET_KEY', process.env.TURNSTILE_SECRET_KEY || '');
-  if (!secretKey) {
-    console.error('Turnstile is enabled but TURNSTILE_SECRET_KEY is not configured.');
-    return false;
-  }
+  // Create signature
+  const signature = crypto.createHmac('sha256', hmacKey).update(challenge).digest('hex');
   
+  return {
+    algorithm: 'SHA-256',
+    challenge,
+    salt,
+    signature,
+    maxnumber: difficulty
+  };
+}
+
+/**
+ * Verifies an ALTCHA challenge.
+ */
+export async function verifyAltchaChallenge(payloadStr: string, hmacKey: string): Promise<boolean> {
+  if (!payloadStr) return false;
   try {
-    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        secret: secretKey,
-        response: token,
-        remoteip: ip
-      })
-    });
+    const payloadBytes = Buffer.from(payloadStr, 'base64').toString('utf8');
+    const payload = JSON.parse(payloadBytes);
+    const { challenge, salt, signature, number } = payload;
     
-    const data = await res.json();
-    return !!data.success;
+    if (!challenge || !salt || !signature || typeof number !== 'number') return false;
+    
+    // 1. Replay Protection
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      if (altchaReplayCache.has(signature)) {
+        console.warn('ALTCHA: Replay attack detected for signature:', signature);
+        return false;
+      }
+    }
+    
+    // 2. Signature Validation
+    const expectedSignature = crypto.createHmac('sha256', hmacKey).update(challenge).digest('hex');
+    const sigBuffer = Buffer.from(signature, 'hex');
+    const expectedSigBuffer = Buffer.from(expectedSignature, 'hex');
+    if (sigBuffer.length !== expectedSigBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedSigBuffer)) {
+      return false;
+    }
+    
+    // 3. PoW Solution Validation
+    const expectedChallenge = crypto.createHash('sha256').update(salt + number).digest('hex');
+    if (challenge !== expectedChallenge) return false;
+    
+    // 4. Expiration Check
+    const parts = salt.split('?');
+    if (parts.length < 2) return false;
+    const expiry = parseInt(parts[1], 10);
+    if (isNaN(expiry) || expiry < Date.now()) return false;
+    
+    if (isDev) {
+      // Add to replay cache and schedule removal upon expiration
+      altchaReplayCache.add(signature);
+      
+      // Evict oldest entries if capacity is exceeded
+      const maxCacheSizeStr = process.env.ALTCHA_MAX_REPLAY_CACHE_SIZE;
+      const maxCacheSize = maxCacheSizeStr ? parseInt(maxCacheSizeStr, 10) : 10000;
+      const finalCacheSize = isNaN(maxCacheSize) ? 10000 : maxCacheSize;
+      while (altchaReplayCache.size > finalCacheSize) {
+        const oldest = altchaReplayCache.values().next().value;
+        if (oldest) {
+          altchaReplayCache.delete(oldest);
+        } else {
+          break;
+        }
+      }
+      
+      setTimeout(() => {
+        altchaReplayCache.delete(signature);
+      }, Math.max(0, expiry - Date.now()));
+    } else {
+      // Production: Persistent replay protection using database
+      
+      // Probabilistic cleanup: 5% of requests clean up expired entries
+      if (Math.random() < 0.05) {
+        try {
+          await db('altcha_replays')
+            .where('expires_at', '<', new Date())
+            .delete();
+        } catch (err) {
+          console.error('ALTCHA replay cache cleanup error:', err);
+        }
+      }
+      
+      // Atomic insert. If duplicate, unique constraint violation occurs.
+      try {
+        await db('altcha_replays').insert({
+          id: uuidv4(),
+          signature,
+          expires_at: new Date(expiry),
+          created_at: new Date()
+        });
+      } catch (err: any) {
+        // MySQL error codes: ER_DUP_ENTRY is 1062, sqlState is '23000'
+        if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062 || err.sqlState === '23000') {
+          console.warn('ALTCHA: Replay attack detected (DB) for signature:', signature);
+          return false;
+        }
+        console.error('ALTCHA database replay protection error:', err);
+        return false; // Fail securely if DB write fails
+      }
+    }
+    
+    return true;
   } catch (error) {
-    console.error('Turnstile verification error:', error);
+    console.error('ALTCHA verification error:', error);
     return false;
   }
 }
+
 
 /**
  * Generates a TOTP secret.

@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
         const query = db('class_subjects')
           .join('classes', 'class_subjects.class_id', 'classes.id')
           .join('subjects', 'class_subjects.subject_id', 'subjects.id')
-          .join('class_teacher_assignments', function() {
-            this.on('class_subjects.class_id', '=', 'class_teacher_assignments.class_id')
+          .join('class_teacher_assignments', function(join: any) {
+            join.on('class_subjects.class_id', '=', 'class_teacher_assignments.class_id')
               .andOn('class_subjects.academic_year_id', '=', 'class_teacher_assignments.academic_year_id')
               .andOn('class_subjects.semester_id', '=', 'class_teacher_assignments.semester_id');
           })
