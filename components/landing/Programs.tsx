@@ -2,36 +2,32 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Calculator, Bookmark } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 
-const programs = [
-  {
-    title: "Literasi Pemahaman Kritis",
-    desc: "Bukan sekadar mengeja, melainkan melatih kemampuan mencerna teks instruksi pendek/panjang, memahami makna bacaan, dan bernalar kritis untuk memecahkan masalah.",
-    icon: BookOpen,
-    badge: "Esensial",
-    color: "from-brand-emerald-500 to-emerald-600",
-    shadow: "shadow-brand-emerald-500/10"
-  },
-  {
-    title: "Logika Hitung Fungsional",
-    desc: "Menjauhkan anak dari rumus hafalan abstrak yang memusingkan. Fokus pada pemahaman logika hitung dasar yang aplikatif dalam kehidupan sehari-hari.",
-    icon: Calculator,
-    badge: "Fungsional",
-    color: "from-amber-500 to-orange-600",
-    shadow: "shadow-amber-500/10"
-  },
-  {
-    title: "Ilmu Diniyyah Dasar & Adab",
-    desc: "Membina aqidah tauhid yang lurus berlandaskan sunnah, menuntaskan praktik ibadah fardhu 'ain (wudhu & shalat), serta membiasakan adab kesantunan harian.",
-    icon: Bookmark,
-    badge: "Karakter",
-    color: "from-blue-500 to-cyan-600",
-    shadow: "shadow-blue-500/10"
-  }
-];
 
-export default function Programs() {
+
+interface ProgramsProps {
+  title?: string | null;
+  subtitle?: string | null;
+  badge?: string | null;
+  items?: Array<{
+    title?: string | null;
+    description?: string | null;
+    icon?: string | null;
+    badge?: string | null;
+    custom_fields?: any;
+  }>;
+}
+
+export default function Programs({ title, subtitle, badge, items }: ProgramsProps) {
+  // All display values from CMS props only
+  const displayBadge = badge || "";
+  const displayTitle = title || "";
+  const displaySubtitle = subtitle || "";
+
+  // Items exclusively from CMS; empty = no cards rendered (no crash)
+  const activePrograms = items && items.length > 0 ? items : [];
+
   return (
     <section id="program" className="w-full py-24 bg-background relative">
       {/* Decorative top curve */}
@@ -45,23 +41,32 @@ export default function Programs() {
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
           <span className="font-plus-jakarta text-xs md:text-sm font-bold text-brand-emerald-600 uppercase tracking-widest bg-brand-emerald-50 dark:bg-brand-emerald-950/30 px-3 py-1.5 rounded-full inline-block">
-            Kurikulum Esensial
+            {displayBadge}
           </span>
           <h2 className="font-fredoka text-3xl md:text-5xl font-bold text-zinc-850 dark:text-zinc-150">
-            Trisula Kompetensi
+            {displayTitle}
           </h2>
           <p className="font-plus-jakarta text-zinc-550 dark:text-zinc-400 text-lg">
-            Kami memusatkan fokus kognitif siswa untuk menuntaskan tiga fondasi utama guna menghindari beban belajar berlebih (<strong>cognitive overload</strong>).
+            {displaySubtitle}
           </p>
         </div>
 
         {/* Grid Cards (3 columns) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {programs.map((prog, idx) => {
-            const Icon = prog.icon;
+          {activePrograms.map((prog, idx) => {
+            const Icon = (prog.icon && (LucideIcons as any)[prog.icon]) || LucideIcons.BookOpen;
+            
+            let color = "from-brand-emerald-500 to-emerald-600";
+            let shadow = "shadow-brand-emerald-500/10";
+            if (prog.custom_fields) {
+              const parsed = typeof prog.custom_fields === "string" ? JSON.parse(prog.custom_fields) : prog.custom_fields;
+              color = parsed.color || color;
+              shadow = parsed.shadow || shadow;
+            }
+
             return (
               <motion.div
-                key={prog.title}
+                key={idx}
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-55px" }}
@@ -73,12 +78,14 @@ export default function Programs() {
 
                 <div className="space-y-6 relative z-10">
                   <div className="flex items-center justify-between">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${prog.color} text-white shadow-md ${prog.shadow}`}>
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${color} text-white shadow-md ${shadow}`}>
                       <Icon className="w-6 h-6" />
                     </div>
-                    <span className="font-plus-jakarta text-xs font-bold px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-350 uppercase tracking-wider">
-                      {prog.badge}
-                    </span>
+                    {prog.badge && (
+                      <span className="font-plus-jakarta text-xs font-bold px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-650 dark:text-zinc-350 uppercase tracking-wider">
+                        {prog.badge}
+                      </span>
+                    )}
                   </div>
 
                   <h3 className="font-fredoka text-xl font-bold text-zinc-800 dark:text-zinc-250 group-hover:text-brand-emerald-600 transition-colors">
@@ -86,7 +93,7 @@ export default function Programs() {
                   </h3>
 
                   <p className="font-plus-jakarta text-zinc-550 dark:text-zinc-400 text-sm leading-relaxed">
-                    {prog.desc}
+                    {prog.description}
                   </p>
                 </div>
               </motion.div>

@@ -5,9 +5,35 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { Quote } from "lucide-react";
 
-export default function Principal() {
-  // Set to true in the future to show the principal's photo and name
-  const showPrincipalIdentity = false;
+interface PrincipalProps {
+  title?: string | null;
+  subtitle?: string | null;
+  badge?: string | null;
+  config?: {
+    principal_name?: string;
+    principal_title?: string;
+    principal_greeting?: string;
+    principal_photo?: {
+      url: string;
+    } | null;
+  } | null;
+}
+
+export default function Principal({ title, subtitle, badge, config }: PrincipalProps) {
+  // Show principal identity only when name is explicitly configured in CMS
+  const showPrincipalIdentity = !!config?.principal_name;
+
+  // All display values from CMS props/config only
+  const displayBadge = badge || "";
+  const displayTitle = title || "";
+  
+  // Greeting from CMS config; empty string if not yet configured
+  const displayGreeting = config?.principal_greeting || subtitle || "";
+
+  // Identity fields — only populated from CMS config, not hardcoded
+  const principalName = config?.principal_name || "";
+  const principalTitle = config?.principal_title || "";
+  const photoUrl = config?.principal_photo?.url || "";
 
   return (
     <section className="w-full py-24 bg-background relative overflow-hidden">
@@ -22,15 +48,17 @@ export default function Principal() {
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.7 }}
-                className="relative aspect-3/4 rounded-[28px] overflow-hidden border-4 border-white shadow-xl max-w-sm mx-auto"
+                className="relative aspect-3/4 rounded-[28px] overflow-hidden border-4 border-white shadow-xl max-w-sm mx-auto bg-zinc-100 dark:bg-zinc-800"
               >
-                <Image
-                  src="/images/principal/principal.jpg"
-                  alt="Kepala Sekolah SIUBA"
-                  fill
-                  sizes="(max-width: 1024px) 100vw, 40vw"
-                  className="object-cover"
-                />
+                {photoUrl && (
+                  <Image
+                    src={photoUrl}
+                    alt={principalName}
+                    fill
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                    className="object-cover"
+                  />
+                )}
                 {/* Overlay styling for elegant depth */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
               </motion.div>
@@ -52,10 +80,10 @@ export default function Principal() {
               className="space-y-2 relative z-10"
             >
               <span className="font-plus-jakarta text-xs md:text-sm font-bold text-brand-emerald-600 uppercase tracking-widest bg-brand-emerald-100/50 px-3 py-1.5 rounded-full inline-block">
-                Sambutan Hangat
+                {displayBadge}
               </span>
               <h2 className="font-fredoka text-3xl md:text-4xl font-bold text-zinc-850 dark:text-zinc-150">
-                Mempersiapkan Generasi Rabbani yang Cerdas & Santun
+                {displayTitle}
               </h2>
             </motion.div>
 
@@ -64,20 +92,12 @@ export default function Principal() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6, delay: 0.1 }}
-              className="font-plus-jakarta text-zinc-655 dark:text-zinc-400 space-y-4 text-base md:text-lg leading-relaxed relative z-10"
+              className="font-plus-jakarta text-zinc-655 dark:text-zinc-400 space-y-4 text-base md:text-lg leading-relaxed relative z-10 whitespace-pre-line"
             >
               <p>
                 Assalamualaikum Warahmatullahi Wabarakatuh,
               </p>
-              <p>
-                Selamat datang di SIUBA. Kehormatan bagi kami bermitra dengan Bapak/Ibu sekalian dalam wadah pendidikan alternatif yang mengutamakan adab di atas ilmu, perlindungan kesehatan batin anak, serta penumbuhan fitrah unik anak secara alami.
-              </p>
-              <p>
-                Melalui sinergi <strong>Madrasatul Ula</strong>, kami memastikan anak dididik dalam lingkungan yang aman secara psikologis (<strong>psychological safety</strong>), bebas dari perundungan, dan bebas dari tekanan akademik yang tidak wajar. Kami optimis melahirkan anak didik yang berkarakter UTSMAN.
-              </p>
-              <p>
-                Terima kasih atas amanah dan kepercayaan Ayah Bunda. Mari bersama bersinergi menumbuhkan generasi bertaqwa pembangun umat.
-              </p>
+              {displayGreeting}
             </motion.div>
 
             {showPrincipalIdentity && (
@@ -88,11 +108,11 @@ export default function Principal() {
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="pt-4"
               >
-                <h4 className="font-fredoka text-xl font-bold text-zinc-800 dark:text-zinc-200">
-                  Nurhadi Mursidin Putra, S.Pd.
+                <h4 className="font-fredoka text-xl font-bold text-zinc-850 dark:text-zinc-200">
+                  {principalName}
                 </h4>
                 <span className="font-plus-jakarta text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mt-1 block">
-                  Kepala Sekolah SIUBA - PKBM BLC
+                  {principalTitle}
                 </span>
               </motion.div>
             )}

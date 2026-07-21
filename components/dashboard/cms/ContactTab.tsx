@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Save, Loader2 } from "lucide-react";
 
 interface WebsiteConfig {
@@ -19,9 +19,10 @@ interface WebsiteConfig {
 interface ContactTabProps {
   config: WebsiteConfig;
   onUpdate: (data: Partial<WebsiteConfig>) => Promise<void>;
+  setIsDirty?: (dirty: boolean) => void;
 }
 
-export default function ContactTab({ config, onUpdate }: ContactTabProps) {
+export default function ContactTab({ config, onUpdate, setIsDirty }: ContactTabProps) {
   const [phoneRaw, setPhoneRaw] = useState(config.contact_phone_raw || "");
   const [phoneDisplay, setPhoneDisplay] = useState(config.contact_phone_display || "");
   const [email, setEmail] = useState(config.contact_email || "");
@@ -42,6 +43,30 @@ export default function ContactTab({ config, onUpdate }: ContactTabProps) {
   const [whatsapp, setWhatsapp] = useState(sm.whatsapp || "");
 
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const isPhoneRawChanged = phoneRaw !== (config.contact_phone_raw || "");
+    const isPhoneDisplayChanged = phoneDisplay !== (config.contact_phone_display || "");
+    const isEmailChanged = email !== (config.contact_email || "");
+    const isStreetChanged = street !== (config.address_street || "");
+    const isVillageChanged = village !== (config.address_village || "");
+    const isDistrictChanged = district !== (config.address_district || "");
+    const isRegencyChanged = regency !== (config.address_regency || "");
+    const isPostalChanged = postalCode !== (config.address_postal_code || "");
+    const isMapsChanged = mapsUrl !== (config.maps_embed_url || "");
+    
+    const sm = config.social_media || {};
+    const isInstaChanged = instagram !== (sm.instagram || "");
+    const isFbChanged = facebook !== (sm.facebook || "");
+    const isYtChanged = youtube !== (sm.youtube || "");
+    const isWaChanged = whatsapp !== (sm.whatsapp || "");
+
+    const dirty = isPhoneRawChanged || isPhoneDisplayChanged || isEmailChanged || isStreetChanged || isVillageChanged || isDistrictChanged || isRegencyChanged || isPostalChanged || isMapsChanged || isInstaChanged || isFbChanged || isYtChanged || isWaChanged;
+
+    if (setIsDirty) {
+      setIsDirty(dirty);
+    }
+  }, [phoneRaw, phoneDisplay, email, street, village, district, regency, postalCode, mapsUrl, instagram, facebook, youtube, whatsapp, config, setIsDirty]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

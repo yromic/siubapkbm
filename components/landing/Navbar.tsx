@@ -2,24 +2,19 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Menu, X, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-const defaultNavItems = [
-  { label: "Tentang", href: "#tentang" },
-  { label: "Pendekatan", href: "#pendekatan" },
-  { label: "Metode", href: "#program" },
-  { label: "FAQ", href: "#faq" },
-  { label: "Hubungi Kami", href: "#kontak" }
-];
 
 interface NavbarProps {
   menuItems?: Array<{ label: string; url: string }>;
   shortName?: string;
+  logoUrl?: string | null;
 }
 
-export default function Navbar({ menuItems, shortName = "SIUBA" }: NavbarProps) {
-  const navItems = menuItems && menuItems.length > 0 ? menuItems.map(item => ({ label: item.label, href: item.url })) : defaultNavItems;
+export default function Navbar({ menuItems, shortName = "SIUBA", logoUrl }: NavbarProps) {
+  // Navigation items exclusively from CMS database; empty array if not yet configured
+  const navItems = menuItems ? menuItems.map(item => ({ label: item.label, href: item.url })) : [];
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -47,9 +42,22 @@ export default function Navbar({ menuItems, shortName = "SIUBA" }: NavbarProps) 
         <div className="flex items-center justify-between px-6 md:px-8">
           {/* Logo */}
           <Link href="#beranda" className="flex items-center gap-2" aria-label="SIUBA Beranda">
-            <span className="font-fredoka text-2xl font-bold bg-gradient-to-r from-brand-emerald-600 to-brand-lime-500 bg-clip-text text-transparent">
-              {shortName}
-            </span>
+            {logoUrl ? (
+              <div className="relative h-10 w-28">
+                <Image
+                  src={logoUrl}
+                  alt={shortName}
+                  fill
+                  sizes="112px"
+                  priority
+                  className="object-contain object-left"
+                />
+              </div>
+            ) : (
+              <span className="font-fredoka text-2xl font-bold bg-gradient-to-r from-brand-emerald-600 to-brand-lime-500 bg-clip-text text-transparent">
+                {shortName}
+              </span>
+            )}
           </Link>
 
           {/* Desktop Navigation */}

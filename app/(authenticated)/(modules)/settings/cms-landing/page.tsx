@@ -10,15 +10,40 @@ import ContactTab from "@/components/dashboard/cms/ContactTab";
 import NavigationTab from "@/components/dashboard/cms/NavigationTab";
 import SectionsTab from "@/components/dashboard/cms/SectionsTab";
 import MediaTab from "@/components/dashboard/cms/MediaTab";
+import SEOTab from "@/components/dashboard/cms/SEOTab";
 
 export default function CMSLandingPage() {
-  const [activeTab, setActiveTab] = useState<"branding" | "contact" | "navigation" | "sections" | "media">("branding");
+  const [activeTab, setActiveTab] = useState<"branding" | "contact" | "navigation" | "sections" | "media" | "seo">("branding");
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
+
+  const handleTabChange = (tab: "branding" | "contact" | "navigation" | "sections" | "media" | "seo") => {
+    if (isDirty) {
+      const confirm = window.confirm("Anda memiliki perubahan yang belum disimpan di tab ini. Pindah tab akan membuang perubahan tersebut. Lanjutkan?");
+      if (!confirm) return;
+    }
+    setActiveTab(tab);
+    setIsDirty(false);
+  };
 
   const fetchConfig = async () => {
     try {
@@ -51,6 +76,7 @@ export default function CMSLandingPage() {
       if (res.ok && json.data) {
         notify.success("Konfigurasi website berhasil disimpan.");
         setConfig(json.data);
+        setIsDirty(false);
       } else {
         notify.error(json.message || "Gagal menyimpan konfigurasi.");
       }
@@ -91,7 +117,7 @@ export default function CMSLandingPage() {
       {/* Workspace Tabs Menu */}
       <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-850 pb-px overflow-x-auto select-none no-scrollbar">
         <button
-          onClick={() => setActiveTab("branding")}
+          onClick={() => handleTabChange("branding")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "branding"
               ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
@@ -103,7 +129,7 @@ export default function CMSLandingPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("contact")}
+          onClick={() => handleTabChange("contact")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "contact"
               ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
@@ -115,7 +141,7 @@ export default function CMSLandingPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("navigation")}
+          onClick={() => handleTabChange("navigation")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "navigation"
               ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
@@ -127,7 +153,7 @@ export default function CMSLandingPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("sections")}
+          onClick={() => handleTabChange("sections")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "sections"
               ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
@@ -139,7 +165,7 @@ export default function CMSLandingPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab("media")}
+          onClick={() => handleTabChange("media")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "media"
               ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
@@ -149,24 +175,39 @@ export default function CMSLandingPage() {
           <FolderHeart className="w-4 h-4" />
           Media Library
         </button>
+
+        <button
+          onClick={() => handleTabChange("seo")}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "seo"
+              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+              : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+          }`}
+        >
+          <Globe className="w-4 h-4" />
+          SEO & Metadata
+        </button>
       </div>
 
       {/* Tab Workspaces */}
       <div className="flex-1 min-h-0 pt-2">
         {activeTab === "branding" && config && (
-          <BrandingTab config={config} onUpdate={handleUpdateConfig} />
+          <BrandingTab config={config} onUpdate={handleUpdateConfig} setIsDirty={setIsDirty} />
         )}
         {activeTab === "contact" && config && (
-          <ContactTab config={config} onUpdate={handleUpdateConfig} />
+          <ContactTab config={config} onUpdate={handleUpdateConfig} setIsDirty={setIsDirty} />
         )}
         {activeTab === "navigation" && (
           <NavigationTab />
         )}
-        {activeTab === "sections" && (
-          <SectionsTab />
+        {activeTab === "sections" && config && (
+          <SectionsTab config={config} onUpdateConfig={handleUpdateConfig} />
         )}
         {activeTab === "media" && (
           <MediaTab />
+        )}
+        {activeTab === "seo" && config && (
+          <SEOTab config={config} onUpdate={handleUpdateConfig} setIsDirty={setIsDirty} />
         )}
       </div>
     </div>

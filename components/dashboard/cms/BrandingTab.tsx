@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Image as ImageIcon, Save, Loader2, RefreshCw } from "lucide-react";
 import MediaSelectorModal from "./MediaSelectorModal";
 
@@ -29,9 +29,10 @@ interface WebsiteConfig {
 interface BrandingTabProps {
   config: WebsiteConfig;
   onUpdate: (data: Partial<WebsiteConfig>) => Promise<void>;
+  setIsDirty?: (dirty: boolean) => void;
 }
 
-export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
+export default function BrandingTab({ config, onUpdate, setIsDirty }: BrandingTabProps) {
   const [schoolName, setSchoolName] = useState(config.school_name || "");
   const [shortName, setShortName] = useState(config.short_name || "");
   const [tagline, setTagline] = useState(config.tagline || "");
@@ -42,19 +43,30 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
   const [secondaryColor, setSecondaryColor] = useState(theme.secondary_color || "#065f46");
   const [brandFont, setBrandFont] = useState(theme.brand_font || "plus-jakarta");
 
-  // Principal profile
-  const [pName, setPName] = useState(config.principal_name || "");
-  const [pTitle, setPTitle] = useState(config.principal_title || "");
-  const [pGreeting, setPGreet] = useState(config.principal_greeting || "");
-
   // Media references
   const [logo, setLogo] = useState<Asset | null>(config.logo || null);
   const [favicon, setFavicon] = useState<Asset | null>(config.favicon || null);
-  const [pPhoto, setPPhoto] = useState<Asset | null>(config.principal_photo || null);
 
   // Modal control
-  const [mediaTarget, setMediaTarget] = useState<"logo" | "favicon" | "principal_photo" | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<"logo" | "favicon" | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const isNameChanged = schoolName !== (config.school_name || "");
+    const isShortChanged = shortName !== (config.short_name || "");
+    const isTaglineChanged = tagline !== (config.tagline || "");
+    const isPrimaryChanged = primaryColor !== (theme.primary_color || "#10b981");
+    const isSecondaryChanged = secondaryColor !== (theme.secondary_color || "#065f46");
+    const isFontChanged = brandFont !== (theme.brand_font || "plus-jakarta");
+    const isLogoChanged = (logo?.id || null) !== (config.logo_id || null);
+    const isFaviconChanged = (favicon?.id || null) !== (config.favicon_id || null);
+
+    const dirty = isNameChanged || isShortChanged || isTaglineChanged || isPrimaryChanged || isSecondaryChanged || isFontChanged || isLogoChanged || isFaviconChanged;
+    
+    if (setIsDirty) {
+      setIsDirty(dirty);
+    }
+  }, [schoolName, shortName, tagline, primaryColor, secondaryColor, brandFont, logo, favicon, config, theme.primary_color, theme.secondary_color, theme.brand_font, setIsDirty]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,10 +78,6 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
         tagline: tagline,
         logo_id: logo?.id || null,
         favicon_id: favicon?.id || null,
-        principal_name: pName,
-        principal_title: pTitle,
-        principal_greeting: pGreeting,
-        principal_photo_id: pPhoto?.id || null,
         theme_branding: {
           primary_color: primaryColor,
           secondary_color: secondaryColor,
@@ -84,7 +92,6 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
   const handleSelectMedia = (asset: Asset) => {
     if (mediaTarget === "logo") setLogo(asset);
     if (mediaTarget === "favicon") setFavicon(asset);
-    if (mediaTarget === "principal_photo") setPPhoto(asset);
     setMediaTarget(null);
   };
 
@@ -159,52 +166,6 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
           </div>
 
           {/* Principal Welcome Section */}
-          <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 space-y-4">
-            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 uppercase tracking-wider mb-2">
-              Sambutan & Profil Kepala Sekolah
-            </h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 mb-1.5">
-                  Nama Kepala Sekolah <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={pName}
-                  onChange={(e) => setPName(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-zinc-100"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 mb-1.5">
-                  Jabatan / Gelar <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={pTitle}
-                  onChange={(e) => setPTitle(e.target.value)}
-                  required
-                  className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-zinc-100"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 mb-1.5">
-                Greeting Sambutan <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={pGreeting}
-                onChange={(e) => setPGreet(e.target.value)}
-                required
-                rows={4}
-                className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-zinc-100 resize-none"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Right Column - Media & Theme Colors */}
@@ -217,7 +178,7 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
 
             {/* Main Logo */}
             <div className="space-y-2">
-              <span className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450">Logo Sekolah</span>
+              <span className="block text-xs font-semibold text-zinc-500 dark:text-zinc-455">Logo Sekolah</span>
               <div className="flex items-center gap-3">
                 <div className="w-16 h-16 rounded-2xl border border-zinc-250 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
                   {logo ? (
@@ -255,28 +216,6 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
                   className="px-3.5 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-[#262626] text-zinc-700 dark:text-zinc-300 transition-colors"
                 >
                   Pilih Favicon
-                </button>
-              </div>
-            </div>
-
-            {/* Principal Photo */}
-            <div className="space-y-2 border-t border-zinc-100 dark:border-zinc-850 pt-4">
-              <span className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450">Foto Kepala Sekolah</span>
-              <div className="flex items-center gap-3">
-                <div className="w-16 h-16 rounded-2xl border border-zinc-250 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
-                  {pPhoto ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={pPhoto.url} alt="Principal Photo" className="w-full h-full object-cover" />
-                  ) : (
-                    <ImageIcon className="w-6 h-6 text-zinc-400" />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMediaTarget("principal_photo")}
-                  className="px-3.5 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-[#262626] text-zinc-700 dark:text-zinc-300 transition-colors"
-                >
-                  Pilih Foto
                 </button>
               </div>
             </div>
@@ -344,8 +283,6 @@ export default function BrandingTab({ config, onUpdate }: BrandingTabProps) {
             ? logo?.id
             : mediaTarget === "favicon"
             ? favicon?.id
-            : mediaTarget === "principal_photo"
-            ? pPhoto?.id
             : undefined
         }
       />

@@ -42,12 +42,13 @@ interface MenuItem {
   href: string;
   icon: React.ReactNode;
   roles: ("administrator" | "admin" | "teacher")[];
-  category: "utama" | "akademik" | "sistem" | "data";
+  category: "utama" | "akademik" | "website" | "sistem" | "data";
 }
 
 const CATEGORIES = {
   utama: "Utama",
   akademik: "Akademik & Kelas",
+  website: "Portal & Website CMS",
   sistem: "Administrasi & Keuangan",
   data: "Data & Integrasi",
 };
@@ -162,7 +163,7 @@ const MENU_ITEMS: MenuItem[] = [
     name: "Kelola Landing Page",
     href: "/settings/cms-landing",
     roles: ["administrator", "admin"],
-    category: "sistem",
+    category: "website",
     icon: <Layout className="w-5 h-5" />,
   },
   {
@@ -212,6 +213,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     utama: true,
     akademik: false,
+    website: false,
     sistem: false,
     data: false,
   });

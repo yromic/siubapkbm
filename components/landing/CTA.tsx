@@ -1,11 +1,26 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, MessageSquareCode } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-export default function CTA() {
+interface CTAProps {
+  title?: string | null;
+  subtitle?: string | null;
+  badge?: string | null;
+  content?: any;
+}
+
+export default function CTA({ title, subtitle, badge, content }: CTAProps) {
+  const displayBadge = badge || "";
+  const displayTitle = title || "";
+  const displaySubtitle = subtitle || "";
+
+  const primaryText = content?.cta_text || content?.primary_cta_text || "";
+  const primaryUrl = content?.cta_url || content?.primary_cta_url || "#";
+  const secondaryText = content?.secondary_cta_text || "";
+  const secondaryUrl = content?.secondary_cta_url || "#";
+
   return (
     <section className="w-full py-20 bg-white dark:bg-zinc-950 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
@@ -23,34 +38,47 @@ export default function CTA() {
 
           {/* Content */}
           <div className="relative z-10 max-w-3xl mx-auto space-y-8">
-            <h2 className="font-fredoka text-3xl md:text-5xl lg:text-6xl font-bold leading-tight drop-shadow-sm">
-              Mari Bermitra Menjaga Fitrah Tumbuh Kembang Ananda
-            </h2>
-            <p className="font-plus-jakarta text-zinc-100 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
-              Pendidikan adalah perjalanan jangka panjang. Mari jadwalkan sesi
-              konsultasi santai dengan tim pendidik kami untuk memahami
-              bagaimana SIUBA mendukung masa keemasan putra-putri Ayah Bunda.
-            </p>
+            {displayBadge && (
+              <span className="font-plus-jakarta text-xs font-bold tracking-wider uppercase text-brand-lime-200">
+                {displayBadge}
+              </span>
+            )}
+            {displayTitle && (
+              <h2 className="font-fredoka text-3xl md:text-5xl lg:text-6xl font-bold leading-tight drop-shadow-sm">
+                {displayTitle}
+              </h2>
+            )}
+            {displaySubtitle && (
+              <p className="font-plus-jakarta text-zinc-100 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
+                {displaySubtitle}
+              </p>
+            )}
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link
-                href="https://wa.me/6289655496283"
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Jadwalkan konsultasi via WhatsApp"
-                className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white hover:bg-zinc-50 active:bg-zinc-100 text-brand-emerald-700 font-bold text-base shadow-lg transition-all transform hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
-              >
-                Jadwalkan Konsultasi WhatsApp
-                <ArrowRight className="w-5 h-5" />
-              </Link>
-              <Link
-                href="#kontak"
-                aria-label="Daftar PPDB Online"
-                className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-brand-emerald-500 hover:bg-brand-emerald-600 active:bg-brand-emerald-700 text-white font-bold text-base border border-brand-emerald-400/50 shadow-md transition-all transform hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
-              >
-                Daftar PPDB Online
-              </Link>
-            </div>
+            {(primaryText || secondaryText) && (
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                {primaryText && (
+                  <a
+                    href={primaryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={primaryText}
+                    className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white hover:bg-zinc-50 active:bg-zinc-100 text-brand-emerald-700 font-bold text-base shadow-lg transition-all transform hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
+                  >
+                    {primaryText}
+                    <ArrowRight className="w-5 h-5" />
+                  </a>
+                )}
+                {secondaryText && (
+                  <a
+                    href={secondaryUrl}
+                    aria-label={secondaryText}
+                    className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-brand-emerald-500 hover:bg-brand-emerald-600 active:bg-brand-emerald-700 text-white font-bold text-base border border-brand-emerald-400/50 shadow-md transition-all transform hover:-translate-y-0.5 w-full sm:w-auto cursor-pointer"
+                  >
+                    {secondaryText}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </motion.div>
       </div>

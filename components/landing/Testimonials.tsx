@@ -5,44 +5,47 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, Quote } from "lucide-react";
 
-interface Testimonial {
-  image: string;
-  name: string;
-  role: string;
-  text: string;
+interface TestimonialItem {
+  id?: string;
+  title?: string | null;
+  subtitle?: string | null;
+  description?: string | null;
+  image?: { url: string; alt: string } | null | string;
+  image_url?: string;
 }
 
-const testimonials: Testimonial[] = [
-  {
-    image: "/images/testimonials/parent-1.jpg",
-    name: "Ummu Abdillah",
-    role: "Wali Murid Kelas 2",
-    text: "Masya Allah, perubahan adab harian anak saya sejak menerapkan Budaya SAHABAT sangat nyata di rumah. Hubungan kami dan tutor terjalin erat sebagai mitra pengasuhan (Madrasatul Ula)."
-  },
-  {
-    image: "/images/testimonials/parent-2.jpg",
-    name: "Abu Salman",
-    role: "Wali Murid Kelas 4",
-    text: "Dengan Klinik Trisula, anak saya mendapatkan pendampingan belajar yang menyenangkan tanpa rasa minder. Sekarang ia tumbuh mandiri dalam ibadah wajib dan merapikan barangnya sendiri."
-  },
-  {
-    image: "/images/testimonials/parent-3.jpg",
-    name: "Bunda Rania",
-    role: "Wali Murid Kelas 5",
-    text: "Sangat tenang menyekolahkan anak di SIUBA karena lingkungannya bebas tekanan akademis. Anak saya tumbuh ceria, beradab santun, dan sangat menyukai buku bacaan tanpa perlu dipaksa."
-  }
-];
 
-export default function Testimonials() {
+
+interface TestimonialsProps {
+  title?: string | null;
+  badge?: string | null;
+  items?: TestimonialItem[];
+}
+
+export default function Testimonials({ title, badge, items }: TestimonialsProps) {
   const [current, setCurrent] = useState(0);
 
+  // All display values from CMS props only
+  const displayBadge = badge || "";
+  const displayTitle = title || "";
+
+  // Testimonials exclusively from CMS; empty = section not rendered
+  const activeTestimonials = items && items.length > 0 ? items : [];
+
   const prev = () => {
-    setCurrent((prevVal) => (prevVal === 0 ? testimonials.length - 1 : prevVal - 1));
+    setCurrent((prevVal) => (prevVal === 0 ? activeTestimonials.length - 1 : prevVal - 1));
   };
 
   const next = () => {
-    setCurrent((prevVal) => (prevVal === testimonials.length - 1 ? 0 : prevVal + 1));
+    setCurrent((prevVal) => (prevVal === activeTestimonials.length - 1 ? 0 : prevVal + 1));
   };
+
+  if (activeTestimonials.length === 0) return null;
+
+  const currentItem = activeTestimonials[current];
+  const avatarUrl = currentItem.image && typeof currentItem.image === "object"
+    ? currentItem.image.url
+    : (currentItem.image_url || (currentItem as any).image as string);
 
   return (
     <section className="w-full py-24 bg-white dark:bg-zinc-950 overflow-hidden">
@@ -51,10 +54,10 @@ export default function Testimonials() {
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-16 space-y-4">
           <span className="font-plus-jakarta text-xs md:text-sm font-bold text-brand-emerald-600 uppercase tracking-widest bg-brand-emerald-50 dark:bg-brand-emerald-950/30 px-3 py-1.5 rounded-full inline-block">
-            Testimoni Orang Tua
+            {displayBadge}
           </span>
           <h2 className="font-fredoka text-3xl md:text-5xl font-bold text-zinc-850 dark:text-zinc-150">
-            Apa Kata Mereka?
+            {displayTitle}
           </h2>
         </div>
 
@@ -67,7 +70,7 @@ export default function Testimonials() {
           </div>
 
           {/* Parent Image */}
-          <div className="w-28 h-28 md:w-36 md:h-36 relative rounded-full overflow-hidden border-4 border-white shadow-md flex-shrink-0">
+          <div className="w-28 h-28 md:w-36 md:h-36 relative rounded-full overflow-hidden border-4 border-white shadow-md flex-shrink-0 bg-zinc-100 dark:bg-zinc-800">
             <AnimatePresence mode="wait">
               <motion.div
                 key={current}
@@ -77,13 +80,19 @@ export default function Testimonials() {
                 transition={{ duration: 0.3 }}
                 className="absolute inset-0"
               >
-                <Image
-                  src={testimonials[current].image}
-                  alt={testimonials[current].name}
-                  fill
-                  sizes="144px"
-                  className="object-cover"
-                />
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt={currentItem.title || "Foto Wali Murid"}
+                    fill
+                    sizes="144px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-brand-emerald-100 dark:bg-brand-emerald-950/30 text-brand-emerald-600 font-fredoka text-2xl font-bold">
+                    {(currentItem.title || "?").charAt(0).toUpperCase()}
+                  </div>
+                )}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -100,36 +109,40 @@ export default function Testimonials() {
                 className="space-y-4"
               >
                 <p className="font-plus-jakarta text-zinc-650 dark:text-zinc-350 text-lg italic md:text-xl leading-relaxed">
-                  &ldquo;{testimonials[current].text}&rdquo;
+                  &ldquo;{currentItem.description}&rdquo;
                 </p>
                 <div>
                   <h4 className="font-fredoka text-xl font-bold text-zinc-800 dark:text-zinc-200">
-                    {testimonials[current].name}
+                    {currentItem.title}
                   </h4>
-                  <span className="font-plus-jakarta text-xs font-bold text-brand-emerald-600 uppercase tracking-wider">
-                    {testimonials[current].role}
-                  </span>
+                  {currentItem.subtitle && (
+                    <span className="font-plus-jakarta text-xs font-bold text-brand-emerald-600 uppercase tracking-wider">
+                      {currentItem.subtitle}
+                    </span>
+                  )}
                 </div>
               </motion.div>
             </AnimatePresence>
 
             {/* Navigation Controls */}
-            <div className="flex items-center justify-center md:justify-start gap-4">
-              <button
-                onClick={prev}
-                className="w-10 h-10 rounded-full flex items-center justify-center bg-surface-1 border border-zinc-200/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-350 hover:bg-brand-emerald-50 dark:hover:bg-brand-emerald-950/30 hover:text-brand-emerald-600 dark:hover:text-brand-emerald-500 transition-colors shadow-sm cursor-pointer"
-                aria-label="Testimoni sebelumnya"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={next}
-                className="w-10 h-10 rounded-full flex items-center justify-center bg-surface-1 border border-zinc-200/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-350 hover:bg-brand-emerald-50 dark:hover:bg-brand-emerald-950/30 hover:text-brand-emerald-600 dark:hover:text-brand-emerald-500 transition-colors shadow-sm cursor-pointer"
-                aria-label="Testimoni selanjutnya"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
+            {activeTestimonials.length > 1 && (
+              <div className="flex items-center justify-center md:justify-start gap-4">
+                <button
+                  onClick={prev}
+                  className="w-10 h-10 rounded-full flex items-center justify-center bg-surface-1 border border-zinc-200/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-350 hover:bg-brand-emerald-50 dark:hover:bg-brand-emerald-950/30 hover:text-brand-emerald-600 dark:hover:text-brand-emerald-500 transition-colors shadow-sm cursor-pointer"
+                  aria-label="Testimoni sebelumnya"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={next}
+                  className="w-10 h-10 rounded-full flex items-center justify-center bg-surface-1 border border-zinc-200/60 dark:border-zinc-800 text-zinc-700 dark:text-zinc-350 hover:bg-brand-emerald-50 dark:hover:bg-brand-emerald-950/30 hover:text-brand-emerald-600 dark:hover:text-brand-emerald-500 transition-colors shadow-sm cursor-pointer"
+                  aria-label="Testimoni selanjutnya"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
 
         </div>

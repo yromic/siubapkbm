@@ -1,7 +1,7 @@
 import React from "react";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
-import { getWebsiteConfig } from "@/lib/services/websiteConfigService";
+import { getWebsiteConfig, WebsiteConfig } from "@/lib/services/websiteConfigService";
 import { getNavigationMenu } from "@/lib/services/navigationService";
 import { getActiveSections, Section } from "@/lib/services/sectionService";
 import { ComponentRegistry } from "@/components/landing/registry";
@@ -9,15 +9,19 @@ import { ComponentRegistry } from "@/components/landing/registry";
 // Next.js dynamic rendering since it relies on DB configuration
 export const dynamic = "force-dynamic";
 
-export default async function PublicLandingPage() {
-  let config;
+export default async function PublicLandingPage({ searchParams }: { searchParams?: { preview?: string } }) {
+  let config: WebsiteConfig | null = null;
   let navbarMenu;
+  let footerMenu;
   let sections: Section[] = [];
+  
+  const isPreview = searchParams?.preview === "true";
   
   try {
     config = await getWebsiteConfig();
     navbarMenu = await getNavigationMenu("navbar");
-    sections = await getActiveSections(false);
+    footerMenu = await getNavigationMenu("footer");
+    sections = await getActiveSections(isPreview);
   } catch (error) {
     console.error("Error retrieving website config or sections:", error);
   }
@@ -68,7 +72,7 @@ export default async function PublicLandingPage() {
       />
 
       {/* Floating Navbar */}
-      <Navbar menuItems={navbarMenu?.links} shortName={shortName} />
+      <Navbar menuItems={navbarMenu?.links} shortName={shortName} logoUrl={config?.logo?.url} />
 
       {/* Main Sections */}
       <main>
@@ -84,6 +88,7 @@ export default async function PublicLandingPage() {
                 badge={section.badge}
                 content={section.content}
                 items={section.items}
+                config={section.type === "principal" ? config : undefined}
               />
             );
           })
@@ -99,7 +104,7 @@ export default async function PublicLandingPage() {
       </main>
 
       {/* Footer */}
-      <Footer config={config} />
+      <Footer config={config || undefined} footerMenuItems={footerMenu?.links} />
     </div>
   );
 }

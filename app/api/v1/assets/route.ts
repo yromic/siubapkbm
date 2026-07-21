@@ -149,19 +149,23 @@ export async function DELETE(req: NextRequest) {
           return errorResponse('Asset ID is required.', 'ERR_VALIDATION', 400);
         }
 
-        // We need to delete the physical file too. Let's find it.
+        // 1. Find the target asset to get its URL for file deletion
         const assets = await listAssets();
         const target = assets.find(a => a.id === id);
         
-        if (target) {
-          const filename = path.basename(target.url);
-          const filePath = path.join(UPLOADS_DIR, filename);
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-          }
+        if (!target) {
+          return errorResponse('Asset not found.', 'ERR_NOT_FOUND', 404);
         }
 
+        // 2. Delete database entry first (checks referential integrity constraints)
         await deleteAsset(id);
+
+        // 3. If DB deletion succeeds without error, safely remove physical file from disk
+        const filename = path.basename(target.url);
+        const filePath = path.join(UPLOADS_DIR, filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
 
         return successResponse(null, 'Asset deleted successfully.');
       } catch (error) {

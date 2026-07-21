@@ -136,10 +136,10 @@ export async function getSchoolDashboard() {
         .where({ semester_id: activeSemester.id, status: "active" })
         .whereNot("class_teacher_assignments.lifecycle_status", "soft_deleted")
         .select("class_id");
-      const classIdsWithWali = new Set(classesWithWali.map((c) => c.class_id));
+      const classIdsWithWali = new Set(classesWithWali.map((c: any) => c.class_id));
       classesWithoutWali = activeClasses
-        .filter((c) => !classIdsWithWali.has(c.id))
-        .map((c) => c.name);
+        .filter((c: any) => !classIdsWithWali.has(c.id))
+        .map((c: any) => c.name);
     }
 
     // ── 9. Orphan Students Count (structural check) ───────────────────────
@@ -206,7 +206,7 @@ export async function getSchoolDashboard() {
         .select("class_id", "subject_id", "status");
 
       const assessmentGroup: Record<string, string[]> = {};
-      assessments.forEach(a => {
+      assessments.forEach((a: any) => {
         const key = `${a.class_id}-${a.subject_id}`;
         if (!assessmentGroup[key]) {
           assessmentGroup[key] = [];
@@ -214,7 +214,7 @@ export async function getSchoolDashboard() {
         assessmentGroup[key].push(a.status);
       });
 
-      activeClassSubjects.forEach(cs => {
+      activeClassSubjects.forEach((cs: any) => {
         const key = `${cs.class_id}-${cs.subject_id}`;
         const statuses = assessmentGroup[key];
         if (!statuses || statuses.length === 0) {

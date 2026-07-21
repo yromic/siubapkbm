@@ -6,52 +6,80 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, ArrowRight, Play } from "lucide-react";
 
-const heroImages = [
-  "/images/hero/hero-1.webp",
-  "/images/hero/hero-2.webp",
-  "/images/hero/hero-3.webp",
-  "/images/hero/hero-4.webp",
-  "/images/hero/hero-5.webp"
-];
 
-export default function Hero() {
+
+interface HeroProps {
+  title?: string | null;
+  subtitle?: string | null;
+  badge?: string | null;
+  content?: any;
+  items?: Array<{
+    id?: string;
+    title?: string | null;
+    subtitle?: string | null;
+    description?: string | null;
+    image?: { url: string; alt: string } | null;
+    sort_order?: number;
+  }>;
+}
+
+
+export default function Hero({ title, subtitle, badge, content, items }: HeroProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Images exclusively from CMS section items; empty if no DB data configured yet
+  const activeImages = items && items.length > 0
+    ? items.map(item => item.image?.url).filter(Boolean) as string[]
+    : [];
+
   useEffect(() => {
+    if (activeImages.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroImages.length);
+      setCurrentSlide((prev) => (prev + 1) % activeImages.length);
     }, 6000);
     return () => clearInterval(timer);
-  }, []);
+  }, [activeImages]);
+
+  // All display values from CMS props; empty string fallback prevents crashes
+  const displayBadge = badge || "";
+  const displayTitle = title || "";
+  const displaySubtitle = subtitle || "";
+
+  const ctaText = content?.cta_text || "";
+  const ctaUrl = content?.cta_url || "#";
+  const videoText = content?.video_text || "";
+  const videoUrl = content?.video_url || "#";
 
   return (
     <section id="beranda" className="relative w-full min-h-screen flex items-center justify-center overflow-hidden bg-brand-cream py-20">
-      {/* Background Slideshow */}
-      <div className="absolute inset-0 z-0">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.2, ease: "easeInOut" }}
-            className="absolute inset-0 w-full h-full"
-          >
-            <Image
-              src={heroImages[currentSlide]}
-              alt={`SIUBA Hero Background ${currentSlide + 1}`}
-              fill
-              sizes="100vw"
-              priority
-              unoptimized
-              className="object-cover"
-            />
-          </motion.div>
-        </AnimatePresence>
-        {/* Soft emerald transparent gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-brand-emerald-700/80 via-brand-emerald-600/50 to-brand-lime-600/30 mix-blend-multiply" />
-        <div className="absolute inset-0 bg-black/30" />
-      </div>
+      {/* Background Slideshow — only rendered when CMS has configured images */}
+      {activeImages.length > 0 && (
+        <div className="absolute inset-0 z-0">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentSlide}
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 1.2, ease: "easeInOut" }}
+              className="absolute inset-0 w-full h-full"
+            >
+              <Image
+                src={activeImages[currentSlide]}
+                alt={`Hero Background ${currentSlide + 1}`}
+                fill
+                sizes="100vw"
+                priority
+                unoptimized
+                className="object-cover"
+              />
+            </motion.div>
+          </AnimatePresence>
+          {/* Soft emerald transparent gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-brand-emerald-700/80 via-brand-emerald-600/50 to-brand-lime-600/30 mix-blend-multiply" />
+          <div className="absolute inset-0 bg-black/30" />
+        </div>
+      )}
 
       {/* Floating Islamic Doodles / Geometric Shapes */}
       <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
@@ -100,36 +128,42 @@ export default function Hero() {
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 shadow-inner">
             <Sparkles className="w-4 h-4 text-brand-lime-500" />
             <span className="font-plus-jakarta text-xs md:text-sm font-bold tracking-wider uppercase text-brand-lime-100">
-              Sekolah Dasar Alternatif Pilihan Utama
+              {displayBadge}
             </span>
           </div>
 
           <h1 className="font-fredoka text-4xl md:text-6xl lg:text-7xl font-bold leading-tight max-w-4xl mx-auto drop-shadow-md">
-            Stepping with Friends, Becoming Utsman Generation
+            {displayTitle}
           </h1>
 
           <p className="font-plus-jakarta text-base md:text-xl text-zinc-100 max-w-2xl mx-auto font-medium drop-shadow-sm leading-relaxed">
-            Pendidikan kesetaraan setaraf SD (Paket A) berbasis adab Islami di bawah lingkungan belajar minimalis yang aman secara psikologis. Resmi dan diakui negara.
+            {displaySubtitle}
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
-            <Link
-              href="#kontak"
-              aria-label="Hubungi kami untuk pendaftaran dan konsultasi"
-              className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-brand-emerald-500 hover:bg-brand-emerald-600 active:bg-brand-emerald-700 text-white font-bold text-base shadow-lg shadow-brand-emerald-500/25 transition-all transform hover:-translate-y-0.5 cursor-pointer w-full sm:w-auto"
-            >
-              Konsultasi PPDB
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              href="#tentang"
-              aria-label="Pelajari tentang sekolah kami"
-              className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white/15 hover:bg-white/25 active:bg-white/35 text-white font-bold text-base border border-white/20 backdrop-blur-sm shadow-md transition-all transform hover:-translate-y-0.5 cursor-pointer w-full sm:w-auto"
-            >
-              <Play className="w-4 h-4 fill-white" />
-              Lihat Keseharian Siswa
-            </Link>
-          </div>
+          {(ctaText || videoText) && (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
+              {ctaText && (
+                <Link
+                  href={ctaUrl}
+                  aria-label={ctaText}
+                  className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-brand-emerald-500 hover:bg-brand-emerald-600 active:bg-brand-emerald-700 text-white font-bold text-base shadow-lg shadow-brand-emerald-500/25 transition-all transform hover:-translate-y-0.5 cursor-pointer w-full sm:w-auto"
+                >
+                  {ctaText}
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+              )}
+              {videoText && (
+                <Link
+                  href={videoUrl}
+                  aria-label={videoText}
+                  className="font-plus-jakarta flex items-center justify-center gap-2 px-8 py-4 rounded-2xl bg-white/15 hover:bg-white/25 active:bg-white/35 text-white font-bold text-base border border-white/20 backdrop-blur-sm shadow-md transition-all transform hover:-translate-y-0.5 cursor-pointer w-full sm:w-auto"
+                >
+                  <Play className="w-4 h-4 fill-white" />
+                  {videoText}
+                </Link>
+              )}
+            </div>
+          )}
         </motion.div>
       </div>
 

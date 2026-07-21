@@ -23,6 +23,7 @@ interface SectionItem {
   link_url?: string | null;
   link_text?: string | null;
   image?: Asset | null;
+  custom_fields?: any;
 }
 
 interface Section {
@@ -39,7 +40,12 @@ interface Section {
   items?: SectionItem[];
 }
 
-export default function SectionsTab() {
+interface SectionsTabProps {
+  config?: any;
+  onUpdateConfig?: (data: any) => Promise<void>;
+}
+
+export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps) {
   const [sections, setSections] = useState<Section[]>([]);
   const [loading, setLoading] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
@@ -51,6 +57,12 @@ export default function SectionsTab() {
   const [secBadge, setSecBadge] = useState("");
   const [secItems, setSecItems] = useState<SectionItem[]>([]);
   const [secContent, setSecContent] = useState<Record<string, any>>({});
+
+  // Principal profile inputs (synced from global config)
+  const [pName, setPName] = useState("");
+  const [pTitle, setPTitle] = useState("");
+  const [pGreeting, setPGreet] = useState("");
+  const [pPhoto, setPPhoto] = useState<Asset | null>(null);
 
   // Sub-item form states (inside section editor)
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
@@ -64,12 +76,42 @@ export default function SectionsTab() {
   const [itemLinkUrl, setItemLinkUrl] = useState("");
   const [showItemForm, setShowItemForm] = useState(false);
 
+  // Custom visual parameters state
+  const [itemTheme, setItemTheme] = useState("emerald");
+  const [itemGridWidth, setItemGridWidth] = useState("col-span-1");
+  const [itemProgColor, setItemProgColor] = useState("emerald");
+  const [itemCustomFields, setItemCustomFields] = useState<any>({});
+
   // Media selector helper
-  const [mediaTarget, setMediaTarget] = useState<"item" | null>(null);
+  const [mediaTarget, setMediaTarget] = useState<"item" | "principal_photo" | null>(null);
+
+  const COMMON_ICONS = [
+    { value: "BookOpen", label: "Buku / Belajar (BookOpen)" },
+    { value: "HelpCircle", label: "Tanya Jawab (HelpCircle)" },
+    { value: "Activity", label: "Aktivitas / Grafik (Activity)" },
+    { value: "Shield", label: "Perisai / Keamanan (Shield)" },
+    { value: "Heart", label: "Hati / Kasih Sayang (Heart)" },
+    { value: "Calculator", label: "Kalkulator / Numerasi (Calculator)" },
+    { value: "Bookmark", label: "Bookmark / Karakter (Bookmark)" },
+    { value: "Zap", label: "Petir / Unggul (Zap)" },
+    { value: "Award", label: "Medali / Penghargaan (Award)" },
+    { value: "User", label: "User / Mandiri (User)" },
+    { value: "HeartHandshake", label: "Salaman / Sosial (HeartHandshake)" },
+    { value: "Star", label: "Bintang / Akreditasi (Star)" },
+  ];
 
   useEffect(() => {
     fetchSections();
   }, []);
+
+  const handleSelectMedia = (asset: Asset) => {
+    if (mediaTarget === "principal_photo") {
+      setPPhoto(asset);
+    } else {
+      setItemImage(asset);
+    }
+    setMediaTarget(null);
+  };
 
   const fetchSections = async () => {
     setLoading(true);
@@ -173,6 +215,13 @@ export default function SectionsTab() {
     setSecBadge(sec.badge || activeContent.badge || "");
     setSecContent(activeContent);
     setSecItems(sec.items || []);
+
+    if (sec.type === "principal") {
+      setPName(config?.principal_name || "");
+      setPTitle(config?.principal_title || "");
+      setPGreet(config?.principal_greeting || "");
+      setPPhoto(config?.principal_photo || null);
+    }
     setShowItemForm(false);
     setSelectedItemIndex(null);
   };
@@ -188,6 +237,10 @@ export default function SectionsTab() {
     setItemImage(null);
     setItemLinkText("");
     setItemLinkUrl("");
+    setItemTheme("emerald");
+    setItemGridWidth("col-span-1");
+    setItemProgColor("emerald");
+    setItemCustomFields({});
     setShowItemForm(true);
   };
 
@@ -202,6 +255,20 @@ export default function SectionsTab() {
     setItemImage(item.image || null);
     setItemLinkText(item.link_text || "");
     setItemLinkUrl(item.link_url || "");
+    
+    // Parse custom fields
+    const custom = item.custom_fields || {};
+    setItemCustomFields(custom);
+    setItemTheme(custom.theme || "emerald");
+    setItemGridWidth(custom.gridWidth || "col-span-1");
+    
+    let colorName = "emerald";
+    if (custom.color) {
+      if (custom.color.includes("amber")) colorName = "amber";
+      else if (custom.color.includes("blue")) colorName = "blue";
+    }
+    setItemProgColor(colorName);
+    
     setShowItemForm(true);
   };
 
@@ -209,6 +276,32 @@ export default function SectionsTab() {
     if (!itemTitle.trim() && !itemDescription.trim()) {
       notify.error("Judul atau Deskripsi item wajib diisi.");
       return;
+    }
+
+    // Determine custom fields structure
+    let custom_fields: any = {};
+    if (editSection?.type === "why-choose-us") {
+      custom_fields = {
+        theme: itemTheme,
+        gridWidth: itemGridWidth
+      };
+    } else if (editSection?.type === "programs") {
+      const colorMap: Record<string, string> = {
+        emerald: "from-brand-emerald-500 to-emerald-600",
+        amber: "from-amber-500 to-orange-600",
+        blue: "from-blue-500 to-cyan-600"
+      };
+      const shadowMap: Record<string, string> = {
+        emerald: "shadow-brand-emerald-500/10",
+        amber: "shadow-amber-500/10",
+        blue: "shadow-blue-500/10"
+      };
+      custom_fields = {
+        color: colorMap[itemProgColor] || colorMap.emerald,
+        shadow: shadowMap[itemProgColor] || shadowMap.emerald
+      };
+    } else {
+      custom_fields = itemCustomFields;
     }
 
     const newItem: SectionItem = {
@@ -221,6 +314,7 @@ export default function SectionsTab() {
       image: itemImage,
       link_text: itemLinkText || null,
       link_url: itemLinkUrl || null,
+      custom_fields,
       sort_order: selectedItemIndex !== null ? secItems[selectedItemIndex].sort_order : secItems.length + 1
     };
 
@@ -289,6 +383,16 @@ export default function SectionsTab() {
         })
       });
 
+      // 3. Save Principal details in global config if applicable
+      if (editSection.type === "principal" && onUpdateConfig) {
+        await onUpdateConfig({
+          principal_name: pName,
+          principal_title: pTitle,
+          principal_greeting: pGreeting,
+          principal_photo_id: pPhoto?.id || null
+        });
+      }
+
       notify.dismiss(toastId);
 
       if (resContent.ok && resItems.ok) {
@@ -332,6 +436,16 @@ export default function SectionsTab() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editSection.id, action: "items", items: cleanItems })
       });
+
+      // Save Principal details in global config if applicable
+      if (editSection.type === "principal" && onUpdateConfig) {
+        await onUpdateConfig({
+          principal_name: pName,
+          principal_title: pTitle,
+          principal_greeting: pGreeting,
+          principal_photo_id: pPhoto?.id || null
+        });
+      }
 
       // Then publish
       const res = await fetch("/api/v1/admin/sections", {
@@ -521,175 +635,293 @@ export default function SectionsTab() {
                 </div>
               </div>
 
-              {/* Section Items Repeater */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
+              {/* Section Items Repeater / Principal inputs */}
+              {editSection.type === "principal" ? (
+                <div className="space-y-4 bg-zinc-50/50 dark:bg-zinc-900/10 p-5 rounded-2xl border border-zinc-200/60 dark:border-zinc-800">
                   <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                    Daftar Item Repeater ({secItems.length})
+                    Profil & Sambutan Kepala Sekolah
                   </h4>
-                  <button
-                    onClick={handleOpenItemAdd}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl transition-all"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Tambah Item Baru
-                  </button>
-                </div>
-
-                {/* Sub-item Form (Inline/Expandable) */}
-                {showItemForm && (
-                  <div className="p-4 border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10 dark:bg-emerald-950/5 rounded-2xl space-y-4">
-                    <h5 className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                      {selectedItemIndex !== null ? "Edit Item" : "Tambah Item"}
-                    </h5>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Judul Item</label>
-                        <input
-                          type="text"
-                          value={itemTitle}
-                          onChange={(e) => setItemTitle(e.target.value)}
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Sub-judul / Badge</label>
-                        <input
-                          type="text"
-                          value={itemSubtitle}
-                          onChange={(e) => setItemSubtitle(e.target.value)}
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
-                        />
-                      </div>
-                    </div>
-
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Deskripsi Detail</label>
-                      <textarea
-                        value={itemDescription}
-                        onChange={(e) => setItemDescription(e.target.value)}
-                        rows={3}
-                        className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100 resize-none"
+                      <label className="block text-xs font-semibold text-zinc-500 mb-1.5">Nama Kepala Sekolah <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={pName}
+                        onChange={(e) => setPName(e.target.value)}
+                        placeholder="Nama Kepala Sekolah..."
+                        required
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
                       />
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Nama Icon (Lucide)</label>
-                        <input
-                          type="text"
-                          value={itemIcon}
-                          onChange={(e) => setItemIcon(e.target.value)}
-                          placeholder="e.g. Heart, Award..."
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Teks Link</label>
-                        <input
-                          type="text"
-                          value={itemLinkText}
-                          onChange={(e) => setItemLinkText(e.target.value)}
-                          placeholder="e.g. Hubungi Kami..."
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-zinc-500 mb-1">URL Link</label>
-                        <input
-                          type="text"
-                          value={itemLinkUrl}
-                          onChange={(e) => setItemLinkUrl(e.target.value)}
-                          placeholder="e.g. /#contact..."
-                          className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-zinc-500 mb-1.5">Jabatan / Gelar <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        value={pTitle}
+                        onChange={(e) => setPTitle(e.target.value)}
+                        placeholder="Jabatan..."
+                        required
+                        className="w-full px-3 py-2 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                      />
                     </div>
-
-                    {/* Image selector */}
-                    <div className="space-y-2">
-                      <span className="block text-[11px] font-semibold text-zinc-500">Gambar Item</span>
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
-                          {itemImage ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={itemImage.url} alt="Item Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon className="w-5 h-5 text-zinc-400" />
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setMediaTarget("item")}
-                          className="px-3 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-white dark:hover:bg-[#262626] transition-colors"
-                        >
-                          Pilih Gambar
-                        </button>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-500 mb-1.5">Greeting Sambutan <span className="text-red-500">*</span></label>
+                    <textarea
+                      value={pGreeting}
+                      onChange={(e) => setPGreet(e.target.value)}
+                      placeholder="Surat Sambutan..."
+                      rows={5}
+                      required
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100 resize-none whitespace-pre-line"
+                    />
+                  </div>
+                  <div className="space-y-2 pt-4 border-t border-zinc-100 dark:border-zinc-850">
+                    <span className="block text-xs font-semibold text-zinc-500">Foto Kepala Sekolah</span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 rounded-2xl border border-zinc-250 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+                        {pPhoto ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={pPhoto.url} alt="Principal Photo" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="w-6 h-6 text-zinc-400" />
+                        )}
                       </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => setShowItemForm(false)}
-                        className="px-3.5 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-white"
+                        onClick={() => setMediaTarget("principal_photo")}
+                        className="px-3.5 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-[#262626] text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
                       >
-                        Batal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveItem}
-                        className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
-                      >
-                        Simpan ke Daftar
+                        Pilih Foto
                       </button>
                     </div>
                   </div>
-                )}
-
-                {/* Sub-items list */}
-                <div className="space-y-2">
-                  {secItems.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 bg-zinc-50/50 dark:bg-[#262626]/50 border border-zinc-150 dark:border-zinc-800 rounded-2xl"
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                      Daftar Item Repeater ({secItems.length})
+                    </h4>
+                    <button
+                      onClick={handleOpenItemAdd}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl transition-all"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        {item.image && (
-                          <div className="w-10 h-10 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-850 shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={item.image.url} alt="" className="w-full h-full object-cover" />
+                      <Plus className="w-3.5 h-3.5" />
+                      Tambah Item Baru
+                    </button>
+                  </div>
+
+                  {/* Sub-item Form (Inline/Expandable) */}
+                  {showItemForm && (
+                    <div className="p-4 border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10 dark:bg-emerald-950/5 rounded-2xl space-y-4">
+                      <h5 className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                        {selectedItemIndex !== null ? "Edit Item" : "Tambah Item"}
+                      </h5>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-500 mb-1">
+                            {editSection?.type === "faq" ? "Pertanyaan" :
+                             editSection?.type === "testimonials" ? "Nama Wali Murid" :
+                             editSection?.type === "about" ? "Angka / Metrik (e.g. 99%)" :
+                             editSection?.type === "hero" ? "Label Slide (Internal)" :
+                             "Judul Item"}
+                          </label>
+                          <input
+                            type="text"
+                            value={itemTitle}
+                            onChange={(e) => setItemTitle(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                          />
+                        </div>
+                        
+                        {editSection?.type !== "hero" && editSection?.type !== "faq" && (
+                          <div>
+                            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">
+                              {editSection?.type === "testimonials" ? "Peran / Kelas Anak" :
+                               editSection?.type === "gallery" ? "Kategori / Tag" :
+                               editSection?.type === "school-life" ? "Kategori Waktu" :
+                               editSection?.type === "about" ? "Label Pencapaian (e.g. Kelulusan)" :
+                               "Sub-judul / Badge"}
+                            </label>
+                            <input
+                              type="text"
+                              value={itemSubtitle}
+                              onChange={(e) => setItemSubtitle(e.target.value)}
+                              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                            />
                           </div>
                         )}
-                        <div className="truncate">
-                          <h5 className="text-xs font-bold text-zinc-800 dark:text-zinc-250 truncate">
-                            {item.title || item.description || `Item #${idx + 1}`}
-                          </h5>
-                          <p className="text-[10px] text-zinc-450 truncate">
-                            {item.subtitle || item.description || ""}
-                          </p>
-                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      {editSection?.type !== "hero" && editSection?.type !== "gallery" && (
+                        <div>
+                          <label className="block text-[11px] font-semibold text-zinc-500 mb-1">
+                            {editSection?.type === "faq" ? "Jawaban" :
+                             editSection?.type === "testimonials" ? "Kutipan Review (Quote)" :
+                             "Deskripsi Detail"}
+                          </label>
+                          <textarea
+                            value={itemDescription}
+                            onChange={(e) => setItemDescription(e.target.value)}
+                            rows={3}
+                            className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100 resize-none"
+                          />
+                        </div>
+                      )}
+
+                      {/* Icon selector only for sections with icons */}
+                      {(editSection?.type === "why-choose-us" || editSection?.type === "programs" || editSection?.type === "achievements") && (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Ikon (Lucide)</label>
+                            <select
+                              value={itemIcon}
+                              onChange={(e) => setItemIcon(e.target.value)}
+                              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                            >
+                              <option value="">Pilih Ikon...</option>
+                              {COMMON_ICONS.map(icon => (
+                                <option key={icon.value} value={icon.value}>{icon.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Custom visual parameters based on Section Type */}
+                      {editSection?.type === "why-choose-us" && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200/50 dark:border-zinc-800/80">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Warna Aksen Bento Card</label>
+                            <select
+                              value={itemTheme}
+                              onChange={(e) => setItemTheme(e.target.value)}
+                              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                            >
+                              <option value="emerald">Emerald (Default)</option>
+                              <option value="red">Red</option>
+                              <option value="amber">Amber</option>
+                              <option value="blue">Blue</option>
+                              <option value="purple">Purple</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Lebar Bento Grid</label>
+                            <select
+                              value={itemGridWidth}
+                              onChange={(e) => setItemGridWidth(e.target.value)}
+                              className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                            >
+                              <option value="col-span-1">Lebar Tunggal (col-span-1)</option>
+                              <option value="col-span-2">Lebar Ganda (col-span-2)</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {editSection?.type === "programs" && (
+                        <div className="p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200/50 dark:border-zinc-800/80">
+                          <label className="block text-[11px] font-semibold text-zinc-500 mb-1">Tema Gradasi Latar Belakang</label>
+                          <select
+                            value={itemProgColor}
+                            onChange={(e) => setItemProgColor(e.target.value)}
+                            className="w-full px-3 py-1.5 text-sm bg-white dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:text-zinc-100"
+                          >
+                            <option value="emerald">Emerald / Green Gradient</option>
+                            <option value="amber">Amber / Orange Gradient</option>
+                            <option value="blue">Blue / Cyan Gradient</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Image selector only for sections that require images */}
+                      {(editSection?.type === "hero" || editSection?.type === "school-life" || editSection?.type === "gallery" || editSection?.type === "testimonials") && (
+                        <div className="space-y-2">
+                          <span className="block text-[11px] font-semibold text-zinc-500">Gambar Item</span>
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-900 flex items-center justify-center overflow-hidden">
+                              {itemImage ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={itemImage.url} alt="Item Preview" className="w-full h-full object-cover" />
+                              ) : (
+                                <ImageIcon className="w-5 h-5 text-zinc-400" />
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setMediaTarget("item")}
+                              className="px-3 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-white dark:hover:bg-[#262626] transition-colors"
+                            >
+                              Pilih Gambar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end gap-2">
                         <button
-                          onClick={() => handleOpenItemEdit(idx)}
-                          className="p-1.5 text-zinc-500 hover:bg-white dark:hover:bg-[#333] rounded-lg"
+                          type="button"
+                          onClick={() => setShowItemForm(false)}
+                          className="px-3.5 py-1.5 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-white"
                         >
-                          <Edit2 className="w-3.5 h-3.5" />
+                          Batal
                         </button>
                         <button
-                          onClick={() => handleDeleteItem(idx)}
-                          className="p-1.5 text-red-500 hover:bg-red-55/10 rounded-lg"
+                          type="button"
+                          onClick={handleSaveItem}
+                          className="px-4 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          Simpan ke Daftar
                         </button>
                       </div>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Sub-items list */}
+                  <div className="space-y-2">
+                    {secItems.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-3 bg-zinc-50/50 dark:bg-[#262626]/50 border border-zinc-150 dark:border-zinc-800 rounded-2xl"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {item.image && (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-850 shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={item.image.url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          <div className="truncate">
+                            <h5 className="text-xs font-bold text-zinc-800 dark:text-zinc-250 truncate">
+                              {item.title || item.description || `Item #${idx + 1}`}
+                            </h5>
+                            <p className="text-[10px] text-zinc-450 truncate">
+                              {item.subtitle || item.description || ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleOpenItemEdit(idx)}
+                            className="p-1.5 text-zinc-500 hover:bg-white dark:hover:bg-[#333] rounded-lg"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(idx)}
+                            className="p-1.5 text-red-500 hover:bg-red-55/10 rounded-lg"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Footer Actions */}
@@ -726,8 +958,8 @@ export default function SectionsTab() {
       <MediaSelectorModal
         open={mediaTarget !== null}
         onClose={() => setMediaTarget(null)}
-        onSelect={setItemImage}
-        selectedAssetId={itemImage?.id}
+        onSelect={handleSelectMedia}
+        selectedAssetId={mediaTarget === "principal_photo" ? pPhoto?.id : itemImage?.id}
       />
     </div>
   );

@@ -2,6 +2,8 @@ import { db } from '@/lib/db';
 import { AppError } from '@/lib/errors';
 import { v4 as uuidv4 } from 'uuid';
 import { getAssetById, Asset } from './assetService';
+import { validateBrandingConfig, validateContactConfig, validateSEOConfig } from '@/lib/validators/websiteConfigValidator';
+import { createAuditLog } from './auditService';
 
 export interface WebsiteConfig {
   id: string;
@@ -94,9 +96,41 @@ export async function getWebsiteConfig(): Promise<WebsiteConfig> {
     if (typeof row.theme_branding === 'string') row.theme_branding = JSON.parse(row.theme_branding);
     
     // Resolve Assets
-    if (row.logo_id) row.logo = await getAssetById(row.logo_id);
-    if (row.favicon_id) row.favicon = await getAssetById(row.favicon_id);
-    if (row.principal_photo_id) row.principal_photo = await getAssetById(row.principal_photo_id);
+    if (row.logo_id) {
+      try {
+        const asset = await getAssetById(row.logo_id);
+        row.logo = (asset && asset.url) ? asset : null;
+      } catch (e) {
+        console.error('Error resolving logo asset:', e);
+        row.logo = null;
+      }
+    } else {
+      row.logo = null;
+    }
+
+    if (row.favicon_id) {
+      try {
+        const asset = await getAssetById(row.favicon_id);
+        row.favicon = (asset && asset.url) ? asset : null;
+      } catch (e) {
+        console.error('Error resolving favicon asset:', e);
+        row.favicon = null;
+      }
+    } else {
+      row.favicon = null;
+    }
+
+    if (row.principal_photo_id) {
+      try {
+        const asset = await getAssetById(row.principal_photo_id);
+        row.principal_photo = (asset && asset.url) ? asset : null;
+      } catch (e) {
+        console.error('Error resolving principal photo asset:', e);
+        row.principal_photo = null;
+      }
+    } else {
+      row.principal_photo = null;
+    }
     
     return row as WebsiteConfig;
   } catch (error) {
@@ -110,6 +144,11 @@ export async function getWebsiteConfig(): Promise<WebsiteConfig> {
 
 export async function updateWebsiteConfig(data: Partial<Omit<WebsiteConfig, 'id' | 'created_at' | 'updated_at'>>): Promise<WebsiteConfig> {
   try {
+    // Validate partial inputs
+    validateBrandingConfig(data);
+    validateContactConfig(data);
+    validateSEOConfig(data);
+
     const current = await getWebsiteConfig();
     const id = current.id;
     
@@ -121,11 +160,196 @@ export async function updateWebsiteConfig(data: Partial<Omit<WebsiteConfig, 'id'
     
     await db('website_config').where('id', id).update(updateData);
     
-    return await getWebsiteConfig();
+    const updated = await getWebsiteConfig();
+    
+    // Create audit log for this update (serves as version snapshot)
+    await createAuditLog({
+      action: 'publish',
+      entity_type: 'website_config',
+      entity_id: id,
+      old_value: current,
+      new_value: updated,
+      description: 'Mempublikasikan perubahan konfigurasi website.'
+    });
+
+    return updated;
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(
       error instanceof Error ? error.message : 'Database error updating website configuration',
+      'ERR_DATABASE',
+      500
+    );
+  }
+}
+
+export interface BrandingConfig {
+  school_name: string;
+  short_name: string;
+  tagline: string;
+  logo_id?: string | null;
+  favicon_id?: string | null;
+  theme_branding: any;
+  logo?: Asset | null;
+  favicon?: Asset | null;
+}
+
+export interface ContactConfig {
+  contact_phone_raw: string;
+  contact_phone_display: string;
+  contact_email: string;
+  address_street: string;
+  address_village: string;
+  address_district: string;
+  address_regency: string;
+  address_postal_code: string;
+  maps_embed_url?: string | null;
+}
+
+export interface SocialConfig {
+  social_media: any;
+}
+
+export interface SEOConfig {
+  seo_defaults: any;
+}
+
+export interface PrincipalConfig {
+  principal_name: string;
+  principal_title: string;
+  principal_greeting: string;
+  principal_photo_id?: string | null;
+  principal_photo?: Asset | null;
+}
+
+export async function getBrandingConfig(): Promise<BrandingConfig> {
+  const config = await getWebsiteConfig();
+  return {
+    school_name: config.school_name,
+    short_name: config.short_name,
+    tagline: config.tagline,
+    logo_id: config.logo_id,
+    favicon_id: config.favicon_id,
+    theme_branding: config.theme_branding,
+    logo: config.logo,
+    favicon: config.favicon,
+  };
+}
+
+export async function getContactConfig(): Promise<ContactConfig> {
+  const config = await getWebsiteConfig();
+  return {
+    contact_phone_raw: config.contact_phone_raw,
+    contact_phone_display: config.contact_phone_display,
+    contact_email: config.contact_email,
+    address_street: config.address_street,
+    address_village: config.address_village,
+    address_district: config.address_district,
+    address_regency: config.address_regency,
+    address_postal_code: config.address_postal_code,
+    maps_embed_url: config.maps_embed_url,
+  };
+}
+
+export async function getSocialConfig(): Promise<SocialConfig> {
+  const config = await getWebsiteConfig();
+  return {
+    social_media: config.social_media,
+  };
+}
+
+export async function getSEOConfig(): Promise<SEOConfig> {
+  const config = await getWebsiteConfig();
+  return {
+    seo_defaults: config.seo_defaults,
+  };
+}
+
+export async function getPrincipalConfig(): Promise<PrincipalConfig> {
+  const config = await getWebsiteConfig();
+  return {
+    principal_name: config.principal_name,
+    principal_title: config.principal_title,
+    principal_greeting: config.principal_greeting,
+    principal_photo_id: config.principal_photo_id,
+    principal_photo: config.principal_photo,
+  };
+}
+
+export async function updateBrandingConfig(data: Partial<BrandingConfig>): Promise<BrandingConfig> {
+  validateBrandingConfig(data);
+  const updated = await updateWebsiteConfig(data);
+  return {
+    school_name: updated.school_name,
+    short_name: updated.short_name,
+    tagline: updated.tagline,
+    logo_id: updated.logo_id,
+    favicon_id: updated.favicon_id,
+    theme_branding: updated.theme_branding,
+    logo: updated.logo,
+    favicon: updated.favicon,
+  };
+}
+
+export async function updateContactConfig(data: Partial<ContactConfig>): Promise<ContactConfig> {
+  validateContactConfig(data);
+  const updated = await updateWebsiteConfig(data);
+  return {
+    contact_phone_raw: updated.contact_phone_raw,
+    contact_phone_display: updated.contact_phone_display,
+    contact_email: updated.contact_email,
+    address_street: updated.address_street,
+    address_village: updated.address_village,
+    address_district: updated.address_district,
+    address_regency: updated.address_regency,
+    address_postal_code: updated.address_postal_code,
+    maps_embed_url: updated.maps_embed_url,
+  };
+}
+
+export async function updateSEOConfig(data: Partial<SEOConfig>): Promise<SEOConfig> {
+  validateSEOConfig(data);
+  const updated = await updateWebsiteConfig(data);
+  return {
+    seo_defaults: updated.seo_defaults,
+  };
+}
+
+export async function getWebsiteConfigHistory(): Promise<any[]> {
+  try {
+    const logs = await db('audit_logs')
+      .where('entity_type', 'website_config')
+      .orderBy('created_at', 'desc');
+    return logs.map((log: any) => {
+      if (typeof log.new_value === 'string') log.new_value = JSON.parse(log.new_value);
+      if (typeof log.old_value === 'string') log.old_value = JSON.parse(log.old_value);
+      return log;
+    });
+  } catch (error) {
+    throw new AppError('Gagal mengambil riwayat konfigurasi.', 'ERR_DATABASE', 500);
+  }
+}
+
+export async function rollbackWebsiteConfig(auditLogId: string): Promise<WebsiteConfig> {
+  try {
+    const log = await db('audit_logs').where('id', auditLogId).first();
+    if (!log) {
+      throw new AppError('Versi riwayat tidak ditemukan.', 'ERR_NOT_FOUND', 404);
+    }
+    
+    const snapshot = typeof log.new_value === 'string' ? JSON.parse(log.new_value) : log.new_value;
+    if (!snapshot) {
+      throw new AppError('Snapshot kosong atau tidak valid.', 'ERR_VALIDATION', 400);
+    }
+    
+    // Delete joined metadata fields to restore cleanly
+    const { id, created_at, updated_at, logo, favicon, principal_photo, ...cleanSnapshot } = snapshot;
+    
+    return await updateWebsiteConfig(cleanSnapshot);
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      error instanceof Error ? error.message : 'Gagal melakukan rollback konfigurasi.',
       'ERR_DATABASE',
       500
     );
