@@ -37,8 +37,11 @@ export async function POST(req: NextRequest) {
         return errorResponse('Incorrect old password.', 'ERR_INVALID_CREDENTIALS', 400);
       }
 
+      const ip = req.headers.get('x-forwarded-for') || (req as any).ip || undefined;
+      const userAgent = req.headers.get('user-agent') || undefined;
+
       // Update password
-      await resetUserPassword(userId, new_password);
+      await resetUserPassword(userId, new_password, 'session_revoked_password_change', ip, userAgent);
 
       return successResponse(null, 'Password changed successfully.');
     } catch (error) {

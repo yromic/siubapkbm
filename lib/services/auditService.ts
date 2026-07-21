@@ -100,3 +100,24 @@ export async function getFailedLoginCount(hours = 24): Promise<number> {
     return 0;
   }
 }
+
+export async function logAuthenticationEvent(
+  username: string,
+  role: string | null,
+  action: 'login_success' | 'login_failed' | 'account_locked' | 'account_unlocked' | 'session_revoked_password_change' | 'session_revoked_password_reset' | 'session_revoked_role_change' | 'session_revoked_account_disabled' | 'session_expired_idle_timeout',
+  success: boolean,
+  ip: string | undefined,
+  userAgent: string | undefined,
+  reason?: string
+) {
+  await createAuditLog({
+    user_name: username,
+    user_role: role || 'unknown',
+    action,
+    entity_type: 'authentication',
+    description: reason || `Authentication event: ${action}`,
+    ip_address: ip,
+    user_agent: userAgent
+  });
+}
+

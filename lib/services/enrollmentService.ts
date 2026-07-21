@@ -196,7 +196,7 @@ export async function createEnrollment(input: EnrollmentInput) {
 
   let newEnrollmentId: string | undefined;
   try {
-    const result = await db.transaction(async (trx) => {
+    const result = await db.transaction(async (trx: any) => {
       // Validate relations
       const student = await trx('students').where('id', input.student_id).whereNot('status', 'soft_deleted').first();
       if (!student) throw new AppError('Student not found or deleted.', 'ERR_VALIDATION', 400);
@@ -372,7 +372,7 @@ export async function bulkEnrollment(input: {
   const skipped: any[] = [];
   const failed: any[] = [];
 
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     // Validate relations
     const classItem = await trx('classes').where('id', input.class_id).whereNot('lifecycle_status', 'soft_deleted').first();
     if (!classItem) throw new AppError('Class not found or deleted.', 'ERR_VALIDATION', 400);

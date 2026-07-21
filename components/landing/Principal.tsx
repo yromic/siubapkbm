@@ -108,9 +108,9 @@ export default function Principal({ title, subtitle, badge, config }: PrincipalP
                 transition={{ duration: 0.5, delay: 0.2 }}
                 className="pt-4"
               >
-                <h4 className="font-fredoka text-xl font-bold text-zinc-850 dark:text-zinc-200">
+                <h3 className="font-fredoka text-xl font-bold text-zinc-850 dark:text-zinc-200">
                   {principalName}
-                </h4>
+                </h3>
                 <span className="font-plus-jakarta text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mt-1 block">
                   {principalTitle}
                 </span>

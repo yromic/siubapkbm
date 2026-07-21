@@ -95,7 +95,7 @@ export async function listPayments(
   try {
     const query = db('spp_payments')
       .join('students', 'spp_payments.student_id', 'students.id')
-      .leftJoin('student_enrollments', function() {
+      .leftJoin('student_enrollments', function(this: any) {
         this.on('students.id', 'student_enrollments.student_id')
             .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
       })
@@ -238,7 +238,7 @@ export async function verifyPayment(
     }
 
     const results: any[] = [];
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const r of recordsToVerify) {
         await trx('spp_payments')
           .where('id', r.id)
@@ -365,7 +365,7 @@ export async function getClassArrears(classId: string) {
   try {
     const records = await db('spp_payments')
       .join('students', 'spp_payments.student_id', 'students.id')
-      .join('student_enrollments', function() {
+      .join('student_enrollments', function(this: any) {
         this.on('students.id', 'student_enrollments.student_id')
             .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
       })
@@ -488,12 +488,12 @@ export async function getSppDashboardStats(
     const paidQuery = db('spp_payments').whereNot('lifecycle_status', 'soft_deleted').whereIn('payment_status', ['paid', 'verified']);
 
     if (monthsList.length > 0) {
-      totalQuery.where(function() {
+      totalQuery.where(function(this: any) {
         for (const m of monthsList) {
           this.orWhere({ payment_month: m.month, payment_year: m.year });
         }
       });
-      paidQuery.where(function() {
+      paidQuery.where(function(this: any) {
         for (const m of monthsList) {
           this.orWhere({ payment_month: m.month, payment_year: m.year });
         }
@@ -526,7 +526,7 @@ export async function getSppDashboardStats(
 
     const chartRows = await db('spp_payments')
       .whereNot('lifecycle_status', 'soft_deleted')
-      .where(function () {
+      .where(function (this: any) {
         for (const w of monthWindows) {
           this.orWhere({ payment_month: w.m, payment_year: w.y });
         }

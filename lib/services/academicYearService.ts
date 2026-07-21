@@ -212,7 +212,7 @@ export async function setActiveAcademicYear(id: string) {
       throw new AppError('Only academic years in draft or active status can be activated.', 'ERR_VALIDATION', 400);
     }
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       // Find semesters for this academic year
       const semesters = await trx('semesters')
         .where('academic_year_id', id)
@@ -230,12 +230,12 @@ export async function setActiveAcademicYear(id: string) {
       // 1. Semester that has is_active = 1
       // 2. Otherwise 'Ganjil' (case-insensitive)
       // 3. Otherwise first semester in alphabetical order of name
-      let targetSemester = semesters.find((s) => s.is_active == 1);
+      let targetSemester = semesters.find((s: any) => s.is_active == 1);
       if (!targetSemester) {
-        targetSemester = semesters.find((s) => s.name?.toLowerCase() === 'ganjil');
+        targetSemester = semesters.find((s: any) => s.name?.toLowerCase() === 'ganjil');
       }
       if (!targetSemester) {
-        semesters.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        semesters.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''));
         targetSemester = semesters[0];
       }
 

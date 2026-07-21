@@ -226,7 +226,7 @@ export async function setActiveSemester(id: string) {
       throw new AppError('Only semesters in draft or active status can be activated.', 'ERR_VALIDATION', 400);
     }
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       // 1. Pessimistic lock on active academic years to serialize/prevent concurrent activation requests
       const activeYear = await trx('academic_years')
         .where('is_active', 1)

@@ -228,7 +228,7 @@ export async function getDocumentCompletionStats(): Promise<{
     const withDocsRes = await db('students')
       .whereIn('status', ['active', 'Aktif'])
       .whereNull('students.deleted_at')
-      .whereExists(function () {
+      .whereExists(function (this: any) {
         this.from('student_files')
           .whereRaw('student_files.student_id = students.id')
           .whereIn('student_files.file_type', MANDATORY_DOC_TYPES as unknown as string[])

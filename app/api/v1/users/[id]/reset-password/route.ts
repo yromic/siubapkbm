@@ -20,7 +20,10 @@ export async function POST(
           return errorResponse('New password is required.', 'ERR_VALIDATION', 400);
         }
 
-        await resetUserPassword(id, new_password);
+        const ip = req.headers.get('x-forwarded-for') || (req as any).ip || undefined;
+        const userAgent = req.headers.get('user-agent') || undefined;
+
+        await resetUserPassword(id, new_password, 'session_revoked_password_reset', ip, userAgent);
         return successResponse(null, 'User password reset successfully.');
       } catch (error) {
         if (error instanceof AppError) {

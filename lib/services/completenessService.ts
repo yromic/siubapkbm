@@ -9,7 +9,7 @@ export async function getAcademicCompleteness(classId: string, academicYearId: s
       .whereNot('lifecycle_status', 'soft_deleted')
       .select('student_id');
 
-    const studentIds = activeStudents.map(s => s.student_id);
+    const studentIds = activeStudents.map((s: any) => s.student_id);
     if (studentIds.length === 0) return 100;
 
     const assessments = await db('academic_assessments')
@@ -18,7 +18,7 @@ export async function getAcademicCompleteness(classId: string, academicYearId: s
       .whereNot('lifecycle_status', 'soft_deleted')
       .select('id');
 
-    const assessmentIds = assessments.map(a => a.id);
+    const assessmentIds = assessments.map((a: any) => a.id);
     if (assessmentIds.length === 0) return 100;
 
     const expectedCount = studentIds.length * assessmentIds.length;
@@ -46,7 +46,7 @@ export async function getCultureCompleteness(classId: string, academicYearId: st
       .whereNot('lifecycle_status', 'soft_deleted')
       .select('student_id');
 
-    const studentIds = activeStudents.map(s => s.student_id);
+    const studentIds = activeStudents.map((s: any) => s.student_id);
     if (studentIds.length === 0) return 100;
 
     // Get unique dates for this class-semester in culture_scores
@@ -83,7 +83,7 @@ export async function getTeacherCompleteness(academicYearId: string, semesterId:
 
   try {
     const items = await db('users')
-      .leftJoin('culture_scores', function() {
+      .leftJoin('culture_scores', function(this: any) {
         this.on('users.id', '=', 'culture_scores.teacher_user_id')
           .andOn('culture_scores.academic_year_id', '=', db.raw('?', [academicYearId]))
           .andOn('culture_scores.semester_id', '=', db.raw('?', [semesterId]));

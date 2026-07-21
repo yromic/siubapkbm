@@ -112,9 +112,9 @@ export default function Testimonials({ title, badge, items }: TestimonialsProps)
                   &ldquo;{currentItem.description}&rdquo;
                 </p>
                 <div>
-                  <h4 className="font-fredoka text-xl font-bold text-zinc-800 dark:text-zinc-200">
+                  <h3 className="font-fredoka text-xl font-bold text-zinc-800 dark:text-zinc-200">
                     {currentItem.title}
-                  </h4>
+                  </h3>
                   {currentItem.subtitle && (
                     <span className="font-plus-jakarta text-xs font-bold text-brand-emerald-600 uppercase tracking-wider">
                       {currentItem.subtitle}

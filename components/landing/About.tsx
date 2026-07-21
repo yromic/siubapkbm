@@ -75,7 +75,7 @@ export default function About({ title, subtitle, badge, items, content }: AboutP
                 <div className="flex items-center gap-3">
                   <Star className="w-8 h-8 fill-white animate-pulse" />
                   <div>
-                    <h4 className="font-fredoka font-bold text-lg leading-none">{accTitle}</h4>
+                    <h3 className="font-fredoka font-bold text-lg leading-none">{accTitle}</h3>
                     {accSubtitle && (
                       <p className="font-plus-jakarta text-xs text-white/90 mt-1">{accSubtitle}</p>
                     )}
@@ -126,9 +126,9 @@ export default function About({ title, subtitle, badge, items, content }: AboutP
                     {item.title}
                   </div>
                   <div>
-                    <h4 className="font-fredoka text-base font-bold text-zinc-800 dark:text-zinc-200">
+                    <h3 className="font-fredoka text-base font-bold text-zinc-800 dark:text-zinc-200">
                       {item.subtitle}
-                    </h4>
+                    </h3>
                     <p className="font-plus-jakarta text-xs text-zinc-550 dark:text-zinc-400 mt-0.5">
                       {item.description}
                     </p>

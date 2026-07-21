@@ -8,6 +8,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { ApiError } from "@/lib/api/client";
+import { Turnstile } from "@/components/Turnstile";
 
 export default function ParentLoginPage() {
   const { login } = useParentAuth();
@@ -17,6 +18,10 @@ export default function ParentLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExpiredAlert, setShowExpiredAlert] = useState(false);
+
+  // Turnstile state
+  const [siteKey, setSiteKey] = useState<string | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -52,9 +57,14 @@ export default function ParentLoginPage() {
 
     setLoading(true);
     try {
-      await login(trimmedNisn, trimmedBirthDate, trimmedPin);
-    } catch (err) {
-      if (err && typeof err === "object" && "code" in err) {
+      await login(trimmedNisn, trimmedBirthDate, trimmedPin, turnstileToken);
+    } catch (err: any) {
+      if (err && err.code === "ERR_TURNSTILE_REQUIRED") {
+        setError("Verifikasi keamanan diperlukan.");
+        if (err.details && typeof err.details.siteKey === "string") {
+          setSiteKey(err.details.siteKey);
+        }
+      } else if (err && typeof err === "object" && "code" in err) {
         setError(humanizeError(err));
       } else {
         setError("Gagal terhubung dengan server. Silakan coba lagi.");
@@ -144,10 +154,14 @@ export default function ParentLoginPage() {
             </div>
           </div>
 
+          {siteKey && (
+            <Turnstile siteKey={siteKey} onVerify={setTurnstileToken} />
+          )}
+
           <div className="pt-2">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (siteKey !== null && !turnstileToken)}
               className="flex w-full justify-center items-center gap-2 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] px-4 py-3.5 text-sm font-semibold text-white transition-colors disabled:opacity-55 disabled:cursor-not-allowed shadow-lg shadow-[#468432]/10 cursor-pointer"
             >
               {loading ? (

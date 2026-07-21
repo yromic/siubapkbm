@@ -173,7 +173,7 @@ export async function getDailyRoster(date: string) {
 
   try {
     const items = await db('users')
-      .leftJoin('teacher_attendance', function () {
+      .leftJoin('teacher_attendance', function (this: any) {
         this.on('users.id', '=', 'teacher_attendance.teacher_id')
           .andOn(db.raw('DATE(teacher_attendance.date) = ?', [date]));
       })

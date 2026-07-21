@@ -19,10 +19,12 @@ export interface ParentLoginResponse {
 export async function loginParentApi(
   nisn: string,
   birth_date: string,
-  pin: string
+  pin: string,
+  turnstileToken?: string
 ): Promise<ParentLoginResponse> {
-  return apiRequest<ParentLoginResponse>("parent_login", { nisn, birth_date, pin });
+  return apiRequest<ParentLoginResponse>("parent_login", { nisn, birth_date, pin, turnstileToken });
 }
+
 
 export async function logoutParentApi(token: string): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>("parent_logout", { parent_access_token: token });

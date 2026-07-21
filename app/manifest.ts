@@ -10,8 +10,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       description: config.tagline,
       start_url: '/',
       display: 'standalone',
+      orientation: 'portrait',
       background_color: '#ffffff',
       theme_color: config.theme_branding?.primary_color || '#10b981',
+      lang: 'id',
+      dir: 'ltr',
+      prefer_related_applications: false,
       icons: [
         {
           src: config.favicon?.url || '/favicon.ico',
@@ -26,8 +30,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       short_name: 'SIUBA',
       start_url: '/',
       display: 'standalone',
+      orientation: 'portrait',
       background_color: '#ffffff',
       theme_color: '#10b981',
+      lang: 'id',
+      dir: 'ltr',
     };
   }
 }
+

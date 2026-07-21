@@ -204,10 +204,10 @@ export async function POST(req: NextRequest) {
             .whereNot('lifecycle_status', 'soft_deleted')
             .select('id');
 
-          classAssignmentsToTerminate = activeAssignments.map((a) => a.id);
+          classAssignmentsToTerminate = activeAssignments.map((a: any) => a.id);
         }
 
-        await db.transaction(async (trx) => {
+        await db.transaction(async (trx: any) => {
           await trx(tableName).where('id', id).update(patch);
 
           if (entity_type === 'class' && status === 'soft_deleted' && classAssignmentsToTerminate.length > 0) {

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import bcrypt from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 import { AppError } from "@/lib/errors";
+import { logAuthenticationEvent } from "@/lib/services/auditService";
 
 export interface UserListFilter {
   role?: "administrator" | "admin" | "teacher";
@@ -100,7 +101,7 @@ export async function listUsers(
 
     if (filters.search) {
       const searchPattern = `%${filters.search}%`;
-      query.where(function () {
+      query.where(function (this: any) {
         this.where("name", "like", searchPattern)
           .orWhere("email", "like", searchPattern)
           .orWhere("username", "like", searchPattern);
@@ -315,6 +316,7 @@ export async function updateUser(
         404,
       );
     }
+    const oldRole = user.role;
 
     const patch: any = {};
 
@@ -360,7 +362,34 @@ export async function updateUser(
 
     if (Object.keys(patch).length > 0) {
       patch.updated_at = new Date();
-      await db("users").where("id", id).update(patch);
+      const roleChanged = patch.role && patch.role !== oldRole;
+      
+      if (roleChanged) {
+        await db.transaction(async (trx: any) => {
+          await trx("users").where("id", id).update(patch);
+          
+          await trx("staff_sessions")
+            .where("user_id", id)
+            .where("lifecycle_status", "active")
+            .update({
+              lifecycle_status: "inactive",
+              revoked_at: new Date(),
+              updated_at: new Date()
+            });
+        });
+        
+        await logAuthenticationEvent(
+          user.username,
+          oldRole,
+          'session_revoked_role_change',
+          true,
+          undefined,
+          undefined,
+          `Sessions revoked due to role change from ${oldRole} to ${patch.role}.`
+        );
+      } else {
+        await db("users").where("id", id).update(patch);
+      }
     }
 
     return await getUserById(id);
@@ -374,7 +403,13 @@ export async function updateUser(
   }
 }
 
-export async function resetUserPassword(id: string, newPassword: string) {
+export async function resetUserPassword(
+  id: string,
+  newPassword: string,
+  revocationReason: 'session_revoked_password_change' | 'session_revoked_password_reset' = 'session_revoked_password_reset',
+  ip?: string,
+  userAgent?: string
+) {
   if (!id || !newPassword) {
     throw new AppError(
       "User ID and new password are required.",
@@ -398,10 +433,31 @@ export async function resetUserPassword(id: string, newPassword: string) {
       : 10;
     const passwordHash = await bcrypt.hash(newPassword, saltRounds);
 
-    await db("users").where("id", id).update({
-      password_hash: passwordHash,
-      updated_at: new Date(),
+    await db.transaction(async (trx: any) => {
+      await trx("users").where("id", id).update({
+        password_hash: passwordHash,
+        updated_at: new Date(),
+      });
+
+      await trx("staff_sessions")
+        .where("user_id", id)
+        .where("lifecycle_status", "active")
+        .update({
+          lifecycle_status: "inactive",
+          revoked_at: new Date(),
+          updated_at: new Date()
+        });
     });
+
+    await logAuthenticationEvent(
+      user.username,
+      user.role,
+      revocationReason,
+      true,
+      ip,
+      userAgent,
+      `Sessions revoked due to password ${revocationReason === 'session_revoked_password_change' ? 'change' : 'reset'}.`
+    );
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(
@@ -459,7 +515,32 @@ export async function setUserStatus(
       patch.suspended_by = null;
     }
 
-    await db("users").where("id", id).update(patch);
+    if (status === "inactive") {
+      await db.transaction(async (trx: any) => {
+        await trx("users").where("id", id).update(patch);
+        
+        await trx("staff_sessions")
+          .where("user_id", id)
+          .where("lifecycle_status", "active")
+          .update({
+            lifecycle_status: "inactive",
+            revoked_at: new Date(),
+            updated_at: new Date()
+          });
+      });
+      
+      await logAuthenticationEvent(
+        user.username,
+        user.role,
+        'session_revoked_account_disabled',
+        true,
+        undefined,
+        undefined,
+        `Sessions revoked due to account inactivation.`
+      );
+    } else {
+      await db("users").where("id", id).update(patch);
+    }
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(

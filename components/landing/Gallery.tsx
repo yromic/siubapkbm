@@ -123,9 +123,9 @@ export default function Gallery({ title, subtitle, items }: GalleryProps) {
                       <span className="font-plus-jakarta text-[10px] font-bold tracking-wider uppercase bg-brand-lime-500 text-white px-2.5 py-1 rounded-full">
                         {catName}
                       </span>
-                      <h4 className="font-fredoka text-lg font-bold mt-2 drop-shadow-sm leading-tight">
+                      <h3 className="font-fredoka text-lg font-bold mt-2 drop-shadow-sm leading-tight">
                         {item.title}
-                      </h4>
+                      </h3>
                     </div>
                   </div>
                 </motion.div>

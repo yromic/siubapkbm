@@ -11,7 +11,9 @@ export async function withAuth(
   if (!token) {
     return errorResponse('Session expired', 'SESSION_EXPIRED', 401);
   }
-  const session = await verifyStaffToken(token);
+  const ip = req.headers.get('x-forwarded-for') || (req as any).ip || undefined;
+  const userAgent = req.headers.get('user-agent') || undefined;
+  const session = await verifyStaffToken(token, ip, userAgent);
   if (!session) {
     return errorResponse('Session expired', 'SESSION_EXPIRED', 401);
   }

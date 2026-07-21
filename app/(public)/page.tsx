@@ -9,13 +9,14 @@ import { ComponentRegistry } from "@/components/landing/registry";
 // Next.js dynamic rendering since it relies on DB configuration
 export const dynamic = "force-dynamic";
 
-export default async function PublicLandingPage({ searchParams }: { searchParams?: { preview?: string } }) {
+export default async function PublicLandingPage({ searchParams }: { searchParams?: Promise<{ preview?: string }> }) {
   let config: WebsiteConfig | null = null;
   let navbarMenu;
   let footerMenu;
   let sections: Section[] = [];
   
-  const isPreview = searchParams?.preview === "true";
+  const resolvedSearchParams = await searchParams;
+  const isPreview = resolvedSearchParams?.preview === "true";
   
   try {
     config = await getWebsiteConfig();
@@ -36,31 +37,68 @@ export default async function PublicLandingPage({ searchParams }: { searchParams
   const logoUrl = config?.logo?.url || `${canonicalUrl}/favicon.ico`;
   const principalPhotoUrl = config?.principal_photo?.url || `${canonicalUrl}/images/principal/principal.jpg`;
 
-  // Structured JSON-LD Data for SEO
+  // Structured JSON-LD Data for SEO (WebSite, EducationalOrganization, and BreadcrumbList)
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "EducationalOrganization",
-    "name": schoolName,
-    "alternateName": shortName,
-    "url": canonicalUrl,
-    "logo": logoUrl,
-    "image": principalPhotoUrl,
-    "description": tagline,
-    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": config?.address_street || "Jl. Letjend Suprapto, Putotan, Sidomulyo",
-      "addressLocality": config?.address_district || "Kecamatan Ungaran Timur",
-      "addressRegion": config?.address_regency || "Kabupaten Semarang",
-      "postalCode": config?.address_postal_code || "50514",
-      "addressCountry": "ID"
-    },
-    "contactPoint": {
-      "@type": "ContactPoint",
-      "telephone": phoneRaw,
-      "contactType": "customer service",
-      "email": email
-    },
-    "sameAs": config?.social_media ? Object.values(config.social_media).filter(Boolean) : []
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${canonicalUrl}/#website`,
+        "url": canonicalUrl,
+        "name": schoolName,
+        "description": tagline,
+        "publisher": {
+          "@id": `${canonicalUrl}/#organization`
+        },
+        "inLanguage": "id"
+      },
+      {
+        "@type": "EducationalOrganization",
+        "@id": `${canonicalUrl}/#organization`,
+        "name": schoolName,
+        "alternateName": shortName,
+        "url": canonicalUrl,
+        "logo": {
+          "@type": "ImageObject",
+          "url": logoUrl,
+          "caption": schoolName
+        },
+        "image": {
+          "@type": "ImageObject",
+          "url": principalPhotoUrl,
+          "caption": `${schoolName} Principal`
+        },
+        "description": tagline,
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": config?.address_street || "Jl. Letjend Suprapto, Putotan, Sidomulyo",
+          "addressLocality": config?.address_district || "Kecamatan Ungaran Timur",
+          "addressRegion": config?.address_regency || "Kabupaten Semarang",
+          "postalCode": config?.address_postal_code || "50514",
+          "addressCountry": "ID"
+        },
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "telephone": phoneRaw,
+          "contactType": "customer service",
+          "email": email,
+          "availableLanguage": ["id", "en"]
+        },
+        "sameAs": config?.social_media ? Object.values(config.social_media).filter(Boolean) : []
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${canonicalUrl}/#breadcrumb`,
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Beranda",
+            "item": canonicalUrl
+          }
+        ]
+      }
+    ]
   };
 
   return (

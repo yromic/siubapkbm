@@ -348,11 +348,10 @@ export async function publishSection(id: string, userId?: string): Promise<void>
         } else if (section.type === 'gallery') {
           await trx('gallery_items').delete();
           const toInsert = itemsToPublish.map((item: any) => {
-            let cat = null;
-            if (item.custom_fields) {
-              const parsed = typeof item.custom_fields === 'string' ? JSON.parse(item.custom_fields) : item.custom_fields;
-              cat = parsed.category || parsed.tag || null;
-            }
+            const parsed = item.custom_fields
+              ? (typeof item.custom_fields === 'string' ? JSON.parse(item.custom_fields) : item.custom_fields)
+              : {};
+            const cat = item.subtitle || parsed.category || parsed.tag || null;
             return {
               id: item.id || uuidv4(),
               title: item.title || null,

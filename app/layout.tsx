@@ -36,6 +36,25 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 import { getWebsiteConfig } from "@/lib/services/websiteConfigService";
 
+export async function generateViewport() {
+  try {
+    const config = await getWebsiteConfig();
+    return {
+      themeColor: config.theme_branding?.primary_color || "#10b981",
+      colorScheme: "light dark",
+      width: "device-width",
+      initialScale: 1,
+    };
+  } catch (error) {
+    return {
+      themeColor: "#10b981",
+      colorScheme: "light dark",
+      width: "device-width",
+      initialScale: 1,
+    };
+  }
+}
+
 export async function generateMetadata() {
   try {
     const config = await getWebsiteConfig();
@@ -52,6 +71,16 @@ export async function generateMetadata() {
       },
       description,
       keywords: config.seo_defaults?.default_keywords || [],
+      applicationName: config.short_name,
+      authors: [{ name: config.school_name, url: canonical }],
+      creator: config.school_name,
+      publisher: config.school_name,
+      category: "education",
+      formatDetection: {
+        email: false,
+        address: false,
+        telephone: false,
+      },
       icons: {
         icon: config.favicon?.url || "/favicon.ico",
         apple: config.favicon?.url || "/favicon.ico",
@@ -67,6 +96,7 @@ export async function generateMetadata() {
             alt: config.school_name,
           },
         ],
+        locale: "id_ID",
         type: "website",
       },
       twitter: {
@@ -78,15 +108,31 @@ export async function generateMetadata() {
       alternates: {
         canonical,
       },
+      robots: {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          "max-video-preview": -1,
+          "max-image-preview": "large",
+          "max-snippet": -1,
+        },
+      },
     };
   } catch (error) {
     return {
       metadataBase: new URL("https://siuba.sch.id"),
       title: "SIUBA - Sekolah Dasar Alternatif",
       description: "Pendidikan dasar kesetaraan berbasis adab Islami",
+      robots: {
+        index: true,
+        follow: true,
+      },
     };
   }
 }
+
 
 export default function RootLayout({
   children,

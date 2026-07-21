@@ -115,7 +115,7 @@ export async function getNavigationMenu(name: string): Promise<NavigationMenu | 
 
 export async function updateNavigationLinks(menuId: string, links: Array<Omit<NavigationLink, 'menu_id'>>): Promise<void> {
   try {
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       // Clear existing links
       await trx('navigation_links').where('menu_id', menuId).delete();
       

@@ -5,6 +5,8 @@ import bcrypt from 'bcrypt';
 import { generateSessionToken, hashToken } from '@/lib/auth/tokenUtils';
 import { getStudentAcademicSummary } from './academicScoreService';
 import { calculateAndGetSemesterSummary } from './characterSummaryService';
+import { getSecuritySettingNum } from '@/lib/auth/securityUtils';
+import { logAuthenticationEvent } from './auditService';
 
 const PARENT_SESSION_HOURS = 2;
 
@@ -35,6 +37,7 @@ export async function loginParent(
   if (!student) {
     // Log attempt
     await logParentAccess(null, 'login_failed_no_student', false, ip, userAgent);
+    await logAuthenticationEvent(nisn, 'parent', 'login_failed', false, ip, userAgent, 'Student/Parent credentials not found.');
     throw new AppError('Invalid NISN, birth date, or PIN.', 'ERR_UNAUTHORIZED', 401);
   }
 
@@ -43,12 +46,14 @@ export async function loginParent(
     const remainingMs = new Date(student.parent_access_pin_locked_until).getTime() - Date.now();
     const remainingMins = Math.ceil(remainingMs / 60000);
     await logParentAccess(student.id, 'login_locked', false, ip, userAgent);
+    await logAuthenticationEvent(nisn, 'parent', 'login_failed', false, ip, userAgent, 'Attempt to login on locked parent account.');
     throw new AppError(`Account is temporarily locked. Try again in ${remainingMins} minutes.`, 'ERR_ACCOUNT_LOCKED', 403);
   }
 
   // Check PIN hash
   const pinHash = student.parent_access_pin_hash;
   if (!pinHash) {
+    await logAuthenticationEvent(nisn, 'parent', 'login_failed', false, ip, userAgent, 'Parent PIN is not configured.');
     throw new AppError('Parent access PIN is not configured. Please contact school admin.', 'ERR_NO_PIN', 403);
   }
 
@@ -56,13 +61,23 @@ export async function loginParent(
   if (!isPinValid) {
     const attempts = (student.parent_access_pin_failed_attempts || 0) + 1;
     const patch: any = { parent_access_pin_failed_attempts: attempts, updated_at: new Date() };
-    if (attempts >= 5) {
+    
+    const maxFailedLogin = await getSecuritySettingNum('MAX_FAILED_LOGIN', 5);
+    const lockDuration = await getSecuritySettingNum('LOCK_DURATION', 15);
+    
+    if (attempts >= maxFailedLogin) {
       const lockUntil = new Date();
-      lockUntil.setMinutes(lockUntil.getMinutes() + 15);
+      lockUntil.setMinutes(lockUntil.getMinutes() + lockDuration);
       patch.parent_access_pin_locked_until = lockUntil;
+      
+      await db('students').where('id', student.id).update(patch);
+      await logParentAccess(student.id, 'login_locked', false, ip, userAgent);
+      await logAuthenticationEvent(nisn, 'parent', 'account_locked', false, ip, userAgent, `Parent PIN locked for ${lockDuration} minutes due to ${attempts} failed attempts.`);
+    } else {
+      await db('students').where('id', student.id).update(patch);
+      await logParentAccess(student.id, 'login_failed_invalid_pin', false, ip, userAgent);
+      await logAuthenticationEvent(nisn, 'parent', 'login_failed', false, ip, userAgent, `Incorrect PIN. Failed attempts: ${attempts}.`);
     }
-    await db('students').where('id', student.id).update(patch);
-    await logParentAccess(student.id, 'login_failed_invalid_pin', false, ip, userAgent);
     throw new AppError('Invalid NISN, birth date, or PIN.', 'ERR_UNAUTHORIZED', 401);
   }
 
@@ -79,6 +94,11 @@ export async function loginParent(
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + PARENT_SESSION_HOURS);
 
+  // Revoke previous sessions for this student (Session Rotation)
+  await db('parent_sessions')
+    .where('student_id', student.id)
+    .delete();
+
   await db('parent_sessions').insert({
     id: sessionId,
     student_id: student.id,
@@ -93,6 +113,7 @@ export async function loginParent(
   });
 
   await logParentAccess(student.id, 'login_success', true, ip, userAgent);
+  await logAuthenticationEvent(nisn, 'parent', 'login_success', true, ip, userAgent);
 
   const { parent_access_pin_hash, parent_access_pin_failed_attempts, parent_access_pin_locked_until, ...safeStudent } = student;
 
@@ -102,6 +123,7 @@ export async function loginParent(
     expires_at: expiresAt
   };
 }
+
 
 export async function logoutParent(rawToken: string) {
   if (!rawToken) return;
@@ -216,21 +238,21 @@ export async function getParentDashboard(studentId: string) {
     academic_summary.total_assessments = classAssessments.length;
 
     if (classAssessments.length > 0) {
-      const assessmentIds = classAssessments.map(a => a.id);
+      const assessmentIds = classAssessments.map((a: any) => a.id);
       const studentScores = await db('academic_scores')
         .whereIn('assessment_id', assessmentIds)
         .where('student_id', studentId)
         .whereNot('lifecycle_status', 'soft_deleted');
 
-      const validScores = studentScores.filter(s => s.score !== null && s.score !== '');
+      const validScores = studentScores.filter((s: any) => s.score !== null && s.score !== '');
       academic_summary.completed_assessments = validScores.length;
 
       if (validScores.length > 0) {
-        const sum = validScores.reduce((acc, curr) => acc + Number(curr.score), 0);
+        const sum = validScores.reduce((acc: number, curr: any) => acc + Number(curr.score), 0);
         academic_summary.average_score = parseFloat((sum / validScores.length).toFixed(2));
       }
 
-      const latest = classAssessments.reduce((prev, curr) => {
+      const latest = classAssessments.reduce((prev: any, curr: any) => {
         return new Date(prev.assessment_date) > new Date(curr.assessment_date) ? prev : curr;
       });
       academic_summary.latest_assessment_date = latest.assessment_date

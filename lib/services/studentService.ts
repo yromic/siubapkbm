@@ -71,7 +71,7 @@ export async function listStudents(filters: StudentFilters = {}, page = 1, limit
 
     if (filters.search) {
       const searchPattern = `%${filters.search}%`;
-      query.where(function () {
+      query.where(function (this: any) {
         this.where('full_name', 'like', searchPattern)
           .orWhere('nisn', 'like', searchPattern)
           .orWhere('nik', 'like', searchPattern);
@@ -322,7 +322,7 @@ export async function changeStudentStatus(id: string, status: string, actorId: s
       throw new AppError(`Student with ID ${id} not found.`, 'ERR_STUDENT_NOT_FOUND', 404);
     }
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       const patch: any = { status, updated_at: new Date() };
 
       if (status === 'archived') {
@@ -412,7 +412,7 @@ export async function countOrphanStudents(semesterId: string): Promise<number> {
     const res = await db("students")
       .whereIn("students.status", ["active", "Aktif"])
       .whereNull("students.deleted_at")
-      .whereNotExists(function () {
+      .whereNotExists(function (this: any) {
         this.select(db.raw("1"))
           .from("student_enrollments")
           .whereRaw("student_enrollments.student_id = students.id")
