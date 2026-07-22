@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Plus, ArrowUp, ArrowDown, Trash2, Edit2, Save, Loader2, Link as LinkIcon } from "lucide-react";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { humanizeError } from "@/lib/utils/ui-error";
 
 interface NavigationLink {
   id?: string;
@@ -48,7 +50,7 @@ export default function NavigationTab() {
         notify.error("Gagal mengambil data menu navigasi.");
       }
     } catch (err) {
-      notify.error("Terjadi kesalahan saat memuat navigasi.");
+      notify.error(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -151,7 +153,18 @@ export default function NavigationTab() {
     });
   };
 
-  const handleDeleteLink = (index: number, parentIdx: number | null = null) => {
+  // Delete confirm state
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [targetDeleteIndex, setTargetDeleteIndex] = useState<{ index: number; parentIdx: number | null } | null>(null);
+
+  const handleDeleteLinkClick = (index: number, parentIdx: number | null = null) => {
+    setTargetDeleteIndex({ index, parentIdx });
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDeleteLink = () => {
+    if (!targetDeleteIndex) return;
+    const { index, parentIdx } = targetDeleteIndex;
     let updated = [...links];
     if (parentIdx !== null) {
       const parent = updated[parentIdx];
@@ -163,6 +176,8 @@ export default function NavigationTab() {
     }
     updated = assignSortOrders(updated);
     setLinks(updated);
+    setDeleteConfirmOpen(false);
+    setTargetDeleteIndex(null);
     notify.success("Link dihapus dari daftar sementara.");
   };
 
@@ -215,7 +230,7 @@ export default function NavigationTab() {
       }
     } catch (err) {
       notify.dismiss(toastId);
-      notify.error("Terjadi kesalahan koneksi.");
+      notify.error(humanizeError(err));
     } finally {
       setSaving(false);
     }
@@ -331,7 +346,7 @@ export default function NavigationTab() {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDeleteLink(idx, null)}
+                      onClick={() => handleDeleteLinkClick(idx, null)}
                       className="p-1.5 text-red-500 hover:bg-red-55/10 rounded-lg"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -374,7 +389,7 @@ export default function NavigationTab() {
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteLink(childIdx, idx)}
+                            onClick={() => handleDeleteLinkClick(childIdx, idx)}
                             className="p-1 text-red-500 hover:bg-red-55/10 rounded-lg"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -390,48 +405,46 @@ export default function NavigationTab() {
         )}
       </div>
 
-      {/* Link Add/Edit Modal */}
+      {/* Add / Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-[#1c1c1e] border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-zinc-150 dark:border-zinc-800">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 uppercase tracking-wider">
-                {editingIndex !== null ? "Edit Link" : "Tambah Link Baru"}
-              </h3>
-            </div>
+        <div className="fixed inset-0 z-50 bg-[#0a0a0a]/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">
+              {editingIndex !== null ? "Edit Link Navigasi" : "Tambah Link Navigasi"}
+            </h3>
 
-            <form onSubmit={handleSaveLink} className="p-6 space-y-4">
+            <form onSubmit={handleSaveLink} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-455 mb-1.5">
-                  Label Menu <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 mb-1">
+                  Label Link <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
-                  placeholder="Contoh: Beranda, Tentang Kami..."
+                  placeholder="e.g. Beranda, Tentang Kami..."
                   required
                   className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-zinc-100"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-455 mb-1.5">
-                  URL / Anchor <span className="text-red-500">*</span>
+                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 mb-1">
+                  URL Tujuan <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="Contoh: /, #about, https://..."
+                  placeholder="e.g. /tentang, https://..."
                   required
-                  className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-zinc-100"
+                  className="w-full px-3 py-2 text-sm bg-zinc-50 dark:bg-[#262626] border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:text-zinc-100 font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-455 mb-1.5">
-                  Target Window
+                <label className="block text-xs font-semibold text-zinc-500 dark:text-zinc-450 mb-1">
+                  Target Buka
                 </label>
                 <select
                   value={target}
@@ -462,6 +475,16 @@ export default function NavigationTab() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Hapus Link Navigasi Ini?"
+        description="Link navigasi ini akan dihapus dari daftar draf sementara."
+        confirmLabel="Ya, Hapus"
+        variant="destructive"
+        onConfirm={handleConfirmDeleteLink}
+      />
     </div>
   );
 }

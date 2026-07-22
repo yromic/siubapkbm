@@ -11,7 +11,11 @@ import {
   PageHeader,
   ResponsiveContainer,
 } from "@/components/ui-states";
+import { Loader2 } from "lucide-react";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AppreciationDialog } from "@/components/ui/appreciation-dialog";
+import { useAppreciation } from "@/hooks/useAppreciation";
 import { InfoBanner } from "@/components/ui/info-banner";
 import { DatePicker } from "@/components/ui/date-picker";
 import { getMyClasses, MyClassAssignment } from "@/lib/api/my-class";
@@ -361,8 +365,10 @@ function DailyCulturePageContent() {
     );
   };
 
-  // Reset current edits
-  const handleReset = () => {
+  // Cancel confirm state
+  const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+
+  const executeCancelReset = () => {
     setRows((current) =>
       current.map((row) => ({
         ...row,
@@ -370,7 +376,18 @@ function DailyCulturePageContent() {
       }))
     );
     setSaveError(null);
+    notify.info("Perubahan skor budaya dibatalkan.");
   };
+
+  const handleCancel = () => {
+    if (dirtyRows.length > 0) {
+      setConfirmCancelOpen(true);
+    } else {
+      executeCancelReset();
+    }
+  };
+
+  const { open: appOpen, setOpen: setAppOpen, message: appMsg, triggerAppreciation } = useAppreciation();
 
   // Submit batch saves
   const handleSave = async () => {
@@ -406,7 +423,22 @@ function DailyCulturePageContent() {
       });
 
       setLastSavedAt(new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
+
       notify.success("Nilai budaya berhasil disimpan");
+
+      // Evaluate 100% weekly culture completion
+      const isHundredPercent = completionStats.total > 0 && completionStats.complete === completionStats.total;
+
+      if (isHundredPercent) {
+        triggerAppreciation({
+          workflowId: "culture_100",
+          classId: selectedClassId,
+          scoreDate: (selectedDate as any) instanceof Date ? getLocalDateString(selectedDate as any) : String(selectedDate),
+          role: "teacher",
+          level: 4,
+        });
+      }
+
       await loadRosterAndScores();
     } catch (err: unknown) {
       setSaveError(humanizeError(err));
@@ -735,22 +767,47 @@ function DailyCulturePageContent() {
               </div>
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <button
-                  onClick={handleReset}
+                  onClick={handleCancel}
                   disabled={saving || dirtyRows.length === 0}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] border border-zinc-250 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-[#171717] dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm font-semibold transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] border border-zinc-250 dark:border-zinc-800 bg-white hover:bg-zinc-50 dark:bg-[#171717] dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || dirtyRows.length === 0}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 min-w-[120px]"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] text-white text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 min-w-[120px] cursor-pointer"
                 >
-                  {saving ? "Menyimpan..." : "Simpan Skor"}
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    "Simpan Skor"
+                  )}
                 </button>
               </div>
             </div>
           )}
+
+          <ConfirmDialog
+            open={confirmCancelOpen}
+            onOpenChange={setConfirmCancelOpen}
+            title="Batalkan Perubahan Skor Budaya?"
+            description={`Terdapat ${dirtyRows.length} perubahan skor budaya yang belum disimpan. Semua perubahan akan dibatalkan.`}
+            confirmLabel="Ya, Batalkan"
+            cancelLabel="Tidak, Lanjutkan Pengisian"
+            variant="destructive"
+            onConfirm={executeCancelReset}
+          />
+
+          <AppreciationDialog
+            open={appOpen}
+            onOpenChange={setAppOpen}
+            title={appMsg.title}
+            description={appMsg.body}
+          />
         </>
       )}
     </ResponsiveContainer>

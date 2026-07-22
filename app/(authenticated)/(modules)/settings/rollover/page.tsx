@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { apiRequest } from "@/lib/api/client";
 import { PageHeader, ResponsiveContainer, LoadingState, ForbiddenState } from "@/components/ui-states";
+import { CelebrationModal } from "@/components/ui/celebration-modal";
+import { useAppreciation } from "@/hooks/useAppreciation";
 import { userFacingError } from "@/lib/utils/ui-error";
 
 interface ClassReadiness {
@@ -74,6 +76,8 @@ interface SubjectPreviewResult {
 export default function RolloverPage() {
   const { token, user } = useAuth();
   const { academicYears, semesters } = useSettings();
+
+  const { open: appOpen, setOpen: setAppOpen, message: appMsg, triggerAppreciation } = useAppreciation();
 
   const [activeTab, setActiveTab] = useState<"readiness" | "assignment" | "subject">("readiness");
 
@@ -231,6 +235,14 @@ export default function RolloverPage() {
         target_semester_id: selectedTgtSemesterId
       }, token);
       setAssignExec(res);
+      notify.success("Penyalinan penugasan wali kelas berhasil.");
+      triggerAppreciation({
+        workflowId: "semester_finalize",
+        academicYearId: tgtYearId,
+        semesterId: selectedTgtSemesterId,
+        role: "admin",
+        level: 5,
+      });
       // Refresh readiness state
       fetchReadiness();
     } catch (err: unknown) {
@@ -852,6 +864,14 @@ export default function RolloverPage() {
         </div>
       )}
       {confirmType && <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="rollover-confirm-title"><div className="w-full max-w-lg rounded-[20px] bg-white p-6 shadow-xl dark:bg-[#171717]"><h2 id="rollover-confirm-title" className="text-xl font-bold">Konfirmasi Penyalinan Pengaturan</h2><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><ConfirmItem label="Periode Sumber" value={confirmType === "assignment" ? periodLabel(srcYearId, selectedSrcSemesterId) : periodLabel(subSrcYearId, selectedSubSrcSemesterId)} wide /><ConfirmItem label="Periode Target" value={confirmType === "assignment" ? periodLabel(tgtYearId, selectedTgtSemesterId) : periodLabel(subTgtYearId, selectedSubTgtSemesterId)} wide /><ConfirmItem label="Penugasan Akan Disalin" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "ready").length || 0 : 0} /><ConfirmItem label="Mapel Akan Disalin" value={confirmType === "subject" ? subPreview?.subjects.filter((item) => item.status === "ready").length || 0 : 0} /><ConfirmItem label="Konflik" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "conflict").length || 0 : 0} /><ConfirmItem label="Duplikasi" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "duplicate").length || 0 : subPreview?.subjects.filter((item) => item.status === "duplicate").length || 0} /></dl><p className="mt-4 rounded-[12px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">Proses ini akan menyalin konfigurasi ke periode baru dan tidak dapat dibatalkan secara otomatis.</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setConfirmType(null)} className="rounded-[12px] border border-zinc-300 px-4 py-2 dark:border-zinc-700">Batal</button><button type="button" onClick={() => { const type = confirmType; setConfirmType(null); if (type === "assignment") void handleExecuteAssignment(); else void handleExecuteSubject(); }} className="rounded-[12px] bg-red-600 px-4 py-2 font-semibold text-white">Ya, Proses</button></div></div></div>}
+
+      <CelebrationModal
+        open={appOpen}
+        onOpenChange={setAppOpen}
+        title={appMsg.title}
+        description={appMsg.body}
+        badgeLabel="Finalisasi Semester"
+      />
     </ResponsiveContainer>
   );
 

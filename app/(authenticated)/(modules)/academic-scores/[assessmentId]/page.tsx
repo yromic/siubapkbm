@@ -14,6 +14,7 @@ import {
 } from "@/components/ui-states";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { notify } from "@/lib/notify";
+import { humanizeError } from "@/lib/utils/ui-error";
 import { UX_COPY } from "@/lib/ux-copy";
 import { getMyClasses, MyClassAssignment } from "@/lib/api/my-class";
 import {
@@ -227,9 +228,10 @@ export default function AcademicAssessmentDetailPage() {
       setAssessment(updated);
       hydrateEditForm(updated);
       setEditing(false);
+      notify.success("Metadata penilaian berhasil diperbarui.");
       await loadData();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal menyimpan perubahan assessment.";
+      const message = humanizeError(err);
       setActionError(message);
     } finally {
       setSaving(false);

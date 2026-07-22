@@ -105,8 +105,7 @@ export default function UsersPage() {
       setUsers(data);
     } catch (err: unknown) {
       console.error("Failed to load users:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Data pengguna belum dapat dimuat. Silakan coba kembali.";
-      setError(msg);
+      setError(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -179,10 +178,10 @@ export default function UsersPage() {
       await createUserApi(token, payload);
       await loadUsers();
       setShowCreateModal(false);
+      notify.success("Akun pengguna berhasil disimpan.");
     } catch (err: unknown) {
       console.error("Failed to create user:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Gagal menyimpan pengguna.";
-      setModalError(msg);
+      setModalError(humanizeError(err));
     } finally {
       setModalLoading(false);
     }
@@ -251,10 +250,10 @@ export default function UsersPage() {
       await updateUserApi(token, selectedUser.id, payload);
       await loadUsers();
       setShowEditModal(false);
+      notify.success("Akun pengguna berhasil diperbarui.");
     } catch (err: unknown) {
       console.error("Failed to update user:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Gagal memperbarui pengguna.";
-      setModalError(msg);
+      setModalError(humanizeError(err));
     } finally {
       setModalLoading(false);
     }
@@ -297,10 +296,10 @@ export default function UsersPage() {
       setResetSuccessMessage(
         "Password berhasil direset. Sampaikan password baru kepada pengguna secara aman."
       );
+      notify.success("Password pengguna berhasil diatur ulang.");
     } catch (err: unknown) {
       console.error("Failed to reset password:", err);
-      const msg = err && typeof err === "object" && "code" in err ? (err as any).message : "Gagal mengatur ulang kata sandi.";
-      setModalError(msg);
+      setModalError(humanizeError(err));
     } finally {
       setModalLoading(false);
     }

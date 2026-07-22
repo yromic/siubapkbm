@@ -36,12 +36,65 @@ export interface CurrentUserResponse {
   user: StaffUser;
 }
 
+export function humanizeError(err: unknown): string {
+  if (!err) return "Terjadi kesalahan yang tidak diketahui.";
+
+  let message = "";
+  let code = "";
+
+  if (err instanceof ApiError) {
+    message = err.message || "";
+    code = err.code || "";
+  } else if (err instanceof Error) {
+    message = err.message || "";
+    code = err.name || "";
+  } else if (typeof err === "string") {
+    message = err;
+  } else if (typeof err === "object") {
+    const obj = err as Record<string, unknown>;
+    message = String(obj.message || obj.error || "");
+    code = String(obj.code || "");
+  }
+
+  const upperMsg = message.toUpperCase();
+  const upperCode = code.toUpperCase();
+
+  if (upperCode.includes("ER_DUP_ENTRY") || upperMsg.includes("ER_DUP_ENTRY") || upperMsg.includes("DUPLICATE ENTRY")) {
+    return "Data sudah ada dalam sistem.";
+  }
+  if (upperCode.includes("ERR_DATABASE") || upperMsg.includes("SQLSTATE") || upperMsg.includes("DATABASE") || upperMsg.includes("SYNTAX ERROR IN SQL")) {
+    return "Terjadi kesalahan pada database. Silakan coba lagi.";
+  }
+  if (upperCode.includes("MALFORMED_RESPONSE") || upperCode.includes("SYNTAXERROR") || upperMsg.includes("INVALID JSON") || upperMsg.includes("JSON AT POSITION")) {
+    return "Format respon server tidak valid.";
+  }
+  if (upperCode.includes("NETWORK_ERROR") || upperMsg.includes("FAILED TO FETCH") || upperMsg.includes("NETWORKERROR") || upperMsg.includes("UNABLE TO REACH")) {
+    return "Gagal terhubung ke server. Periksa koneksi internet Anda.";
+  }
+  if (upperCode.includes("UNAUTHORIZED") || upperCode.includes("ERR_UNAUTHORIZED") || upperMsg.includes("UNAUTHORIZED")) {
+    return "Sesi Anda telah berakhir. Silakan masuk kembali.";
+  }
+  if (upperCode.includes("FORBIDDEN") || upperCode.includes("ERR_FORBIDDEN")) {
+    return "Anda tidak memiliki akses untuk melakukan tindakan ini.";
+  }
+  if (upperCode.includes("NOT_FOUND") || upperCode.includes("ERR_NOT_FOUND")) {
+    return "Data yang diminta tidak ditemukan.";
+  }
+
+  // Check for raw SQL query leak or technical system errors
+  if (/\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|JOIN|INTO|TABLE|FOREIGN KEY|PRIMARY KEY|ER_[A_Z_]+)\b/i.test(message)) {
+    return "Terjadi kesalahan pada server. Silakan hubungi administrator.";
+  }
+
+  return message || "Terjadi kesalahan pada sistem.";
+}
+
 export class ApiError extends Error {
   code: string;
   details?: Record<string, unknown>;
 
   constructor(code: string, message: string, details?: Record<string, unknown>) {
-    super(message);
+    super(humanizeError(message || code));
     this.name = "ApiError";
     this.code = code;
     this.details = details;

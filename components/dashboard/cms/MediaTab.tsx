@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { Upload, Search, Trash2, Save, Loader2, Image as ImageIcon } from "lucide-react";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { humanizeError } from "@/lib/utils/ui-error";
 
 interface Asset {
   id: string;
@@ -27,6 +29,8 @@ export default function MediaTab() {
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [savingMeta, setSavingMeta] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchAssets();
@@ -40,10 +44,10 @@ export default function MediaTab() {
       if (res.ok && json.data) {
         setAssets(json.data);
       } else {
-        notify.error(json.message || "Gagal mengambil data media.");
+        notify.error(humanizeError(json.message || "Gagal mengambil data media."));
       }
     } catch (err) {
-      notify.error("Terjadi kesalahan saat menghubungi API media.");
+      notify.error(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -90,11 +94,11 @@ export default function MediaTab() {
           setAssets((prev) => [json.data, ...prev]);
           handleSelect(json.data);
         } else {
-          notify.error(json.message || "Gagal mengunggah gambar.");
+          notify.error(humanizeError(json.message || "Gagal mengunggah gambar."));
         }
       } catch (err) {
         notify.dismiss(toastId);
-        notify.error("Terjadi kesalahan koneksi saat mengunggah.");
+        notify.error(humanizeError(err));
       } finally {
         setUploading(false);
       }
@@ -141,14 +145,15 @@ export default function MediaTab() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteClick = () => {
+    if (!selectedAsset) return;
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
     if (!selectedAsset) return;
 
-    const confirmed = window.confirm(
-      "Apakah Anda yakin ingin menghapus media ini secara permanen? Tindakan ini tidak dapat dibatalkan."
-    );
-    if (!confirmed) return;
-
+    setDeleting(true);
     const toastId = notify.loading("Menghapus media...");
     try {
       const res = await fetch(`/api/v1/assets?id=${selectedAsset.id}`, {
@@ -168,6 +173,9 @@ export default function MediaTab() {
     } catch (err) {
       notify.dismiss(toastId);
       notify.error("Terjadi kesalahan saat menghapus media.");
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
@@ -361,7 +369,7 @@ export default function MediaTab() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={handleDeleteClick}
                   className="p-2.5 text-red-500 border border-red-200 hover:bg-red-50 dark:border-red-950 dark:hover:bg-red-950/20 rounded-xl transition-all"
                   title="Hapus Media"
                 >
@@ -377,6 +385,18 @@ export default function MediaTab() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        onConfirm={handleConfirmDelete}
+        title="Hapus Media Ini?"
+        description="Media ini akan dihapus secara permanen dari server. Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Hapus"
+        cancelLabel="Batal"
+        variant="destructive"
+        loading={deleting}
+      />
     </div>
   );
 }

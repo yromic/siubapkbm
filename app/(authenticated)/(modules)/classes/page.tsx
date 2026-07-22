@@ -11,6 +11,8 @@ import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { X, MoreVertical, Edit, Archive, CheckCircle, Trash2, Power, RotateCcw, Eye } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { CelebrationModal } from "@/components/ui/celebration-modal";
+import { useAppreciation } from "@/hooks/useAppreciation";
 import { notify } from "@/lib/notify";
 import { LifecycleBadge } from "@/components/lifecycle-badge";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -62,10 +64,12 @@ const LIFECYCLE_FILTER_OPTIONS = [
   { label: "Semua", value: "Semua" },
 ];
 
-export default function ClassesPage() {
+export default function ClassManagementPage() {
   const { token, user } = useAuth();
   const { academicYears, semesters, activeAcademicYear, activeSemester } = useSettings();
   const router = useRouter();
+
+  const { open: appOpen, setOpen: setAppOpen, message: appMsg, triggerAppreciation } = useAppreciation();
 
   const [activeTab, setActiveTab] = useState<"classes" | "assignments">("classes");
   
@@ -249,9 +253,9 @@ export default function ClassesPage() {
       }, token);
       await loadData();
       setShowAssignModal(false);
+      notify.success("Penugasan wali kelas berhasil disimpan.");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal menyimpan penugasan.";
-      setFormError(msg);
+      setFormError(humanizeError(err));
     } finally {
       setFormLoading(false);
     }
@@ -272,7 +276,15 @@ export default function ClassesPage() {
         const label = confirmTarget.type === "classes" ? "kelas" : "penugasan wali kelas";
         const statusLower = confirmTarget.status.toLowerCase();
         let msg = UX_COPY.lifecycle.restored(label);
-        if (statusLower === "active") msg = UX_COPY.lifecycle.active(label);
+        if (statusLower === "active") {
+          msg = UX_COPY.lifecycle.active(label);
+          triggerAppreciation({
+            workflowId: "class_promotion",
+            classId: confirmTarget.id,
+            role: "admin",
+            level: 5,
+          });
+        }
         else if (statusLower === "inactive") msg = UX_COPY.lifecycle.inactive(label);
         else if (statusLower === "archived") msg = UX_COPY.lifecycle.archived(label);
         else if (statusLower === "soft_deleted") msg = UX_COPY.lifecycle.softDeleted(label);
@@ -1023,6 +1035,14 @@ export default function ClassesPage() {
           onConfirm={handleLifecycleMutation}
         />
       )}
+
+      <CelebrationModal
+        open={appOpen}
+        onOpenChange={setAppOpen}
+        title={appMsg.title}
+        description={appMsg.body}
+        badgeLabel="Kenaikan Kelas"
+      />
     </ResponsiveContainer>
   );
 }

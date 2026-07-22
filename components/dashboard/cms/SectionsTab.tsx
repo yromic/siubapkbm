@@ -3,6 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { ArrowUp, ArrowDown, Edit2, ToggleLeft, ToggleRight, Eye, Send, Save, Plus, Trash2, Image as ImageIcon, Loader2 } from "lucide-react";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AppreciationDialog } from "@/components/ui/appreciation-dialog";
+import { useAppreciation } from "@/hooks/useAppreciation";
+import { humanizeError } from "@/lib/utils/ui-error";
 import MediaSelectorModal from "./MediaSelectorModal";
 
 interface Asset {
@@ -228,6 +232,8 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
 
   // Editor Modal states
   const [editSection, setEditSection] = useState<Section | null>(null);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [secTitle, setSecTitle] = useState("");
   const [secSubtitle, setSecSubtitle] = useState("");
   const [secBadge, setSecBadge] = useState("");
@@ -306,7 +312,7 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
         notify.error("Gagal mengambil data section.");
       }
     } catch (err) {
-      notify.error("Terjadi kesalahan saat memuat section.");
+      notify.error(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -338,7 +344,7 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
       }
     } catch (err) {
       notify.dismiss(toastId);
-      notify.error("Terjadi kesalahan koneksi.");
+      notify.error(humanizeError(err));
     }
   };
 
@@ -376,7 +382,7 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
       }
       notify.success("Urutan section berhasil diubah.");
     } catch (err) {
-      notify.error("Gagal menyimpan urutan baru.");
+      notify.error(humanizeError(err));
     } finally {
       setSavingOrder(false);
       fetchSections();
@@ -578,15 +584,21 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
       }
     } catch (err) {
       notify.dismiss(toastId);
-      notify.error("Terjadi kesalahan koneksi.");
+      notify.error(humanizeError(err));
     }
   };
 
-  const handlePublish = async () => {
+  const handlePublishClick = () => {
     if (!editSection) return;
-    const confirmed = window.confirm("Apakah Anda yakin ingin mempublikasikan perubahan ini ke situs publik secara instan?");
-    if (!confirmed) return;
+    setPublishConfirmOpen(true);
+  };
 
+  const { open: appOpen, setOpen: setAppOpen, message: appMsg, triggerAppreciation } = useAppreciation();
+
+  const handleConfirmPublish = async () => {
+    if (!editSection) return;
+
+    setPublishing(true);
     const toastId = notify.loading("Mempublikasikan section...");
     try {
       const draftContent = {
@@ -629,15 +641,25 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
 
       notify.dismiss(toastId);
       if (res.ok) {
-        notify.success("Perubahan berhasil dipublikasikan secara langsung!");
         setEditSection(null);
         fetchSections();
+        notify.success("Perubahan berhasil dipublikasikan secara langsung!");
+        triggerAppreciation({
+          workflowId: "cms_publish",
+          sectionId: editSection.id,
+          revision: String(Date.now()),
+          role: "admin",
+          level: 4,
+        });
       } else {
         notify.error("Gagal mempublikasikan.");
       }
     } catch (err) {
       notify.dismiss(toastId);
-      notify.error("Terjadi kesalahan koneksi.");
+      notify.error(humanizeError(err));
+    } finally {
+      setPublishing(false);
+      setPublishConfirmOpen(false);
     }
   };
 
@@ -1291,7 +1313,7 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
                   Simpan sebagai Draf
                 </button>
                 <button
-                  onClick={handlePublish}
+                  onClick={handlePublishClick}
                   className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl shadow min-h-[44px] cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
@@ -1302,6 +1324,18 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+        onConfirm={handleConfirmPublish}
+        title="Publikasikan Perubahan Section?"
+        description="Perubahan ini akan langsung diperbarui pada situs web publik."
+        confirmLabel="Publikasikan"
+        cancelLabel="Batal"
+        variant="default"
+        loading={publishing}
+      />
 
       <MediaSelectorModal
         open={mediaTarget !== null}
@@ -1314,6 +1348,13 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
               ? secContent?.image?.id 
               : itemImage?.id
         }
+      />
+
+      <AppreciationDialog
+        open={appOpen}
+        onOpenChange={setAppOpen}
+        title={appMsg.title}
+        description={appMsg.body}
       />
     </div>
   );

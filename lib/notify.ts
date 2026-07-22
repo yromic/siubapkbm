@@ -15,6 +15,7 @@
  */
 
 import { toast, type ExternalToast } from "sonner";
+import { humanizeError } from "@/lib/api/client";
 
 type NotifyOptions = ExternalToast;
 
@@ -25,8 +26,9 @@ export const notify = {
   },
 
   /** Notifikasi error — aksi gagal, perlu perhatian pengguna */
-  error(message: string, options?: NotifyOptions) {
-    return toast.error(message, {
+  error(message: string | unknown, options?: NotifyOptions) {
+    const text = humanizeError(message);
+    return toast.error(text, {
       duration: 6000, // Error lebih lama agar pengguna sempat membaca
       ...options,
     });

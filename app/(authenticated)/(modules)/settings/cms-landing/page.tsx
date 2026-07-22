@@ -3,6 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { Layout, Globe, PhoneCall, ListCollapse, Layers, FolderHeart, Loader2 } from "lucide-react";
 import { notify } from "@/lib/notify";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { humanizeError } from "@/lib/utils/ui-error";
+
+type TabType = "branding" | "contact" | "navigation" | "sections" | "media" | "seo";
 
 // Sub-components
 import BrandingTab from "@/components/dashboard/cms/BrandingTab";
@@ -13,7 +17,9 @@ import MediaTab from "@/components/dashboard/cms/MediaTab";
 import SEOTab from "@/components/dashboard/cms/SEOTab";
 
 export default function CMSLandingPage() {
-  const [activeTab, setActiveTab] = useState<"branding" | "contact" | "navigation" | "sections" | "media" | "seo">("branding");
+  const [activeTab, setActiveTab] = useState<TabType>("branding");
+  const [pendingTab, setPendingTab] = useState<TabType | null>(null);
+  const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isDirty, setIsDirty] = useState(false);
@@ -36,13 +42,23 @@ export default function CMSLandingPage() {
     };
   }, [isDirty]);
 
-  const handleTabChange = (tab: "branding" | "contact" | "navigation" | "sections" | "media" | "seo") => {
+  const handleTabChange = (tab: TabType) => {
     if (isDirty) {
-      const confirm = window.confirm("Anda memiliki perubahan yang belum disimpan di tab ini. Pindah tab akan membuang perubahan tersebut. Lanjutkan?");
-      if (!confirm) return;
+      setPendingTab(tab);
+      setUnsavedModalOpen(true);
+      return;
     }
     setActiveTab(tab);
     setIsDirty(false);
+  };
+
+  const handleConfirmTabSwitch = () => {
+    if (pendingTab) {
+      setActiveTab(pendingTab);
+      setPendingTab(null);
+    }
+    setIsDirty(false);
+    setUnsavedModalOpen(false);
   };
 
   const fetchConfig = async () => {
@@ -55,7 +71,7 @@ export default function CMSLandingPage() {
         notify.error("Gagal memuat konfigurasi website.");
       }
     } catch (err) {
-      notify.error("Terjadi kesalahan saat memanggil API konfigurasi.");
+      notify.error(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -78,11 +94,11 @@ export default function CMSLandingPage() {
         setConfig(json.data);
         setIsDirty(false);
       } else {
-        notify.error(json.message || "Gagal menyimpan konfigurasi.");
+        notify.error(humanizeError(json.message || "Gagal menyimpan konfigurasi."));
       }
     } catch (err) {
       notify.dismiss(toastId);
-      notify.error("Terjadi kesalahan koneksi saat menyimpan konfigurasi.");
+      notify.error(humanizeError(err));
     }
   };
 
@@ -210,6 +226,20 @@ export default function CMSLandingPage() {
           <SEOTab config={config} onUpdate={handleUpdateConfig} setIsDirty={setIsDirty} />
         )}
       </div>
+
+      <ConfirmDialog
+        open={unsavedModalOpen}
+        onClose={() => {
+          setUnsavedModalOpen(false);
+          setPendingTab(null);
+        }}
+        onConfirm={handleConfirmTabSwitch}
+        title="Tinggalkan Halaman dengan Perubahan Belum Disimpan?"
+        description="Perubahan pada tab ini akan hilang jika Anda berpindah tab tanpa menyimpan."
+        confirmText="Tetap Pindah"
+        cancelText="Batal"
+        variant="warning"
+      />
     </div>
   );
 }

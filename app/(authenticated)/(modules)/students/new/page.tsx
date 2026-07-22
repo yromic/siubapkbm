@@ -16,6 +16,7 @@ import {
   StudentStatus,
 } from "@/lib/api/students";
 import { validateNisn } from "@/lib/validation/student";
+import { humanizeError } from "@/lib/utils/ui-error";
 
 // ─── Field helpers ────────────────────────────────────────────────────────────
 
@@ -268,9 +269,7 @@ export default function StudentCreatePage() {
       const created = await createStudent(payload, token);
       router.push(`/students/${created.id}`);
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Gagal menyimpan data siswa.";
-      setError(msg);
+      setError(humanizeError(err));
     } finally {
       setLoading(false);
     }

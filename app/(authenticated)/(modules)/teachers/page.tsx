@@ -166,9 +166,9 @@ export default function TeachersPage() {
       }, token);
       await loadTeachers();
       setShowModal(false);
+      notify.success("Profil guru berhasil diperbarui.");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal memperbarui profil guru.";
-      setFormError(msg);
+      setFormError(humanizeError(err));
     } finally {
       setFormLoading(false);
     }

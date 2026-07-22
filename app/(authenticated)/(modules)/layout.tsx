@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { ForbiddenState, LoadingState } from "@/components/ui-states";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { notify } from "@/lib/notify";
 import {
   LayoutDashboard,
   Database,
@@ -208,6 +209,18 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    setConfirmLogoutOpen(false);
+    const toastId = notify.loading("Proses keluar...");
+    try {
+      await logout();
+      notify.dismiss(toastId);
+    } catch (err) {
+      notify.dismiss(toastId);
+      notify.error("Gagal mencabut sesi di server, mengakhiri sesi lokal...");
+    }
+  };
 
   // Accordion open/close state per category
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
@@ -521,13 +534,13 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
       {/* Konfirmasi Logout — Dialog Radius 24px */}
       <ConfirmDialog
         open={confirmLogoutOpen}
-        onOpenChange={setConfirmLogoutOpen}
+        onClose={() => setConfirmLogoutOpen(false)}
         title="Keluar dari Sistem?"
         description="Anda akan diarahkan ke halaman login. Pastikan semua pekerjaan sudah tersimpan sebelum keluar."
-        confirmLabel="Ya, Keluar"
-        cancelLabel="Batal"
+        confirmText="Ya, Keluar"
+        cancelText="Batal"
         variant="destructive"
-        onConfirm={() => logout()}
+        onConfirm={handleConfirmLogout}
       />
     </div>
   );

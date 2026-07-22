@@ -10,6 +10,7 @@ import {
   ForbiddenState,
 } from "@/components/ui-states";
 import { DatePicker } from "@/components/ui/date-picker";
+import { humanizeError } from "@/lib/utils/ui-error";
 import {
   getStudentDetail,
   updateStudent,
@@ -211,8 +212,7 @@ export default function StudentEditPage() {
       setProvince(s.province || "");
       setSppAmount(s.spp_amount !== undefined && s.spp_amount !== null ? String(s.spp_amount) : "");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal memuat data siswa.";
-      setError(msg);
+      setError(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -295,8 +295,7 @@ export default function StudentEditPage() {
       }, token);
       router.push(`/students/${id}`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal menyimpan perubahan.";
-      setError(msg);
+      setError(humanizeError(err));
     } finally {
       setSaving(false);
     }

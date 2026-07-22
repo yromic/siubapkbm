@@ -12,6 +12,8 @@ import {
   ResponsiveContainer,
 } from "@/components/ui-states";
 import { DatePicker } from "@/components/ui/date-picker";
+import { notify } from "@/lib/notify";
+import { humanizeError } from "@/lib/utils/ui-error";
 import { getMyClasses, MyClassAssignment } from "@/lib/api/my-class";
 import {
   MyClassSubject,
@@ -142,10 +144,10 @@ export default function CreateAcademicAssessmentPage() {
         },
         token
       );
+      notify.success("Penilaian berhasil dibuat.");
       router.push(`/academic-scores/${created.id}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal membuat assessment.";
-      setFormError(message);
+      setFormError(humanizeError(err));
     } finally {
       setSaving(false);
     }

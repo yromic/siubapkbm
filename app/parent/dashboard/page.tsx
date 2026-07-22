@@ -7,7 +7,7 @@ import { ResponsiveContainer } from "@/components/ui-states";
 import { getParentDashboardApi, ParentDashboardData } from "@/lib/api/parent";
 import { ApiError } from "@/lib/api/client";
 import SppBanner from "@/components/parent/SppBanner";
-import { Loader2, AlertTriangle, LogOut, ChevronRight } from "lucide-react";
+import { Loader2, AlertTriangle, LogOut, ChevronRight, FileText } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UX_COPY } from "@/lib/ux-copy";
 
@@ -174,9 +174,17 @@ export default function ParentDashboard() {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
-                Belum ada data akademik yang tersedia.
-              </p>
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 flex items-center justify-center mb-3">
+                  <FileText className="w-6 h-6 stroke-1" />
+                </div>
+                <h4 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
+                  Nilai Belum Dipublikasikan
+                </h4>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-xs mt-1">
+                  Nilai semester ini akan muncul setelah dipublikasikan oleh pihak sekolah.
+                </p>
+              </div>
               <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
                 <Link
                   href="/parent/academic"

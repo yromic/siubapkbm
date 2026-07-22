@@ -12,8 +12,11 @@ import {
   PageHeader,
   ResponsiveContainer,
 } from "@/components/ui-states";
+import { Loader2 } from "lucide-react";
 import { notify } from "@/lib/notify";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AppreciationDialog } from "@/components/ui/appreciation-dialog";
+import { useAppreciation } from "@/hooks/useAppreciation";
 import { InfoBanner } from "@/components/ui/info-banner";
 import { UX_COPY } from "@/lib/ux-copy";
 import { StudentSummary, getAssessmentRoster } from "@/lib/api/students";
@@ -191,6 +194,8 @@ export default function AcademicScoreEntryPage() {
     return null;
   };
 
+  const { open: appOpen, setOpen: setAppOpen, message: appMsg, triggerAppreciation } = useAppreciation();
+
   const handleSave = async () => {
     if (!token || !assessment || readOnly || dirtyRows.length === 0) return;
 
@@ -216,7 +221,23 @@ export default function AcademicScoreEntryPage() {
         token
       );
       setLastSavedAt(new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
+
       notify.success(UX_COPY.scores.saveSuccess);
+
+      // Evaluate 100% completion for Appreciation Popup
+      const nextGradedCount = rows.filter((row) => isFilledScore(row.score)).length;
+      const isHundredPercent = rows.length > 0 && nextGradedCount === rows.length;
+
+      if (isHundredPercent) {
+        triggerAppreciation({
+          workflowId: "academic_100",
+          classId: assessment.class_id,
+          assessmentId: assessment.id,
+          role: "teacher",
+          level: 4,
+        });
+      }
+
       await loadData();
     } catch (err: unknown) {
       setSaveError(humanizeError(err));
@@ -448,7 +469,14 @@ export default function AcademicScoreEntryPage() {
                 disabled={saving || dirtyRows.length === 0 || hasAnyInvalidScore}
                 className="flex-1 sm:flex-none inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors cursor-pointer"
               >
-                {saving ? "Menyimpan..." : "Simpan Nilai"}
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    Menyimpan...
+                  </>
+                ) : (
+                  "Simpan Nilai"
+                )}
               </button>
             </div>
           </div>
@@ -465,6 +493,13 @@ export default function AcademicScoreEntryPage() {
         cancelLabel="Tidak, Lanjutkan Mengisi"
         variant="destructive"
         onConfirm={executeCancelChanges}
+      />
+
+      <AppreciationDialog
+        open={appOpen}
+        onOpenChange={setAppOpen}
+        title={appMsg.title}
+        description={appMsg.body}
       />
     </ResponsiveContainer>
   );

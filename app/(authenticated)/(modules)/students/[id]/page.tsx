@@ -210,8 +210,7 @@ export default function StudentDetailPage() {
       setEnrollments(e);
       setActiveEnrollment(ae);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Gagal memuat data.";
-      setError(msg);
+      setError(humanizeError(err));
     } finally {
       setLoading(false);
     }
@@ -314,10 +313,9 @@ export default function StudentDetailPage() {
       setPin("");
       setPinConfirm("");
       setPinSuccess(true);
+      notify.success("PIN parent berhasil diperbarui.");
     } catch (err: unknown) {
-      setPinError(
-        err instanceof Error ? err.message : "Gagal mereset PIN."
-      );
+      setPinError(humanizeError(err));
     } finally {
       setPinLoading(false);
     }
@@ -358,9 +356,7 @@ export default function StudentDetailPage() {
       setEnrollClass("");
       setEnrollStatus("active");
     } catch (err: unknown) {
-      setEnrollError(
-        err instanceof Error ? err.message : "Gagal membuat enrollment."
-      );
+      setEnrollError(humanizeError(err));
     } finally {
       setEnrollLoading(false);
     }
