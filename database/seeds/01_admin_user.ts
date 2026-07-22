@@ -3,28 +3,38 @@ import bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function seed(knex: Knex): Promise<void> {
-  // Check if admin user already exists
-  const adminExists = await knex('users').where('username', 'admin').first();
+  const adminEmail = process.env.FIRST_ADMIN_EMAIL || 'admin@siuba.sch.id';
+  const adminUsername = process.env.FIRST_ADMIN_USERNAME || 'admin';
+  const adminPassword = process.env.FIRST_ADMIN_PASSWORD || 'admin123';
+  const adminName = process.env.FIRST_ADMIN_NAME || 'Administrator';
+
+  // Check if admin user already exists by username or email
+  const adminExists = await knex('users')
+    .where('username', adminUsername)
+    .orWhere('email', adminEmail)
+    .first();
 
   if (!adminExists) {
-    const passwordHash = await bcrypt.hash('admin123', 10);
+    const saltRounds = Number(process.env.SESSION_HASH_SALT) || 10;
+    const passwordHash = await bcrypt.hash(adminPassword, saltRounds);
     const adminId = uuidv4();
 
     await knex('users').insert({
       id: adminId,
-      name: 'Administrator',
-      email: 'admin@siuba.sch.id',
-      username: 'admin',
+      name: adminName,
+      email: adminEmail,
+      username: adminUsername,
       password_hash: passwordHash,
       role: 'administrator',
       status: 'active',
       lifecycle_status: 'active',
+      failed_login_attempts: 0,
       created_at: new Date(),
       updated_at: new Date()
     });
 
-    console.log('Seed: admin user created successfully.');
+    console.log(`Seed: Admin user created successfully (Username: ${adminUsername}, Email: ${adminEmail}).`);
   } else {
-    console.log('Seed: admin user already exists, skipping creation.');
+    console.log(`Seed: Admin user (${adminUsername} / ${adminEmail}) already exists, skipping creation.`);
   }
 }

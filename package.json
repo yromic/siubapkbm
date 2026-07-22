@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "knex seed:run",
+    "db:seed": "knex seed:run",
+    "seed:admin": "knex seed:run --specific=01_admin_user.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
