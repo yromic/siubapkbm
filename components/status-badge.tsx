@@ -1,22 +1,21 @@
 "use client";
 
 import React from "react";
+import { Badge, BadgeVariant } from "@/components/ui/badge";
 
 export type StudentStatus = string;
 
+/**
+ * StatusBadge — Legacy wrapper around generic Badge for backward compatibility.
+ */
 export function StatusBadge({ status }: { status: StudentStatus }) {
   const isActive = status === "Aktif" || status === "active";
   const displayLabel = status === "active" ? "Aktif" : status === "inactive" ? "Tidak aktif" : status;
+  const variant: BadgeVariant = isActive ? "success" : "neutral";
 
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-        isActive
-          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-          : "bg-zinc-100 text-zinc-650 dark:bg-zinc-800 dark:text-zinc-400"
-      }`}
-    >
+    <Badge variant={variant} size="sm" dot={isActive}>
       {displayLabel}
-    </span>
+    </Badge>
   );
 }

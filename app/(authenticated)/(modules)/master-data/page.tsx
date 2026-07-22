@@ -258,7 +258,7 @@ export default function MasterDataPage() {
       {contextLoading && <LoadingState message="Memuat data periode..." />}
 
       {contextError && (
-        <div className="p-4 rounded-[20px] bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
           {contextError}
         </div>
       )}
@@ -266,7 +266,7 @@ export default function MasterDataPage() {
       {!contextLoading && !contextError && (
         <>
           {activeTab === "years" ? (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -289,7 +289,7 @@ export default function MasterDataPage() {
                       academicYears.map((year) => {
                         const active = year.is_active === true || String(year.is_active) === "1" || String(year.is_active).toLowerCase() === "true";
                         return (
-                          <tr key={year.id} className="hover:bg-zinc-50/50 dark:hover:bg-[#262626]/40 transition-colors">
+                          <tr key={year.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors">
                             <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100">{year.name?.trim() || "Tahun ajaran tanpa nama"}</td>
                             <td className="p-4 text-zinc-650 dark:text-zinc-400">{formatDate(year.start_date)}</td>
                             <td className="p-4 text-zinc-650 dark:text-zinc-400">{formatDate(year.end_date)}</td>
@@ -309,7 +309,7 @@ export default function MasterDataPage() {
                                 <button
                                   onClick={() => handleActivateYear(year.id)}
                                   disabled={formLoading}
-                                  className="text-xs font-bold text-[#468432] hover:text-emerald-700 dark:text-emerald-450 dark:hover:text-emerald-400 transition-colors disabled:opacity-50"
+                                  className="text-xs font-bold text-brand-emerald-600 hover:text-emerald-700 dark:text-emerald-450 dark:hover:text-emerald-400 transition-colors disabled:opacity-50"
                                 >
                                   Aktifkan
                                 </button>
@@ -330,7 +330,7 @@ export default function MasterDataPage() {
               </div>
             </div>
           ) : (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>

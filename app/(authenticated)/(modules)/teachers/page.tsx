@@ -234,7 +234,7 @@ export default function TeachersPage() {
         description="Kelola informasi dan profil staf pengajar."
       />
 
-      <div className="p-4 rounded-[20px] bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 flex items-start gap-3.5 shadow-sm text-sm">
+      <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 flex items-start gap-3.5 shadow-sm text-sm">
         <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
         <div>
           <h4 className="font-bold text-amber-850 dark:text-amber-350">Informasi Pembuatan Profil</h4>
@@ -252,13 +252,13 @@ export default function TeachersPage() {
             placeholder="Cari guru berdasarkan nama, NIP, atau NUPTK..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]/30 focus:border-[#468432]"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
           />
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3.5 py-2.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]/30 focus:border-[#468432] cursor-pointer"
+          className="px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500 cursor-pointer"
         >
           {LIFECYCLE_FILTER_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -284,7 +284,7 @@ export default function TeachersPage() {
               description="Coba ubah kata kunci pencarian atau filter status untuk menampilkan data."
             />
           ) : (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>

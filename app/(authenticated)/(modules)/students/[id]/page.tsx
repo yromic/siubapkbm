@@ -130,7 +130,7 @@ function InfoSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] p-5 shadow-sm">
+    <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm">
       <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800">
         {title}
       </h3>

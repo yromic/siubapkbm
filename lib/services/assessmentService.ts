@@ -274,6 +274,40 @@ export async function lockAssessment(id: string, actorId: string) {
       throw new AppError('Only published assessments can be locked.', 'ERR_VALIDATION', 400);
     }
 
+    // Validate score completeness for active enrolled students
+    const activeStudents = await db('student_enrollments')
+      .where({
+        class_id: item.class_id,
+        academic_year_id: item.academic_year_id,
+        semester_id: item.semester_id,
+        status: 'active'
+      })
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .select('student_id');
+
+    const studentIds = activeStudents.map((s: any) => s.student_id);
+    if (studentIds.length === 0) {
+      throw new AppError('Cannot lock assessment for a class with no active enrolled students.', 'ERR_VALIDATION', 400);
+    }
+
+    const scoreCountRes = await db('academic_scores')
+      .where('assessment_id', id)
+      .whereIn('student_id', studentIds)
+      .whereNotNull('score')
+      .whereNot('score', '')
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .count('id as count')
+      .first();
+
+    const scoredCount = Number(scoreCountRes?.count || 0);
+    if (scoredCount < studentIds.length) {
+      throw new AppError(
+        `Cannot lock assessment. Score entry is incomplete (${scoredCount} of ${studentIds.length} students scored).`,
+        'ERR_SCORES_INCOMPLETE',
+        400
+      );
+    }
+
     await db('academic_assessments').where('id', id).update({
       status: 'locked',
       locked_at: new Date(),
@@ -297,6 +331,16 @@ export async function unlockAssessment(id: string, actorId: string) {
     const item = await getAssessmentById(id);
     if (item.status !== 'locked') {
       throw new AppError('Only locked assessments can be unlocked.', 'ERR_VALIDATION', 400);
+    }
+
+    // Protect against unlocking assessments in finalized/locked semesters
+    const semester = await db('semesters').where('id', item.semester_id).first();
+    if (semester && (semester.lifecycle_status === 'finalized' || semester.lifecycle_status === 'locked')) {
+      throw new AppError(
+        'Cannot unlock assessment. The associated semester has already been finalized or locked.',
+        'ERR_SEMESTER_FINALIZED',
+        400
+      );
     }
 
     await db('academic_assessments').where('id', id).update({

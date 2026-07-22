@@ -25,6 +25,7 @@ import {
   getAcademicAssessmentDetail,
   getClassAcademicSummary,
   listMyClassSubjects,
+  lockAcademicAssessment,
   publishAcademicAssessment,
   updateAcademicAssessment,
 } from "@/lib/api/academic";
@@ -191,6 +192,28 @@ export default function AcademicAssessmentDetailPage() {
     }
   };
 
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [locking, setLocking] = useState(false);
+
+  const handleLock = async () => {
+    if (!token || !assessment) return;
+    setLocking(true);
+    setActionError(null);
+    try {
+      const updated = await lockAcademicAssessment(assessment.id, token);
+      setAssessment(updated);
+      hydrateEditForm(updated);
+      notify.success("Assessment berhasil dikunci (locked). Nilai tidak dapat diubah lagi.");
+      await loadData();
+    } catch (err: unknown) {
+      const message = humanizeError(err);
+      setActionError(message);
+      notify.error(message);
+    } finally {
+      setLocking(false);
+    }
+  };
+
   const validateEdit = () => {
     if (!editTitle.trim()) return "Judul assessment wajib diisi.";
     if (!editDate) return "Tanggal assessment wajib diisi.";
@@ -321,6 +344,16 @@ export default function AcademicAssessmentDetailPage() {
                 className="inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors"
               >
                 {publishing ? "Publishing..." : "Publish Assessment"}
+              </button>
+            )}
+            {assessment.status === "published" && (
+              <button
+                type="button"
+                onClick={() => setShowLockConfirm(true)}
+                disabled={locking}
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-[12px] bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+              >
+                {locking ? "Locking..." : "Kunci Assessment"}
               </button>
             )}
             {canEdit && (
@@ -495,6 +528,15 @@ export default function AcademicAssessmentDetailPage() {
         confirmLabel="Ya, Publikasikan"
         variant="default"
         onConfirm={handlePublish}
+      />
+      <ConfirmDialog
+        open={showLockConfirm}
+        onOpenChange={setShowLockConfirm}
+        title="Kunci Assessment Penilaian?"
+        description="Apakah Anda yakin ingin mengunci (lock) penilaian ini? Setelah dikunci, nilai siswa tidak dapat diubah lagi dan status assessment akan dinyatakan selesai."
+        confirmLabel="Ya, Kunci Assessment"
+        variant="destructive"
+        onConfirm={handleLock}
       />
     </ResponsiveContainer>
   );

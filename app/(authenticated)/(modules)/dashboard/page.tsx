@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
 import { apiRequest } from "@/lib/api/client";
-import { PageHeader, ResponsiveContainer } from "@/components/ui-states";
+import { PageHeader, ErrorState } from "@/components/ui-states";
 import { searchAuditLogs, AuditLog } from "@/lib/api/audit-logs";
 import { listStudents, listStudentsByClass, StudentRecord, StudentSummary } from "@/lib/api/students";
 import { getMyClasses, MyClassAssignment } from "@/lib/api/my-class";
@@ -68,6 +68,10 @@ import {
   DollarSign,
   Loader2
 } from "lucide-react";
+import { PageContainer, PageSection } from "@/components/ui/page-framework";
+import { Card, CardHeader, CardBody } from "@/components/ui/card";
+import { KPICard } from "@/components/ui/kpi-card";
+import { ColumnLabel, CardTitle, NumericDisplay } from "@/components/ui/typography";
 
 // Global Date Formatter
 const formatDate = (dateStr: string) => {
@@ -91,10 +95,10 @@ const formatIntegrityStatus = (statusStr: string) => {
   try {
     const parsed = JSON.parse(statusStr);
     if (parsed && typeof parsed === "object") {
-      const label = parsed.status === "success" 
-        ? "Aman" 
-        : parsed.status === "warning" 
-        ? "Peringatan" 
+      const label = parsed.status === "success"
+        ? "Aman"
+        : parsed.status === "warning"
+        ? "Peringatan"
         : parsed.status === "danger"
         ? "Bahaya"
         : parsed.status;
@@ -183,9 +187,9 @@ export default function DashboardPage() {
     setIsAcademicModalOpen(true);
     if (token) {
       fetchMonitoringData(
-        token, 
-        assessments, 
-        activeAcademicYear?.id, 
+        token,
+        assessments,
+        activeAcademicYear?.id,
         activeSemester?.id
       );
     }
@@ -195,9 +199,9 @@ export default function DashboardPage() {
     setIsCultureModalOpen(true);
     if (token) {
       fetchMonitoringData(
-        token, 
-        assessments, 
-        activeAcademicYear?.id, 
+        token,
+        assessments,
+        activeAcademicYear?.id,
         activeSemester?.id
       );
     }
@@ -338,13 +342,18 @@ export default function DashboardPage() {
           setMyClasses(assignedClasses);
           if (assignedClasses.length > 0) {
             const primaryClass = assignedClasses[0];
-            
+
             // Parallel fetch teacher class data with correct 4 arguments
             await Promise.all([
               listStudentsByClass(primaryClass.class_id, primaryClass.academic_year_id, primaryClass.semester_id, token, 1000)
                 .then(setTeacherStudents).catch(() => {}),
               listAcademicAssessments(token, { class_id: primaryClass.class_id, limit: 1000 }).then(setTeacherAssessments).catch(() => {}),
-              getTeacherCultureCompleteness(token, { period_mode: "week", class_id: primaryClass.class_id }).then(setTeacherCulture).catch(() => {}),
+              getTeacherCultureCompleteness(token, {
+                period_mode: "week",
+                class_id: primaryClass.class_id,
+                academic_year_id: primaryClass.academic_year_id,
+                semester_id: primaryClass.semester_id
+              }).then(setTeacherCulture).catch((err) => { console.error('Gagal memuat data budaya:', err); setTeacherCulture(null); }),
               getClassAcademicSummary(token, {
                 class_id: primaryClass.class_id,
                 academic_year_id: primaryClass.academic_year_id,
@@ -584,41 +593,35 @@ export default function DashboardPage() {
   // --- RENDERING LOADING SKELETON ---
   if (loading || settingsLoading) {
     return (
-      <ResponsiveContainer className="space-y-6 flex-1 flex flex-col py-6 max-w-[1280px] mx-auto px-6">
-        <PageHeader title="SIUBA control center" description="Memuat modul dashboard..." />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-pulse">
-          <div className="h-32 bg-zinc-200 dark:bg-zinc-800 rounded-[20px]"></div>
-          <div className="h-32 bg-zinc-200 dark:bg-zinc-800 rounded-[20px]"></div>
-          <div className="h-32 bg-zinc-200 dark:bg-zinc-800 rounded-[20px]"></div>
+      <PageContainer>
+        <PageHeader loading title="" />
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <KPICard key={i} loading title="" value="" />
+          ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-pulse">
-          <div className="lg:col-span-2 h-96 bg-zinc-200 dark:bg-zinc-800 rounded-[20px]"></div>
-          <div className="h-96 bg-zinc-200 dark:bg-zinc-800 rounded-[20px]"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-60 bg-surface-2 rounded-2xl animate-pulse" />
+          <div className="h-60 bg-surface-2 rounded-2xl animate-pulse" />
         </div>
-      </ResponsiveContainer>
+      </PageContainer>
     );
   }
 
   if (error || settingsError) {
     return (
-      <ResponsiveContainer className="py-12 text-center max-w-md mx-auto px-6">
-        <div className="p-6 bg-white dark:bg-[#171717] rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-zinc-900 dark:text-zinc-500 mb-2">Terjadi kesalahan</h2>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">{error || settingsError}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="w-full py-2.5 bg-[#468432] hover:bg-[#3A6F2B] text-white font-semibold rounded-[12px] transition-colors cursor-pointer"
-          >
-            Refresh halaman
-          </button>
-        </div>
-      </ResponsiveContainer>
+      <PageContainer maxWidth="4xl">
+        <ErrorState
+          title="Terjadi Kesalahan"
+          message={error || settingsError || "Gagal memuat data dashboard."}
+          onRetry={() => window.location.reload()}
+        />
+      </PageContainer>
     );
   }
 
   return (
-    <ResponsiveContainer className="space-y-6 flex-1 flex flex-col justify-start py-6 max-w-[1280px] mx-auto px-6">
+    <PageContainer>
       <PageHeader
         title={`Dashboard ${formatRoleLabel(user?.role || "")}`}
         description={`Pusat kendali SIUBA • Selamat datang kembali, ${user?.name}.`}
@@ -629,411 +632,433 @@ export default function DashboardPage() {
       {/* ========================================================================= */}
       {user?.role === "administrator" && (
         <div className="space-y-6 animate-fadeIn">
-          
-          {/* SECTION 1: School Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800/80 shadow-sm flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Siswa aktif</span>
-              <div className="flex items-baseline gap-1.5 mt-2">
-                <span className="text-2xl font-black text-zinc-900 dark:text-zinc-500 font-data">
-                  {statsData?.total_students ?? 0}
-                </span>
-                <span className="text-[10px] text-zinc-400">anak</span>
-              </div>
+
+          {/* SECTION 1: School Summary KPIs */}
+          <PageSection>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <KPICard
+                title="Siswa aktif"
+                value={statsData?.total_students ?? 0}
+                subtitle="anak terdaftar"
+                loading={statsLoading}
+                icon={<Users className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Guru aktif"
+                value={statsData?.total_teachers ?? 0}
+                subtitle="pengajar"
+                loading={statsLoading}
+                icon={<GraduationCap className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Kelas aktif"
+                value={statsData?.total_classes ?? 0}
+                subtitle="rombongan belajar"
+                loading={statsLoading}
+                icon={<School className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Tahun ajaran"
+                value={activeAcademicYear ? activeAcademicYear.name : "Belum Diatur"}
+                variant="flat"
+                loading={settingsLoading}
+              />
+              <KPICard
+                title="Semester"
+                value={activeSemester ? `Semester ${activeSemester.name}` : "Belum Diatur"}
+                variant="flat"
+                loading={settingsLoading}
+              />
             </div>
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800/80 shadow-sm flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Guru aktif</span>
-              <div className="flex items-baseline gap-1.5 mt-2">
-                <span className="text-2xl font-black text-zinc-900 dark:text-zinc-500 font-data">
-                  {statsData?.total_teachers ?? 0}
-                </span>
-                <span className="text-[10px] text-zinc-400">pengajar</span>
-              </div>
-            </div>
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800/80 shadow-sm flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Kelas aktif</span>
-              <div className="flex items-baseline gap-1.5 mt-2">
-                <span className="text-2xl font-black text-zinc-900 dark:text-zinc-500 font-data">
-                  {statsData?.total_classes ?? 0}
-                </span>
-                <span className="text-[10px] text-zinc-400">tingkat</span>
-              </div>
-            </div>
-            <div className="p-4 rounded-[20px] bg-gradient-to-br from-emerald-50/50 to-teal-50/20 dark:from-emerald-950/10 dark:to-teal-950/5 border border-emerald-100/50 dark:border-emerald-900/20 shadow-sm flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-[#468432] dark:text-emerald-400 uppercase tracking-wider">Tahun ajaran</span>
-              <span className="text-base font-bold text-zinc-900 dark:text-zinc-500 mt-2 font-data">
-                {activeAcademicYear ? activeAcademicYear.name : "Belum Diatur"}
-              </span>
-            </div>
-            <div className="p-4 rounded-[20px] bg-gradient-to-br from-emerald-50/50 to-teal-50/20 dark:from-emerald-950/10 dark:to-teal-950/5 border border-emerald-100/50 dark:border-emerald-900/20 shadow-sm flex flex-col justify-between">
-              <span className="text-[10px] font-bold text-[#468432] dark:text-emerald-400 uppercase tracking-wider">Semester</span>
-              <span className="text-base font-bold text-zinc-900 dark:text-zinc-500 mt-2 font-data">
-                {activeSemester ? `Semester ${activeSemester.name}` : "Belum Diatur"}
-              </span>
-            </div>
-          </div>
+          </PageSection>
 
           {/* SECTION 2: School Health Score */}
           {aggregators && (
-            <div className="bg-white dark:bg-[#171717] p-6 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                {/* Progress Ring */}
-                <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle cx="72" cy="72" r="60" className="stroke-zinc-100 dark:stroke-zinc-800 fill-none" strokeWidth="12" />
-                    <circle cx="72" cy="72" r="60" className="stroke-[#468432] fill-none" strokeWidth="12" 
-                            strokeDasharray={String(2 * Math.PI * 60)} 
-                            strokeDashoffset={2 * Math.PI * 60 * (1 - aggregators.overallHealthScore / 100)} 
-                            strokeLinecap="round" />
-                  </svg>
-                  <div className="absolute text-center">
-                    <span className="text-3xl font-black text-zinc-900 dark:text-zinc-50 font-data">{aggregators.overallHealthScore}</span>
-                    <span className="text-[9px] block text-zinc-400 font-bold uppercase tracking-wider mt-0.5">Skor kesehatan</span>
+            <PageSection>
+              <Card padding="lg">
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                  {/* Progress Ring */}
+                  <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90">
+                      <circle cx="72" cy="72" r="60" className="stroke-zinc-100 dark:stroke-zinc-800 fill-none" strokeWidth="12" />
+                      <circle cx="72" cy="72" r="60" className="stroke-brand-emerald-600 fill-none" strokeWidth="12"
+                              strokeDasharray={String(2 * Math.PI * 60)}
+                              strokeDashoffset={2 * Math.PI * 60 * (1 - aggregators.overallHealthScore / 100)}
+                              strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute text-center">
+                      <span className="text-3xl font-bold font-fredoka text-zinc-900 dark:text-zinc-50">{aggregators.overallHealthScore}</span>
+                      <ColumnLabel className="block mt-0.5">Skor kesehatan</ColumnLabel>
+                    </div>
+                  </div>
+
+                  {/* Score Breakdown & Category */}
+                  <div className="flex-1 space-y-4 w-full">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Dashboard kesehatan sekolah</CardTitle>
+                        <p className="text-xs font-plus-jakarta text-zinc-500 mt-0.5">Status operasional akademik &amp; administrasi sekolah terintegrasi secara dinamis.</p>
+                      </div>
+                      <span className={`px-4 py-1.5 rounded-full text-xs font-bold font-plus-jakarta uppercase tracking-wider bg-surface-2 border border-zinc-200 dark:border-zinc-800 ${getHealthColorClass(aggregators.healthCategory)}`}>
+                        {aggregators.healthCategory}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 font-plus-jakarta font-medium">Ketuntasan akademik</span>
+                          <NumericDisplay className="font-bold text-zinc-800 dark:text-zinc-200">
+                            {aggregators.academicCompletion === null || aggregators.academicCompletion === undefined
+                              ? "Belum ada assessment"
+                              : `${aggregators.academicCompletion}%`}
+                          </NumericDisplay>
+                        </div>
+                        <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${aggregators.academicCompletion ?? 0}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 font-plus-jakarta font-medium">Ketuntasan karakter</span>
+                          <NumericDisplay className="font-bold text-zinc-800 dark:text-zinc-200">{aggregators.characterCompletion}%</NumericDisplay>
+                        </div>
+                        <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-brand-emerald-600 rounded-full" style={{ width: `${aggregators.characterCompletion}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 font-plus-jakarta font-medium">Kehadiran guru</span>
+                          <NumericDisplay className="font-bold text-zinc-800 dark:text-zinc-200">
+                            {aggregators.teacherAttendance === null || aggregators.teacherAttendance === undefined
+                              ? "Belum ada data"
+                              : `${aggregators.teacherAttendance}%`}
+                          </NumericDisplay>
+                        </div>
+                        <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full" style={{ width: `${aggregators.teacherAttendance ?? 0}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-zinc-500 font-plus-jakarta font-medium">Rasio pelunasan SPP</span>
+                          <NumericDisplay className="font-bold text-zinc-800 dark:text-zinc-200">{aggregators.sppCompletion}%</NumericDisplay>
+                        </div>
+                        <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${aggregators.sppCompletion}%` }} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                {/* Score Breakdown & Category */}
-                <div className="flex-1 space-y-4 w-full">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-base font-extrabold text-zinc-900 dark:text-zinc-100">Dashboard kesehatan sekolah</h3>
-                      <p className="text-xs text-zinc-500 mt-0.5 font-normal">Status operasional akademik & administrasi sekolah terintegrasi secara dinamis.</p>
-                    </div>
-                    <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider bg-zinc-50/50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 ${getHealthColorClass(aggregators.healthCategory)}`}>
-                      {aggregators.healthCategory}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-zinc-500 font-medium">Ketuntasan akademik</span>
-                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">
-                          {aggregators.academicCompletion === null || aggregators.academicCompletion === undefined
-                            ? "Belum ada assessment"
-                            : `${aggregators.academicCompletion}%`}
-                        </span>
-                      </div>
-                      <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${aggregators.academicCompletion ?? 0}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-zinc-500 font-medium">Ketuntasan karakter</span>
-                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">{aggregators.characterCompletion}%</span>
-                      </div>
-                      <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#468432] rounded-full" style={{ width: `${aggregators.characterCompletion}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-zinc-500 font-medium">Kehadiran guru</span>
-                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">
-                          {aggregators.teacherAttendance === null || aggregators.teacherAttendance === undefined
-                            ? "Belum ada data"
-                            : `${aggregators.teacherAttendance}%`}
-                        </span>
-                      </div>
-                      <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${aggregators.teacherAttendance ?? 0}%` }}></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-zinc-500 font-medium">Rasio pelunasan SPP</span>
-                        <span className="font-bold text-zinc-800 dark:text-zinc-250 font-data">{aggregators.sppCompletion}%</span>
-                      </div>
-                      <div className="h-2 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${aggregators.sppCompletion}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+              </Card>
+            </PageSection>
           )}
 
           {/* SECTION 3 & 4: Progress Boards (Read-Only for Admin) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* SECTION 3: Academic Progress */}
-            <div className="p-5 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3 mb-4">
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-[#468432]" />
-                  Kemajuan pengisian nilai
-                </h3>
-                <button
-                  onClick={handleOpenAcademicMonitoring}
-                  className="text-xs font-bold text-[#468432] hover:text-[#3a6f2b] dark:text-[#5aa142] dark:hover:text-[#6cb853] hover:underline cursor-pointer focus:outline-none"
-                >
-                  Lihat Detail
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100/50 dark:border-zinc-800/10 rounded-[12px]">
-                  <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Sudah isi</span>
-                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 block mt-1 font-data">
-                    {realAcademicStats.loading ? "..." : realAcademicStats.final}
-                  </span>
-                </div>
-                <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100/50 dark:border-zinc-800/10 rounded-[12px]">
-                  <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Belum isi</span>
-                  <span className="text-lg font-black text-amber-600 dark:text-amber-400 block mt-1 font-data">
-                    {realAcademicStats.loading ? "..." : realAcademicStats.belumIsi}
-                  </span>
-                </div>
-                <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100/50 dark:border-zinc-800/10 rounded-[12px]">
-                  <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Belum final</span>
-                  <span className="text-lg font-black text-red-500 block mt-1 font-data">
-                    {realAcademicStats.loading ? "..." : realAcademicStats.belumFinal}
-                  </span>
-                </div>
-              </div>
-            </div>
+          <PageSection>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {/* SECTION 4: Character Progress */}
-            <div className="p-5 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3 mb-4">
-                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-2">
-                  <Heart className="w-4 h-4 text-rose-500" />
-                  Kemajuan pengisian budaya (SAHABAT)
-                </h3>
-                <button
-                  onClick={handleOpenCultureMonitoring}
-                  className="text-xs font-bold text-rose-500 hover:text-rose-600 dark:text-rose-450 dark:hover:text-rose-400 hover:underline cursor-pointer focus:outline-none"
-                >
-                  Lihat Detail
-                </button>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100/50 dark:border-zinc-800/10 rounded-[12px]">
-                  <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Lengkap</span>
-                  <span className="text-lg font-black text-emerald-600 dark:text-emerald-405 block mt-1 font-data">
-                    {realCultureStats.loading ? "..." : `${realCultureStats.lengkap}%`}
-                  </span>
-                </div>
-                <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100/50 dark:border-zinc-800/10 rounded-[12px]">
-                  <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Sebagian</span>
-                  <span className="text-lg font-black text-blue-500 block mt-1 font-data">
-                    {realCultureStats.loading ? "..." : `${realCultureStats.sebagian}%`}
-                  </span>
-                </div>
-                <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100/50 dark:border-zinc-800/10 rounded-[12px]">
-                  <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Kosong</span>
-                  <span className="text-lg font-black text-red-500 block mt-1 font-data">
-                    {realCultureStats.loading ? "..." : `${realCultureStats.kosong}%`}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 5: Critical Alert */}
-          {criticalAlerts.length > 0 && (
-            <div className="bg-red-50/40 dark:bg-red-950/10 border border-red-200/80 dark:border-red-900/30 p-5 rounded-[20px] space-y-3 animate-fadeIn">
-              <h3 className="text-xs font-bold text-red-700 dark:text-red-400 uppercase tracking-wider flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4" />
-                Pemberitahuan penting kepala sekolah
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {criticalAlerts.slice(0, 4).map((alert) => (
-                  <div key={alert.id} className="p-4 bg-surface-1 rounded-[16px] border border-zinc-200/50 dark:border-zinc-800/80 shadow-sm flex gap-3">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 mt-1"></div>
-                    <div>
-                      <span className="text-[9px] uppercase tracking-wider font-extrabold text-red-650 dark:text-red-400 block font-sans">
-                        {alert.category}
-                      </span>
-                      <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-100 mt-0.5">{alert.title}</h4>
-                      <p className="text-[10px] text-zinc-600 dark:text-zinc-350 mt-1 leading-relaxed">{alert.description}</p>
-                    </div>
+              {/* SECTION 3: Academic Progress */}
+              <Card padding="md">
+                <CardHeader
+                  title="Kemajuan pengisian nilai"
+                  subtitle={`Semester ${activeSemester?.name || "Aktif"} ${activeAcademicYear?.name || ""} • Target Pasangan Mapel-Kelas`}
+                  bordered
+                  action={
+                    <button
+                      onClick={handleOpenAcademicMonitoring}
+                      className="text-xs font-bold font-plus-jakarta text-brand-emerald-600 hover:text-brand-emerald-700 dark:text-brand-emerald-400 dark:hover:text-brand-emerald-300 hover:underline cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1 rounded"
+                    >
+                      Lihat Detail
+                    </button>
+                  }
+                />
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                    <ColumnLabel className="block">Sudah isi</ColumnLabel>
+                    <span className="text-lg font-bold font-fredoka text-emerald-600 dark:text-emerald-400 block mt-1">
+                      {realAcademicStats.loading ? "..." : realAcademicStats.final}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block mt-0.5 font-plus-jakarta">
+                      Target Mapel-Kelas
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                    <ColumnLabel className="block">Belum isi</ColumnLabel>
+                    <span className="text-lg font-bold font-fredoka text-amber-600 dark:text-amber-400 block mt-1">
+                      {realAcademicStats.loading ? "..." : realAcademicStats.belumIsi}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block mt-0.5 font-plus-jakarta">
+                      Target Mapel-Kelas
+                    </span>
+                  </div>
+                  <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                    <ColumnLabel className="block">Belum final</ColumnLabel>
+                    <span className="text-lg font-bold font-fredoka text-red-500 block mt-1">
+                      {realAcademicStats.loading ? "..." : realAcademicStats.belumFinal}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block mt-0.5 font-plus-jakarta">
+                      Target Mapel-Kelas
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* SECTION 4: Character Progress */}
+              <Card padding="md">
+                <CardHeader
+                  title="Kemajuan pengisian budaya (SAHABAT)"
+                  subtitle={`Akumulasi Jurnal Semester ${activeSemester?.name || "Aktif"} • Satuan % Total Kelas`}
+                  bordered
+                  action={
+                    <button
+                      onClick={handleOpenCultureMonitoring}
+                      className="text-xs font-bold font-plus-jakarta text-rose-500 hover:text-rose-600 dark:text-rose-400 hover:underline cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 rounded"
+                    >
+                      Lihat Detail
+                    </button>
+                  }
+                />
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                    <ColumnLabel className="block">Lengkap</ColumnLabel>
+                    <span className="text-lg font-bold font-fredoka text-emerald-600 dark:text-emerald-400 block mt-1">
+                      {realCultureStats.loading ? "..." : `${realCultureStats.lengkap}%`}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block mt-0.5 font-plus-jakarta">
+                      dari total kelas
+                    </span>
+                  </div>
+                  <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                    <ColumnLabel className="block">Sebagian</ColumnLabel>
+                    <span className="text-lg font-bold font-fredoka text-blue-500 block mt-1">
+                      {realCultureStats.loading ? "..." : `${realCultureStats.sebagian}%`}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block mt-0.5 font-plus-jakarta">
+                      dari total kelas
+                    </span>
+                  </div>
+                  <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                    <ColumnLabel className="block">Kosong</ColumnLabel>
+                    <span className="text-lg font-bold font-fredoka text-red-500 block mt-1">
+                      {realCultureStats.loading ? "..." : `${realCultureStats.kosong}%`}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 dark:text-zinc-500 block mt-0.5 font-plus-jakarta">
+                      dari total kelas
+                    </span>
+                  </div>
+                </div>
+              </Card>
             </div>
+          </PageSection>
+
+          {/* SECTION 5: Critical Alerts */}
+          {criticalAlerts.length > 0 && (
+            <PageSection>
+              <div className="bg-red-50/40 dark:bg-red-950/10 border border-red-200/80 dark:border-red-900/30 p-5 rounded-2xl space-y-3 animate-fadeIn">
+                <ColumnLabel className="text-red-700 dark:text-red-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" aria-hidden="true" />
+                  Pemberitahuan penting kepala sekolah
+                </ColumnLabel>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {criticalAlerts.slice(0, 4).map((alert) => (
+                    <Card key={alert.id} variant="flat" padding="sm">
+                      <div className="flex gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 mt-1" aria-hidden="true" />
+                        <div>
+                          <ColumnLabel className="text-red-600 dark:text-red-400 block">{alert.category}</ColumnLabel>
+                          <CardTitle className="mt-0.5">{alert.title}</CardTitle>
+                          <p className="text-[10px] font-plus-jakarta text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">{alert.description}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </PageSection>
           )}
 
           {/* SECTION 6 & 7: Visual Analytics Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* SECTION 6: Academic Analytics */}
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#468432]" />
-                Distribusi nilai rata-rata per tingkat kelas
-              </h3>
-              <div className="h-64">
-                {!statsData?.classAcademicAverages || statsData.classAcademicAverages.length === 0 ? (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-xs text-zinc-400">Belum ada data nilai akademik</span>
-                  </div>
-                ) : (
-                  <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ReChartsBarChart data={statsData.classAcademicAverages.map(item => {
-                      const name = item.name;
-                      let cleaned = name.replace(/_?\d{10,}(_\d+)?/g, "").trim();
-                      cleaned = cleaned.replace(/[\s-_]+$/g, "").trim();
-                      const cleanName = cleaned.startsWith("Kelas ") ? cleaned : `Kelas ${cleaned}`;
-                      return {
-                        ...item,
-                        name: cleanName
-                      };
-                    })}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="name" fontSize={10} tickLine={false} />
-                      <YAxis domain={[50, 100]} fontSize={10} tickLine={false} />
-                      <Tooltip />
-                      <Bar dataKey="RataRata" fill="#468432" radius={[6, 6, 0, 0]} />
-                    </ReChartsBarChart>
-                  </ReChartsResponsiveContainer>
-                )}
-              </div>
-            </div>
+          <PageSection>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* SECTION 7: Character Analytics */}
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Heart className="w-4 h-4 text-rose-500" />
-                Rata-rata aspek FITRAH tingkat sekolah
-              </h3>
-              <div className="h-64">
-                {!statsData?.fitrahRadarData || statsData.fitrahRadarData.length === 0 ? (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <span className="text-xs text-zinc-400">Belum ada data pembiasaan karakter</span>
-                  </div>
-                ) : (
-                  <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ReChartsRadarChart cx="50%" cy="50%" outerRadius="80%" data={statsData.fitrahRadarData}>
-                      <PolarGrid stroke="#e4e4e7" />
-                      <PolarAngleAxis dataKey="subject" fontSize={10} />
-                      <PolarRadiusAxis angle={30} domain={[0, 4.0]} fontSize={8} />
-                      <Tooltip />
-                      <Radar name="Skor Rata-rata" dataKey="A" stroke="#468432" fill="#468432" fillOpacity={0.25} />
-                    </ReChartsRadarChart>
-                  </ReChartsResponsiveContainer>
-                )}
-              </div>
+              {/* SECTION 6: Academic Analytics */}
+              <Card padding="lg">
+                <CardHeader
+                  title="Distribusi nilai rata-rata per tingkat kelas"
+                  bordered
+                />
+                <div className="h-64">
+                  {!statsData?.classAcademicAverages || statsData.classAcademicAverages.length === 0 ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-xs font-plus-jakarta text-zinc-400">Belum ada data nilai akademik</span>
+                    </div>
+                  ) : (
+                    <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <ReChartsBarChart data={statsData.classAcademicAverages.map(item => {
+                        const name = item.name;
+                        let cleaned = name.replace(/_?\d{10,}(_\d+)?/g, "").trim();
+                        cleaned = cleaned.replace(/[\s-_]+$/g, "").trim();
+                        const cleanName = cleaned.startsWith("Kelas ") ? cleaned : `Kelas ${cleaned}`;
+                        return { ...item, name: cleanName };
+                      })}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                        <XAxis dataKey="name" fontSize={10} tickLine={false} />
+                        <YAxis domain={[50, 100]} fontSize={10} tickLine={false} />
+                        <Tooltip />
+                        <Bar dataKey="RataRata" fill="#468432" radius={[6, 6, 0, 0]} />
+                      </ReChartsBarChart>
+                    </ReChartsResponsiveContainer>
+                  )}
+                </div>
+              </Card>
+
+              {/* SECTION 7: Character Analytics */}
+              <Card padding="lg">
+                <CardHeader
+                  title="Rata-rata aspek FITRAH tingkat sekolah"
+                  bordered
+                />
+                <div className="h-64">
+                  {!statsData?.fitrahRadarData || statsData.fitrahRadarData.length === 0 ? (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-xs font-plus-jakarta text-zinc-400">Belum ada data pembiasaan karakter</span>
+                    </div>
+                  ) : (
+                    <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <ReChartsRadarChart cx="50%" cy="50%" outerRadius="80%" data={statsData.fitrahRadarData}>
+                        <PolarGrid stroke="#e4e4e7" />
+                        <PolarAngleAxis dataKey="subject" fontSize={10} />
+                        <PolarRadiusAxis angle={30} domain={[0, 4.0]} fontSize={8} />
+                        <Tooltip />
+                        <Radar name="Skor Rata-rata" dataKey="A" stroke="#468432" fill="#468432" fillOpacity={0.25} />
+                      </ReChartsRadarChart>
+                    </ReChartsResponsiveContainer>
+                  )}
+                </div>
+              </Card>
             </div>
-          </div>
+          </PageSection>
 
           {/* SECTION 8: School Insights */}
-          <div className="bg-white dark:bg-[#171717] p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-              <Award className="w-4 h-4 text-[#468432]" />
-              Wawasan utama sekolah
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/30 rounded-[12px]">
-                <span className="text-[10px] text-zinc-400 block font-bold uppercase">Pencapaian akademik kelas terbaik</span>
-                <h4 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mt-1">
-                  {statsData ? (() => {
-                    const name = statsData.bestClassAcademicName;
-                    let cleaned = name.replace(/_?\d{10,}(_\d+)?/g, "").trim();
-                    cleaned = cleaned.replace(/[\s-_]+$/g, "").trim();
-                    return cleaned.startsWith("Kelas ") ? cleaned : `Kelas ${cleaned}`;
-                  })() : "..."}
-                </h4>
-                <p className="text-[10px] text-zinc-400 mt-0.5">
-                  {statsData ? statsData.bestClassAcademicAvg : "Menganalisis rata-rata nilai akademik..."}
-                </p>
-              </div>
-              <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/30 rounded-[12px]">
-                <span className="text-[10px] text-zinc-400 block font-bold uppercase">Guru paling produktif</span>
-                <h4 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mt-1">
-                  {statsData ? statsData.mostActiveTeacherName : "..."}
-                </h4>
-                <p className="text-[10px] text-zinc-400 mt-0.5">
-                  {statsData ? statsData.mostActiveTeacherDesc : "Menghitung aktivitas entri nilai..."}
-                </p>
-              </div>
-              <div className="p-3 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/30 rounded-[12px]">
-                <span className="text-[10px] text-zinc-400 block font-bold uppercase">Keteladanan karakter terbaik</span>
-                <h4 className="text-sm font-bold text-zinc-800 dark:text-zinc-200 mt-1">
-                  {statsData ? (() => {
-                    const name = statsData.bestCultureClassName;
-                    let cleaned = name.replace(/_?\d{10,}(_\d+)?/g, "").trim();
-                    cleaned = cleaned.replace(/[\s-_]+$/g, "").trim();
-                    return cleaned.startsWith("Kelas ") ? cleaned : `Kelas ${cleaned}`;
-                  })() : "..."}
-                </h4>
-                <p className="text-[10px] text-zinc-400 mt-0.5">
-                  {statsData ? statsData.bestCultureClassAvg : "Menghitung rasio kelayakan pembiasaan..."}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 9 & 10: Timeline & Actions */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* SECTION 9: Recent Activities Timeline */}
-            <div className="lg:col-span-2 p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-zinc-500" />
-                Ringkasan aktivitas sekolah terbaru
-              </h3>
-              <div className="flow-root">
-                <ul className="-mb-8">
-                  {auditLogs.slice(0, 4).map((log, logIdx) => (
-                    <li key={log.id}>
-                      <div className="relative pb-8">
-                        {logIdx !== auditLogs.length - 1 ? (
-                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-zinc-100 dark:bg-zinc-800" aria-hidden="true"></span>
-                        ) : null}
-                        <div className="relative flex space-x-3">
-                          <div>
-                            <span className="h-8 w-8 rounded-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-800 flex items-center justify-center">
-                              <Activity className="w-3.5 h-3.5 text-[#468432]" />
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0 pt-1.5">
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                              <span className="font-bold text-zinc-800 dark:text-zinc-200">{log.user_name}</span>{" "}
-                              melakukan tindakan <span className="font-semibold text-zinc-700 dark:text-zinc-300">{formatAuditAction(log.action)}</span>
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-0.5">{formatAuditDescription(log.description, log.action)}</p>
-                          </div>
-                          <div className="text-right text-[10px] whitespace-nowrap text-zinc-500 font-data">
-                            {formatDate(log.created_at)}
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            {/* SECTION 10: Quick Actions */}
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  Aksi cepat administrator
-                </h3>
-                <div className="space-y-3">
-                  <Link href="/students" className="flex items-center gap-2 p-2.5 rounded-[12px] bg-zinc-50 hover:bg-zinc-100 dark:bg-[#262626]/40 dark:hover:bg-[#262626] border border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer">
-                    <UserPlus className="w-4 h-4 text-[#468432]" />
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Registrasi siswa baru</span>
-                  </Link>
-                  <Link href="/import" className="flex items-center gap-2 p-2.5 rounded-[12px] bg-zinc-50 hover:bg-zinc-100 dark:bg-[#262626]/40 dark:hover:bg-[#262626] border border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer">
-                    <Upload className="w-4 h-4 text-[#468432]" />
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Impor berkas Excel</span>
-                  </Link>
-                  <Link href="/export" className="flex items-center gap-2 p-2.5 rounded-[12px] bg-zinc-50 hover:bg-zinc-100 dark:bg-[#262626]/40 dark:hover:bg-[#262626] border border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer">
-                    <FileDown className="w-4 h-4 text-[#468432]" />
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Unduh laporan rapor</span>
-                  </Link>
+          <PageSection>
+            <Card padding="md">
+              <CardHeader title="Wawasan utama sekolah" bordered />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                  <ColumnLabel className="block">Pencapaian akademik kelas terbaik</ColumnLabel>
+                  <CardTitle className="mt-1">
+                    {statsData ? (() => {
+                      const name = statsData.bestClassAcademicName;
+                      let cleaned = name.replace(/_?\d{10,}(_\d+)?/g, "").trim();
+                      cleaned = cleaned.replace(/[\s-_]+$/g, "").trim();
+                      return cleaned.startsWith("Kelas ") ? cleaned : `Kelas ${cleaned}`;
+                    })() : "..."}
+                  </CardTitle>
+                  <p className="text-[10px] font-plus-jakarta text-zinc-400 mt-0.5">
+                    {statsData ? statsData.bestClassAcademicAvg : "Menganalisis rata-rata nilai akademik..."}
+                  </p>
+                </div>
+                <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                  <ColumnLabel className="block">Guru paling produktif</ColumnLabel>
+                  <CardTitle className="mt-1">{statsData ? statsData.mostActiveTeacherName : "..."}</CardTitle>
+                  <p className="text-[10px] font-plus-jakarta text-zinc-400 mt-0.5">
+                    {statsData ? statsData.mostActiveTeacherDesc : "Menghitung aktivitas entri nilai..."}
+                  </p>
+                </div>
+                <div className="p-3 bg-surface-2 border border-zinc-100 dark:border-zinc-800/30 rounded-xl">
+                  <ColumnLabel className="block">Keteladanan karakter terbaik</ColumnLabel>
+                  <CardTitle className="mt-1">
+                    {statsData ? (() => {
+                      const name = statsData.bestCultureClassName;
+                      let cleaned = name.replace(/_?\d{10,}(_\d+)?/g, "").trim();
+                      cleaned = cleaned.replace(/[\s-_]+$/g, "").trim();
+                      return cleaned.startsWith("Kelas ") ? cleaned : `Kelas ${cleaned}`;
+                    })() : "..."}
+                  </CardTitle>
+                  <p className="text-[10px] font-plus-jakarta text-zinc-400 mt-0.5">
+                    {statsData ? statsData.bestCultureClassAvg : "Menghitung rasio kelayakan pembiasaan..."}
+                  </p>
                 </div>
               </div>
-            </div>
+            </Card>
+          </PageSection>
 
-          </div>
+          {/* SECTION 9 & 10: Timeline & Actions */}
+          <PageSection>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+              {/* SECTION 9: Recent Activities Timeline */}
+              <div className="lg:col-span-2">
+                <Card padding="lg">
+                  <CardHeader title="Ringkasan aktivitas sekolah terbaru" bordered />
+                  <div className="flow-root">
+                    <ul className="-mb-8" role="list">
+                      {auditLogs.slice(0, 4).map((log, logIdx) => (
+                        <li key={log.id}>
+                          <div className="relative pb-8">
+                            {logIdx !== auditLogs.length - 1 ? (
+                              <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-zinc-100 dark:bg-zinc-800" aria-hidden="true" />
+                            ) : null}
+                            <div className="relative flex space-x-3">
+                              <div>
+                                <span className="h-8 w-8 rounded-full bg-surface-2 border border-zinc-200/60 dark:border-zinc-800 flex items-center justify-center">
+                                  <Activity className="w-3.5 h-3.5 text-brand-emerald-600" aria-hidden="true" />
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0 pt-1.5">
+                                <p className="text-xs font-plus-jakarta text-zinc-500 dark:text-zinc-400">
+                                  <span className="font-bold text-zinc-800 dark:text-zinc-200">{log.user_name}</span>{" "}
+                                  melakukan tindakan <span className="font-semibold text-zinc-700 dark:text-zinc-300">{formatAuditAction(log.action)}</span>
+                                </p>
+                                <p className="text-[10px] font-plus-jakarta text-zinc-500 mt-0.5">{formatAuditDescription(log.description, log.action)}</p>
+                              </div>
+                              <div className="text-right text-[10px] whitespace-nowrap font-plus-jakarta text-zinc-500">
+                                <NumericDisplay>{formatDate(log.created_at)}</NumericDisplay>
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </Card>
+              </div>
+
+              {/* SECTION 10: Quick Actions */}
+              <Card padding="lg">
+                <CardHeader title="Aksi cepat administrator" bordered />
+                <div className="space-y-3">
+                  <Link
+                    href="/students"
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-2 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 border border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                  >
+                    <UserPlus className="w-4 h-4 text-brand-emerald-600" aria-hidden="true" />
+                    <span className="text-xs font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-200">Registrasi siswa baru</span>
+                  </Link>
+                  <Link
+                    href="/import"
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-2 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 border border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                  >
+                    <Upload className="w-4 h-4 text-brand-emerald-600" aria-hidden="true" />
+                    <span className="text-xs font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-200">Impor berkas Excel</span>
+                  </Link>
+                  <Link
+                    href="/export"
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-surface-2 hover:bg-zinc-100 dark:hover:bg-zinc-700/60 border border-zinc-100 dark:border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                  >
+                    <FileDown className="w-4 h-4 text-brand-emerald-600" aria-hidden="true" />
+                    <span className="text-xs font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-200">Unduh laporan rapor</span>
+                  </Link>
+                </div>
+              </Card>
+            </div>
+          </PageSection>
 
         </div>
       )}
@@ -1043,195 +1068,228 @@ export default function DashboardPage() {
       {/* ========================================================================= */}
       {user?.role === "admin" && (
         <div className="space-y-6 animate-fadeIn">
-          
-          {/* SECTION 1: Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Siswa terdaftar</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{statsData?.total_students ?? 0}</span>
+
+          {/* SECTION 1: Summary KPIs */}
+          <PageSection>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <KPICard
+                title="Siswa terdaftar"
+                value={statsData?.total_students ?? 0}
+                loading={statsLoading}
+                icon={<Users className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Total guru"
+                value={statsData?.total_teachers ?? 0}
+                loading={statsLoading}
+                icon={<GraduationCap className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Total kelas"
+                value={statsData?.total_classes ?? 0}
+                loading={statsLoading}
+                icon={<School className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Mata pelajaran"
+                value={subjects.length}
+                loading={statsLoading}
+                icon={<BookOpen className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Kelengkapan berkas"
+                value={statsData ? `${statsData.docCompletionRate}%` : "..."}
+                loading={statsLoading}
+                icon={<FileText className="w-4 h-4" />}
+                variant="flat"
+              />
             </div>
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Total guru</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{statsData?.total_teachers ?? 0}</span>
-            </div>
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Total kelas</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{statsData?.total_classes ?? 0}</span>
-            </div>
-            <div className="p-4 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <span className="text-[10px] text-zinc-400 block font-bold uppercase tracking-wider">Mata pelajaran</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">{subjects.length}</span>
-            </div>
-            <div className="p-4 rounded-[20px] bg-gradient-to-br from-emerald-50/50 to-teal-50/20 dark:from-[#2d2d2d]/30 dark:to-[#171717]/30 border border-[#468432]/20 dark:border-zinc-800 shadow-sm">
-              <span className="text-[10px] text-[#468432] dark:text-emerald-400 block font-bold uppercase tracking-wider">Kelengkapan berkas</span>
-              <span className="text-2xl font-black text-zinc-900 dark:text-zinc-50 block mt-2 font-data">
-                {statsData ? `${statsData.docCompletionRate}%` : "..."}
-              </span>
-            </div>
-          </div>
+          </PageSection>
 
           {/* SECTION 2: Today's Tasks */}
-          <div className="bg-amber-50/30 dark:bg-amber-950/10 border border-amber-250/70 dark:border-amber-900/30 p-5 rounded-[20px] space-y-3">
-            <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <ListTodo className="w-4 h-4" />
-              Tugas harian operator (hari ini)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-3 bg-white dark:bg-[#171717] rounded-[16px] border border-amber-100 dark:border-amber-950/20 shadow-sm flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-50">Siswa belum terdaftar kelas</h4>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">Terdapat {statsData?.qualityStats?.orphanStudentCount ?? 0} siswa belum terdaftar di kelas manapun.</p>
-                </div>
-                <Link href="/students" className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[10px] rounded-lg cursor-pointer">Atur</Link>
-              </div>
-              <div className="p-3 bg-white dark:bg-[#171717] rounded-[16px] border border-amber-100 dark:border-amber-950/20 shadow-sm flex items-center justify-between">
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-50">PIN portal orang tua belum dibuat</h4>
-                  <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    {studentsWithoutPinCount > 0
-                      ? `Terdapat ${studentsWithoutPinCount} anak didik aktif belum memiliki PIN akses portal wali.`
-                      : "Semua wali murid dari anak didik aktif telah memiliki PIN portal."}
-                  </p>
-                </div>
-                <Link href="/students" className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[10px] rounded-lg cursor-pointer">Buat PIN</Link>
+          <PageSection>
+            <div className="bg-amber-50/30 dark:bg-amber-950/10 border border-amber-200/70 dark:border-amber-900/30 p-5 rounded-2xl space-y-3">
+              <ColumnLabel className="text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <ListTodo className="w-4 h-4" aria-hidden="true" />
+                Tugas harian operator (hari ini)
+              </ColumnLabel>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card variant="flat" padding="sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle>Siswa belum terdaftar kelas</CardTitle>
+                      <p className="text-[10px] font-plus-jakarta text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        Terdapat {statsData?.qualityStats?.orphanStudentCount ?? 0} siswa belum terdaftar di kelas manapun.
+                      </p>
+                    </div>
+                    <Link
+                      href="/students"
+                      className="shrink-0 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[10px] font-plus-jakarta rounded-lg cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 transition-colors"
+                    >
+                      Atur
+                    </Link>
+                  </div>
+                </Card>
+                <Card variant="flat" padding="sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <CardTitle>PIN portal orang tua belum dibuat</CardTitle>
+                      <p className="text-[10px] font-plus-jakarta text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        {studentsWithoutPinCount > 0
+                          ? `Terdapat ${studentsWithoutPinCount} anak didik aktif belum memiliki PIN akses portal wali.`
+                          : "Semua wali murid dari anak didik aktif telah memiliki PIN portal."}
+                      </p>
+                    </div>
+                    <Link
+                      href="/students"
+                      className="shrink-0 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold text-[10px] font-plus-jakarta rounded-lg cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1 transition-colors"
+                    >
+                      Buat PIN
+                    </Link>
+                  </div>
+                </Card>
               </div>
             </div>
-          </div>
+          </PageSection>
 
           {/* SECTION 3 & 4: Document & SPP Analytics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* SECTION 3: Document Completion */}
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#468432]" />
-                Rasio kelengkapan berkas siswa
-              </h3>
-              <div className="h-60">
-                {!statsData ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                    <Loader2 className="w-6 h-6 text-[#468432] animate-spin" />
-                    <span className="text-[10px] text-zinc-400">Memperbarui rasio berkas...</span>
-                  </div>
-                ) : (
-                  <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ReChartsPieChart>
-                      <Pie data={statsData.docPieChartData} cx="50%" cy="50%" outerRadius={70} fill="#8884d8" dataKey="value" label>
-                        {COLORS_PRIMARY.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS_PRIMARY[index % COLORS_PRIMARY.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip />
-                      <Legend verticalAlign="bottom" height={36} fontSize={10} />
-                    </ReChartsPieChart>
-                  </ReChartsResponsiveContainer>
-                )}
-              </div>
-            </div>
+          <PageSection>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-            {/* SECTION 4: SPP Overview */}
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
-                Grafik aliran SPP semester berjalan
-              </h3>
-              <div className="h-60">
-                {!statsData ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                    <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
-                    <span className="text-[10px] text-zinc-400">Memperbarui aliran SPP...</span>
-                  </div>
-                ) : (
-                  <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
-                    <ReChartsLineChart data={statsData.sppChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                      <XAxis dataKey="name" fontSize={10} tickLine={false} />
-                      <YAxis fontSize={10} tickLine={false} tickFormatter={(val) => `${val}%`} />
-                      <Tooltip formatter={(value) => [`${value}%`, undefined]} />
-                      <Legend />
-                      <Line type="monotone" dataKey="Lunas" stroke="#468432" strokeWidth={2} />
-                      <Line type="monotone" dataKey="Belum" stroke="#ef4444" strokeWidth={2} />
-                    </ReChartsLineChart>
-                  </ReChartsResponsiveContainer>
-                )}
-              </div>
+              {/* SECTION 3: Document Completion */}
+              <Card padding="lg">
+                <CardHeader title="Rasio kelengkapan berkas siswa" bordered />
+                <div className="h-60">
+                  {!statsData ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 text-brand-emerald-600 animate-spin" aria-hidden="true" />
+                      <span className="text-[10px] font-plus-jakarta text-zinc-400">Memperbarui rasio berkas...</span>
+                    </div>
+                  ) : (
+                    <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <ReChartsPieChart>
+                        <Pie data={statsData.docPieChartData} cx="50%" cy="50%" outerRadius={70} fill="#8884d8" dataKey="value" label>
+                          {COLORS_PRIMARY.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS_PRIMARY[index % COLORS_PRIMARY.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend verticalAlign="bottom" height={36} fontSize={10} />
+                      </ReChartsPieChart>
+                    </ReChartsResponsiveContainer>
+                  )}
+                </div>
+              </Card>
+
+              {/* SECTION 4: SPP Overview */}
+              <Card padding="lg">
+                <CardHeader title="Grafik aliran SPP semester berjalan" bordered />
+                <div className="h-60">
+                  {!statsData ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" aria-hidden="true" />
+                      <span className="text-[10px] font-plus-jakarta text-zinc-400">Memperbarui aliran SPP...</span>
+                    </div>
+                  ) : (
+                    <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <ReChartsLineChart data={statsData.sppChartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                        <XAxis dataKey="name" fontSize={10} tickLine={false} />
+                        <YAxis fontSize={10} tickLine={false} tickFormatter={(val) => `${val}%`} />
+                        <Tooltip formatter={(value) => [`${value}%`, undefined]} />
+                        <Legend />
+                        <Line type="monotone" dataKey="Lunas" stroke="#468432" strokeWidth={2} />
+                        <Line type="monotone" dataKey="Belum" stroke="#ef4444" strokeWidth={2} />
+                      </ReChartsLineChart>
+                    </ReChartsResponsiveContainer>
+                  )}
+                </div>
+              </Card>
             </div>
-          </div>
+          </PageSection>
 
           {/* SECTION 5 & 6: Data Quality & Activities */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* SECTION 6: Data Quality Diagnostic */}
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-[#468432]" />
-                Kualitas data & integritas basis data
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-500 font-medium">Duplikasi NIK siswa</span>
-                  <span className={`font-bold font-data ${dataQualityStats.duplicateNIKCount > 0 ? "text-red-500" : "text-emerald-600"}`}>
-                    {dataQualityStats.duplicateNIKCount} temuan
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-500 font-medium">Duplikasi NISN</span>
-                  <span className={`font-bold font-data ${dataQualityStats.duplicateNISNCount > 0 ? "text-red-500" : "text-emerald-600"}`}>
-                    {dataQualityStats.duplicateNISNCount} temuan
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-500 font-medium">Siswa tanpa kelas</span>
-                  <span className={`font-bold font-data ${dataQualityStats.orphanStudentCount > 0 ? "text-amber-500" : "text-emerald-600"}`}>
-                    {dataQualityStats.orphanStudentCount} anak
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-zinc-500 font-medium">Tanggal lahir kosong</span>
-                  <span className={`font-bold font-data ${dataQualityStats.missingBirthdateCount > 0 ? "text-amber-500" : "text-emerald-600"}`}>
-                    {dataQualityStats.missingBirthdateCount} anak
-                  </span>
-                </div>
-              </div>
-            </div>
+          <PageSection>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-            {/* SECTION 5: Import Export Activity logs */}
-            <div className="lg:col-span-2 p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                  <FileSpreadsheet className="w-4 h-4 text-zinc-500" />
-                  Riwayat sinkronisasi & backup database
-                </h3>
-                <div className="space-y-4 text-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2 gap-2">
-                    <div>
-                      <span className="font-bold text-zinc-800 dark:text-zinc-400 block">Google Sheets backup terjadwal</span>
-                      <span className="text-[10px] text-zinc-400 mt-0.5">Status: {statsData?.lastBackupStatus || "Pending"}</span>
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-data self-start sm:self-center">{statsData?.lastBackupTime || "..."}</span>
+              {/* SECTION 6: Data Quality Diagnostic */}
+              <Card padding="lg">
+                <CardHeader title="Kualitas data &amp; integritas basis data" bordered />
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-plus-jakarta text-zinc-500 font-medium">Duplikasi NIK siswa</span>
+                    <NumericDisplay className={`font-bold ${dataQualityStats.duplicateNIKCount > 0 ? "text-red-500" : "text-emerald-600"}`}>
+                      {dataQualityStats.duplicateNIKCount} temuan
+                    </NumericDisplay>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2 gap-2">
-                    <div>
-                      <span className="font-bold text-zinc-800 dark:text-zinc-400 block">Pengecekan integritas sistem</span>
-                      <span className="text-[10px] text-zinc-400 mt-0.5 break-all sm:break-normal">Status: {formatIntegrityStatus(statsData?.lastIntegrityCheckStatus || "Pending")}</span>
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-data self-start sm:self-center">{statsData?.lastIntegrityCheckTime || "..."}</span>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-plus-jakarta text-zinc-500 font-medium">Duplikasi NISN</span>
+                    <NumericDisplay className={`font-bold ${dataQualityStats.duplicateNISNCount > 0 ? "text-red-500" : "text-emerald-600"}`}>
+                      {dataQualityStats.duplicateNISNCount} temuan
+                    </NumericDisplay>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-plus-jakarta text-zinc-500 font-medium">Siswa tanpa kelas</span>
+                    <NumericDisplay className={`font-bold ${dataQualityStats.orphanStudentCount > 0 ? "text-amber-500" : "text-emerald-600"}`}>
+                      {dataQualityStats.orphanStudentCount} anak
+                    </NumericDisplay>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-plus-jakarta text-zinc-500 font-medium">Tanggal lahir kosong</span>
+                    <NumericDisplay className={`font-bold ${dataQualityStats.missingBirthdateCount > 0 ? "text-amber-500" : "text-emerald-600"}`}>
+                      {dataQualityStats.missingBirthdateCount} anak
+                    </NumericDisplay>
                   </div>
                 </div>
+              </Card>
+
+              {/* SECTION 5: Import Export Activity logs */}
+              <div className="lg:col-span-2">
+                <Card padding="lg">
+                  <CardHeader title="Riwayat sinkronisasi &amp; backup database" bordered />
+                  <div className="space-y-4 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2 gap-2">
+                      <div>
+                        <span className="font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-400 block">Google Sheets backup terjadwal</span>
+                        <span className="text-[10px] font-plus-jakarta text-zinc-400 mt-0.5">Status: {statsData?.lastBackupStatus || "Pending"}</span>
+                      </div>
+                      <NumericDisplay className="text-[10px] text-zinc-500 self-start sm:self-center">
+                        {statsData?.lastBackupTime || "..."}
+                      </NumericDisplay>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2 gap-2">
+                      <div>
+                        <span className="font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-400 block">Pengecekan integritas sistem</span>
+                        <span className="text-[10px] font-plus-jakarta text-zinc-400 mt-0.5 break-all sm:break-normal">
+                          Status: {formatIntegrityStatus(statsData?.lastIntegrityCheckStatus || "Pending")}
+                        </span>
+                      </div>
+                      <NumericDisplay className="text-[10px] text-zinc-500 self-start sm:self-center">
+                        {statsData?.lastIntegrityCheckTime || "..."}
+                      </NumericDisplay>
+                    </div>
+                  </div>
+
+                  {/* Quick Actions for Operator */}
+                  <div className="grid grid-cols-2 gap-2 pt-4">
+                    <Link
+                      href="/students"
+                      className="flex items-center justify-center gap-1 bg-brand-emerald-600 hover:bg-brand-emerald-700 text-white p-2.5 rounded-xl text-xs font-bold font-plus-jakarta transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" aria-hidden="true" /> Siswa baru
+                    </Link>
+                    <Link
+                      href="/import"
+                      className="flex items-center justify-center gap-1 bg-surface-2 hover:bg-zinc-200 dark:hover:bg-zinc-700/60 text-zinc-700 dark:text-zinc-300 p-2.5 rounded-xl text-xs font-bold font-plus-jakarta transition-all cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                    >
+                      <Upload className="w-3.5 h-3.5" aria-hidden="true" /> Impor Excel
+                    </Link>
+                  </div>
+                </Card>
               </div>
 
-              {/* SECTION 8: Quick Actions for Operator */}
-              <div className="grid grid-cols-2 gap-2 pt-4">
-                <Link href="/students" className="flex items-center justify-center gap-1 bg-[#468432] hover:bg-[#3A6F2B] text-white p-2.5 rounded-[12px] text-xs font-bold transition-all cursor-pointer">
-                  <UserPlus className="w-3.5 h-3.5" /> Siswa baru
-                </Link>
-                <Link href="/import" className="flex items-center justify-center gap-1 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-750 text-zinc-700 dark:text-zinc-300 p-2.5 rounded-[12px] text-xs font-bold transition-all cursor-pointer">
-                  <Upload className="w-3.5 h-3.5" /> Impor Excel
-                </Link>
-              </div>
             </div>
-
-          </div>
+          </PageSection>
 
         </div>
       )}
@@ -1241,244 +1299,254 @@ export default function DashboardPage() {
       {/* ========================================================================= */}
       {user?.role === "teacher" && (
         <div className="space-y-6 animate-fadeIn">
-          
+
           {/* SECTION 1: Hero */}
-          <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-[#468432] dark:bg-emerald-950/40 dark:text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#468432] animate-pulse"></span>
-                Guru pengajar
-              </span>
-              <h3 className="text-xl font-black text-zinc-900 dark:text-zinc-500 mt-2">Selamat datang kembali, {user.name}</h3>
-              <p className="text-xs text-zinc-500 font-data mt-0.5">{user.email}</p>
-            </div>
-            <div className="flex gap-4 border-t md:border-t-0 md:border-l border-zinc-100 dark:border-zinc-800 pt-4 md:pt-0 md:pl-6 text-xs text-zinc-500">
-              <div>
-                <span className="block font-bold text-zinc-400 uppercase tracking-wider text-[10px]">Tahun ajaran</span>
-                <span className="font-bold text-zinc-800 dark:text-zinc-200 font-data block mt-1">{activeAcademicYear ? activeAcademicYear.name : "-"}</span>
-              </div>
-              <div>
-                <span className="block font-bold text-zinc-400 uppercase tracking-wider text-[10px]">Semester</span>
-                <span className="font-bold text-zinc-800 dark:text-zinc-200 block mt-1">{activeSemester ? `Semester ${activeSemester.name}` : "-"}</span>
-              </div>
-            </div>
-          </div>          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-5 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Perwalian kelas</span>
-                <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-2">
-                  {myClasses.length > 0 ? myClasses[0].class_name : "Tidak ada perwalian aktif"}
-                </h4>
-              </div>
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl text-[#468432] dark:text-emerald-400">
-                <School className="w-6 h-6" />
-              </div>
-            </div>
-
-            <div className="p-5 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Jumlah mengajar</span>
-                <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-2 font-data">
-                  {myClasses.length} kelas
-                </h4>
-              </div>
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-xl text-blue-600 dark:text-blue-400">
-                <BookOpen className="w-6 h-6" />
-              </div>
-            </div>
-
-            <div className="p-5 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs text-zinc-400 block font-bold uppercase tracking-wider">Siswa diampu</span>
-                <h4 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mt-2 font-data">
-                  {teacherStudents.length} anak
-                </h4>
-              </div>
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl text-amber-600 dark:text-amber-400">
-                <Users className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
-
-          {/* SECTION 2: Today's Schedule */}
-          <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-[#468432]" />
-              Jadwal dan agenda mengajar hari ini
-            </h3>
-            <div className="space-y-3">
-              {myClasses.length > 0 ? (
-                myClasses.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 rounded-[12px] bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/30">
-                    <div>
-                      <span className="text-xs font-bold text-zinc-900 dark:text-zinc-50 block">{item.class_name}</span>
-                      <span className="text-[10px] text-zinc-400 mt-0.5 block font-data">Kode: {item.class_code}</span>
-                    </div>
-                    <span className="text-xs font-bold text-[#468432] dark:text-emerald-400 font-sans">Sesi Aktif</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-zinc-500 italic text-center py-4">Belum ada kelas mengajar hari ini.</p>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 3: Today's Tasks */}
-          <div className="bg-amber-50/30 dark:bg-amber-950/10 border border-amber-250/70 dark:border-amber-900/30 p-5 rounded-[20px] space-y-3">
-            <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <ListTodo className="w-4 h-4" />
-              Tugas mengajar tertunda
-            </h3>
-            {teacherPendingTasks.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {teacherPendingTasks.map((task) => (
-                  <Link key={task.id} href={task.href} className="p-3 bg-white dark:bg-[#171717] rounded-[16px] border border-amber-100 dark:border-amber-950/20 shadow-sm flex items-center justify-between hover:border-amber-500 transition-colors cursor-pointer">
-                    <div>
-                      <span className="text-[9px] uppercase tracking-wider font-extrabold text-amber-700 dark:text-amber-400 block">{task.category}</span>
-                      <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-50 mt-0.5">{task.title}</h4>
-                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5">{task.description}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-zinc-400" />
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="bg-white dark:bg-[#171717] p-6 rounded-[16px] border border-amber-100 dark:border-amber-950/20 text-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-                <p className="text-xs text-zinc-600 dark:text-zinc-350">Luar biasa! Tidak ada tugas tertunda untuk hari ini.</p>
-              </div>
-            )}
-          </div>
-
-          {/* SECTION 4 & 5: Academic & Culture Progress */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* SECTION 4: Academic Progress */}
-            <div className="p-5 bg-white dark:bg-[#171717] rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <BookOpen className="w-4 h-4 text-[#468432]" />
-                Kemajuan pengisian nilai akademik
-              </h3>
-              <div className="space-y-4">
+          <PageSection>
+            <Card padding="lg">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-zinc-500 font-medium">Beban evaluasi selesai (locked)</span>
-                    <span className="font-bold text-zinc-800 dark:text-zinc-200 font-data">
-                      {teacherAcademicStats.completedCount} <span className="font-sans font-normal text-zinc-400 text-[10px]">dari</span> {teacherAcademicStats.totalCount} ({teacherAcademicStats.academicProgressPercent}%)
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold font-plus-jakarta bg-brand-emerald-50 text-brand-emerald-600 dark:bg-brand-emerald-950/40 dark:text-brand-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-emerald-600 animate-pulse" aria-hidden="true" />
+                    Guru pengajar
+                  </span>
+                  <h3 className="text-xl font-bold font-fredoka text-zinc-900 dark:text-zinc-50 mt-2">Selamat datang kembali, {user.name}</h3>
+                  <NumericDisplay className="text-zinc-500 text-xs mt-0.5 block">{user.email}</NumericDisplay>
+                </div>
+                <div className="flex gap-4 border-t md:border-t-0 md:border-l border-zinc-100 dark:border-zinc-800 pt-4 md:pt-0 md:pl-6">
+                  <div>
+                    <ColumnLabel className="block">Tahun ajaran</ColumnLabel>
+                    <span className="font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-200 block mt-1 text-sm">
+                      {activeAcademicYear ? activeAcademicYear.name : "-"}
                     </span>
                   </div>
-                  <div className="h-2.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${teacherAcademicStats.academicProgressPercent}%` }}></div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                  <div className="p-2.5 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/10 rounded-[12px]">
-                    <span className="text-[10px] text-zinc-400 block font-bold uppercase">Sudah final</span>
-                    <span className="text-sm font-black text-zinc-850 dark:text-zinc-100 mt-1 block font-data">{teacherAcademicStats.completedCount}</span>
-                  </div>
-                  <div className="p-2.5 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/10 rounded-[12px]">
-                    <span className="text-[10px] text-zinc-400 block font-bold uppercase">Masih draf</span>
-                    <span className="text-sm font-black text-zinc-850 dark:text-zinc-100 mt-1 block font-data">{teacherAcademicStats.pendingCount}</span>
+                  <div>
+                    <ColumnLabel className="block">Semester</ColumnLabel>
+                    <span className="font-bold font-plus-jakarta text-zinc-800 dark:text-zinc-200 block mt-1 text-sm">
+                      {activeSemester ? `Semester ${activeSemester.name}` : "-"}
+                    </span>
                   </div>
                 </div>
               </div>
-            </div>
+            </Card>
+          </PageSection>
 
-            {/* SECTION 5: Culture Progress */}
-            <div className="p-5 bg-white dark:bg-[#171717] rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Heart className="w-4 h-4 text-rose-500" />
-                Kemajuan pengisian budaya (SAHABAT)
-              </h3>
-              {teacherCulture && teacherCulture.class_summary ? (
+          {/* Teacher stat KPIs */}
+          <PageSection>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <KPICard
+                title="Perwalian kelas"
+                value={myClasses.length > 0 ? myClasses[0].class_name : "Tidak ada perwalian aktif"}
+                icon={<School className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Jumlah mengajar"
+                value={`${myClasses.length} kelas`}
+                icon={<BookOpen className="w-4 h-4" />}
+              />
+              <KPICard
+                title="Siswa diampu"
+                value={`${teacherStudents.length} anak`}
+                icon={<Users className="w-4 h-4" />}
+              />
+            </div>
+          </PageSection>
+
+          {/* SECTION 2: Today's Schedule */}
+          <PageSection>
+            <Card padding="lg">
+              <CardHeader title="Jadwal dan agenda mengajar hari ini" bordered />
+              <div className="space-y-3">
+                {myClasses.length > 0 ? (
+                  myClasses.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-3 rounded-xl bg-surface-2 border border-zinc-100 dark:border-zinc-800/30">
+                      <div>
+                        <span className="text-xs font-bold font-plus-jakarta text-zinc-900 dark:text-zinc-50 block">{item.class_name}</span>
+                        <NumericDisplay className="text-[10px] text-zinc-400 mt-0.5 block">Kode: {item.class_code}</NumericDisplay>
+                      </div>
+                      <span className="text-xs font-bold font-plus-jakarta text-brand-emerald-600 dark:text-brand-emerald-400">Sesi Aktif</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs font-plus-jakarta text-zinc-500 italic text-center py-4">Belum ada kelas mengajar hari ini.</p>
+                )}
+              </div>
+            </Card>
+          </PageSection>
+
+          {/* SECTION 3: Today's Tasks */}
+          <PageSection>
+            <div className="bg-amber-50/30 dark:bg-amber-950/10 border border-amber-200/70 dark:border-amber-900/30 p-5 rounded-2xl space-y-3">
+              <ColumnLabel className="text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <ListTodo className="w-4 h-4" aria-hidden="true" />
+                Tugas mengajar tertunda
+              </ColumnLabel>
+              {teacherPendingTasks.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {teacherPendingTasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      href={task.href}
+                      className="p-3 bg-surface-1 rounded-2xl border border-amber-100 dark:border-amber-950/20 shadow-sm flex items-center justify-between hover:border-amber-500 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-1"
+                    >
+                      <div>
+                        <ColumnLabel className="text-amber-700 dark:text-amber-400 block">{task.category}</ColumnLabel>
+                        <CardTitle className="mt-0.5">{task.title}</CardTitle>
+                        <p className="text-[10px] font-plus-jakarta text-zinc-500 dark:text-zinc-400 mt-0.5">{task.description}</p>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-zinc-400 shrink-0" aria-hidden="true" />
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-surface-1 p-6 rounded-2xl border border-amber-100 dark:border-amber-950/20 text-center">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" aria-hidden="true" />
+                  <p className="text-xs font-plus-jakarta text-zinc-600 dark:text-zinc-400">Luar biasa! Tidak ada tugas tertunda untuk hari ini.</p>
+                </div>
+              )}
+            </div>
+          </PageSection>
+
+          {/* SECTION 4 & 5: Academic & Culture Progress */}
+          <PageSection>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              {/* SECTION 4: Academic Progress */}
+              <Card padding="md">
+                <CardHeader title="Kemajuan pengisian nilai akademik" bordered />
                 <div className="space-y-4">
                   <div>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="text-zinc-500 font-medium">Rata-rata cakupan harian kelas</span>
-                      <span className="font-bold text-zinc-800 dark:text-zinc-200 font-data">
-                        {teacherCulture.class_summary.average_coverage_percent}%
-                      </span>
+                      <span className="font-plus-jakarta text-zinc-500 font-medium">Beban evaluasi selesai (locked)</span>
+                      <NumericDisplay className="font-bold text-zinc-800 dark:text-zinc-200">
+                        {teacherAcademicStats.completedCount} dari {teacherAcademicStats.totalCount} ({teacherAcademicStats.academicProgressPercent}%)
+                      </NumericDisplay>
                     </div>
                     <div className="h-2.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-rose-500 rounded-full" style={{ width: `${teacherCulture.class_summary.average_coverage_percent}%` }}></div>
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${teacherAcademicStats.academicProgressPercent}%` }} />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                    <div className="p-2.5 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/10 rounded-[12px]">
-                      <span className="text-[10px] text-zinc-400 block font-bold uppercase">Siswa lengkap</span>
-                      <span className="text-sm font-black text-zinc-850 dark:text-zinc-100 mt-1 block font-data">
-                        {teacherCulture.class_summary.complete_students} anak
-                      </span>
+                    <div className="p-2.5 bg-surface-2 border border-zinc-100 dark:border-zinc-800/10 rounded-xl">
+                      <ColumnLabel className="block">Sudah final</ColumnLabel>
+                      <span className="text-sm font-bold font-fredoka text-zinc-900 dark:text-zinc-100 mt-1 block">{teacherAcademicStats.completedCount}</span>
                     </div>
-                    <div className="p-2.5 bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/10 rounded-[12px]">
-                      <span className="text-[10px] text-zinc-400 block font-bold uppercase">Siswa kosong</span>
-                      <span className="text-sm font-black text-zinc-850 dark:text-zinc-100 mt-1 block font-data">
-                        {teacherCulture.class_summary.empty_students} anak
-                      </span>
+                    <div className="p-2.5 bg-surface-2 border border-zinc-100 dark:border-zinc-800/10 rounded-xl">
+                      <ColumnLabel className="block">Masih draf</ColumnLabel>
+                      <span className="text-sm font-bold font-fredoka text-zinc-900 dark:text-zinc-100 mt-1 block">{teacherAcademicStats.pendingCount}</span>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <p className="text-xs text-zinc-500 italic py-4 text-center">Data rekapitulasi budaya belum tersedia untuk semester ini.</p>
-              )}
-            </div>
+              </Card>
 
-          </div>
+              {/* SECTION 5: Culture Progress */}
+              <Card padding="md">
+                <CardHeader title="Kemajuan pengisian budaya (SAHABAT)" bordered />
+                {teacherCulture && teacherCulture.class_summary ? (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-plus-jakarta text-zinc-500 font-medium">Rata-rata cakupan harian kelas</span>
+                        <NumericDisplay className="font-bold text-zinc-800 dark:text-zinc-200">
+                          {teacherCulture.class_summary.average_coverage_percent}%
+                        </NumericDisplay>
+                      </div>
+                      <div className="h-2.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-rose-500 rounded-full" style={{ width: `${teacherCulture.class_summary.average_coverage_percent}%` }} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                      <div className="p-2.5 bg-surface-2 border border-zinc-100 dark:border-zinc-800/10 rounded-xl">
+                        <ColumnLabel className="block">Siswa lengkap</ColumnLabel>
+                        <span className="text-sm font-bold font-fredoka text-zinc-900 dark:text-zinc-100 mt-1 block">
+                          {teacherCulture.class_summary.complete_students} anak
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-surface-2 border border-zinc-100 dark:border-zinc-800/10 rounded-xl">
+                        <ColumnLabel className="block">Siswa kosong</ColumnLabel>
+                        <span className="text-sm font-bold font-fredoka text-zinc-900 dark:text-zinc-100 mt-1 block">
+                          {teacherCulture.class_summary.empty_students} anak
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs font-plus-jakarta text-zinc-500 italic py-4 text-center">Data rekapitulasi budaya belum tersedia untuk semester ini.</p>
+                )}
+              </Card>
+
+            </div>
+          </PageSection>
 
           {/* SECTION 7: Reminder */}
-          <div className="bg-amber-50/20 dark:bg-amber-950/10 border border-amber-250/70 dark:border-amber-900/30 p-5 rounded-[20px] flex flex-col justify-between">
-            <div>
-              <h3 className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4" />
+          <PageSection>
+            <div className="bg-amber-50/20 dark:bg-amber-950/10 border border-amber-200/70 dark:border-amber-900/30 p-5 rounded-2xl">
+              <ColumnLabel className="text-amber-700 dark:text-amber-400 flex items-center gap-1.5 mb-2">
+                <AlertCircle className="w-4 h-4" aria-hidden="true" />
                 Pengingat batas waktu penting guru
-              </h3>
-              <p className="text-xs text-zinc-600 dark:text-zinc-350 leading-relaxed">
-                Penguncian semester aktif dijadwalkan pada tanggal <strong>{activeSemester?.end_date ? new Date(activeSemester.end_date).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) : "akhir semester"}</strong>. Pastikan semua draf penilaian akademik dikunci dan rekap pembiasaan budaya SAHABAT diisi secara penuh demi kelancaran penerbitan rapor murid.
+              </ColumnLabel>
+              <p className="text-xs font-plus-jakarta text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                Penguncian semester aktif dijadwalkan pada tanggal{" "}
+                <strong>
+                  {activeSemester?.end_date
+                    ? new Date(activeSemester.end_date).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+                    : "akhir semester"}
+                </strong>. Pastikan semua draf penilaian akademik dikunci dan rekap pembiasaan budaya SAHABAT diisi secara penuh demi kelancaran penerbitan rapor murid.
               </p>
             </div>
-          </div>
+          </PageSection>
 
           {/* SECTION 8: Analytics */}
           {teacherAnalyticsData && (
-            <div className="p-6 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800/80 shadow-sm">
-              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#468432]" />
-                Distribusi pencapaian nilai rata-rata kelas perwalian
-              </h3>
-              <div className="h-64">
-                <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <ReChartsBarChart data={teacherAnalyticsData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                    <XAxis dataKey="name" fontSize={10} tickLine={false} />
-                    <YAxis fontSize={10} tickLine={false} />
-                    <Tooltip />
-                    <Bar dataKey="Jumlah" fill="#468432" radius={[6, 6, 0, 0]} />
-                  </ReChartsBarChart>
-                </ReChartsResponsiveContainer>
-              </div>
-            </div>
+            <PageSection>
+              <Card padding="lg">
+                <CardHeader title="Distribusi pencapaian nilai rata-rata kelas perwalian" bordered />
+                <div className="h-64">
+                  <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <ReChartsBarChart data={teacherAnalyticsData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis dataKey="name" fontSize={10} tickLine={false} />
+                      <YAxis fontSize={10} tickLine={false} />
+                      <Tooltip />
+                      <Bar dataKey="Jumlah" fill="#468432" radius={[6, 6, 0, 0]} />
+                    </ReChartsBarChart>
+                  </ReChartsResponsiveContainer>
+                </div>
+              </Card>
+            </PageSection>
           )}
 
           {/* SECTION 9: Quick Actions */}
-          <div className="p-5 rounded-[20px] bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 shadow-sm">
-            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-4">
-              Aksi cepat guru
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Link href="/academic-scores" className="flex items-center justify-center gap-1.5 p-3 rounded-[12px] bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-200 dark:border-zinc-800 hover:bg-[#468432] hover:text-white transition-all text-xs font-bold cursor-pointer">
-                Input nilai
-              </Link>
-              <Link href="/daily-culture" className="flex items-center justify-center gap-1.5 p-3 rounded-[12px] bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-200 dark:border-zinc-800 hover:bg-[#468432] hover:text-white transition-all text-xs font-bold cursor-pointer">
-                Input karakter
-              </Link>
-              <Link href="/presence" className="flex items-center justify-center gap-1.5 p-3 rounded-[12px] bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-200 dark:border-zinc-800 hover:bg-[#468432] hover:text-white transition-all text-xs font-bold cursor-pointer">
-                Presensi kelas
-              </Link>
-              <Link href="/my-class" className="flex items-center justify-center gap-1.5 p-3 rounded-[12px] bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-200 dark:border-zinc-800 hover:bg-[#468432] hover:text-white transition-all text-xs font-bold cursor-pointer">
-                Catatan wali
-              </Link>
-            </div>
-          </div>
+          <PageSection>
+            <Card padding="md">
+              <CardHeader title="Aksi cepat guru" bordered />
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Link
+                  href="/academic-scores"
+                  className="flex items-center justify-center gap-1.5 p-3 rounded-xl bg-surface-2 border border-zinc-200 dark:border-zinc-800 hover:bg-brand-emerald-600 hover:text-white hover:border-brand-emerald-600 transition-all text-xs font-bold font-plus-jakarta cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                >
+                  Input nilai
+                </Link>
+                <Link
+                  href="/daily-culture"
+                  className="flex items-center justify-center gap-1.5 p-3 rounded-xl bg-surface-2 border border-zinc-200 dark:border-zinc-800 hover:bg-brand-emerald-600 hover:text-white hover:border-brand-emerald-600 transition-all text-xs font-bold font-plus-jakarta cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                >
+                  Input karakter
+                </Link>
+                <Link
+                  href="/presence"
+                  className="flex items-center justify-center gap-1.5 p-3 rounded-xl bg-surface-2 border border-zinc-200 dark:border-zinc-800 hover:bg-brand-emerald-600 hover:text-white hover:border-brand-emerald-600 transition-all text-xs font-bold font-plus-jakarta cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                >
+                  Presensi kelas
+                </Link>
+                <Link
+                  href="/my-class"
+                  className="flex items-center justify-center gap-1.5 p-3 rounded-xl bg-surface-2 border border-zinc-200 dark:border-zinc-800 hover:bg-brand-emerald-600 hover:text-white hover:border-brand-emerald-600 transition-all text-xs font-bold font-plus-jakarta cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
+                >
+                  Catatan wali
+                </Link>
+              </div>
+            </Card>
+          </PageSection>
 
         </div>
       )}
@@ -1502,6 +1570,6 @@ export default function DashboardPage() {
           />
         </>
       )}
-    </ResponsiveContainer>
+    </PageContainer>
   );
 }

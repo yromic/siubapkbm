@@ -227,7 +227,7 @@ export default function StudentsPage() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3.5 py-2.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:ring-2 focus:ring-[#468432]/30 focus:border-[#468432] cursor-pointer"
+          className="px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500 cursor-pointer"
         >
           {(viewArchive ? ARCHIVE_FILTER_OPTIONS : OPERATIONAL_FILTER_OPTIONS).map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -241,7 +241,7 @@ export default function StudentsPage() {
       {loading && <LoadingState message={UX_COPY.loading.fetch} />}
 
       {error && (
-        <div className="p-4 rounded-[20px] bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-600 dark:text-red-400">
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-600 dark:text-red-400">
           {error}
         </div>
       )}
@@ -260,7 +260,7 @@ export default function StudentsPage() {
               }
             />
           ) : (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -285,7 +285,7 @@ export default function StudentsPage() {
                       return (
                         <tr
                           key={student.id}
-                          className={`hover:bg-zinc-50/60 dark:hover:bg-[#262626]/40 transition-colors cursor-pointer ${
+                          className={`hover:bg-zinc-50/60 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer ${
                             isArchived ? "opacity-60 bg-zinc-50/30 dark:bg-zinc-950/10" : ""
                           }`}
                           onClick={() => router.push(`/students/${student.id}`)}
@@ -331,7 +331,7 @@ export default function StudentsPage() {
                           >
                             <DropdownMenu.Root>
                               <DropdownMenu.Trigger asChild>
-                                <button className="p-1.5 rounded-[12px] hover:bg-zinc-100 dark:hover:bg-[#262626] transition-colors outline-none cursor-pointer">
+                                <button className="p-1.5 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors outline-none cursor-pointer" aria-label="Buka menu aksi siswa">
                                   <MoreVertical className="w-4 h-4 text-zinc-400" />
                                 </button>
                               </DropdownMenu.Trigger>
@@ -340,12 +340,12 @@ export default function StudentsPage() {
                                 <DropdownMenu.Content
                                   align="end"
                                   sideOffset={5}
-                                  className="z-50 min-w-[160px] bg-white dark:bg-[#2d2d2d] border border-zinc-200 dark:border-zinc-800 rounded-[16px] p-1 shadow-lg outline-none"
+                                  className="z-50 min-w-[160px] bg-surface-1 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-1 shadow-lg outline-none"
                                 >
                                   <DropdownMenu.Item asChild>
                                     <Link
                                       href={`/students/${student.id}`}
-                                      className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#262626]/60 outline-none transition-colors cursor-pointer"
+                                      className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 outline-none transition-colors cursor-pointer"
                                     >
                                       <Eye className="w-3.5 h-3.5" />
                                       Detail Siswa
@@ -356,7 +356,7 @@ export default function StudentsPage() {
                                     <DropdownMenu.Item asChild>
                                       <Link
                                         href={`/students/${student.id}/edit`}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#262626]/60 outline-none transition-colors cursor-pointer"
+                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 outline-none transition-colors cursor-pointer"
                                       >
                                         <Edit className="w-3.5 h-3.5" />
                                         Edit Data
@@ -372,7 +372,7 @@ export default function StudentsPage() {
                                           setConfirmTarget({ id: student.id, name: student.full_name, status: "INACTIVE" });
                                           setConfirmOpen(true);
                                         }}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#262626]/60 outline-none transition-colors cursor-pointer"
+                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 outline-none transition-colors cursor-pointer"
                                       >
                                         <Power className="w-3.5 h-3.5" />
                                         Nonaktifkan
@@ -382,7 +382,7 @@ export default function StudentsPage() {
                                           setConfirmTarget({ id: student.id, name: student.full_name, status: "ARCHIVED" });
                                           setConfirmOpen(true);
                                         }}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#262626]/60 outline-none transition-colors cursor-pointer"
+                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 outline-none transition-colors cursor-pointer"
                                       >
                                         <Archive className="w-3.5 h-3.5" />
                                         Arsipkan
@@ -407,7 +407,7 @@ export default function StudentsPage() {
                                           setConfirmTarget({ id: student.id, name: student.full_name, status: "ACTIVE" });
                                           setConfirmOpen(true);
                                         }}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#262626]/60 outline-none transition-colors cursor-pointer"
+                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 outline-none transition-colors cursor-pointer"
                                       >
                                         <CheckCircle className="w-3.5 h-3.5" />
                                         Aktifkan
@@ -417,7 +417,7 @@ export default function StudentsPage() {
                                           setConfirmTarget({ id: student.id, name: student.full_name, status: "ARCHIVED" });
                                           setConfirmOpen(true);
                                         }}
-                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-[#262626]/60 outline-none transition-colors cursor-pointer"
+                                        className="flex items-center gap-2 px-3 py-2 rounded-[12px] text-xs text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800/60 outline-none transition-colors cursor-pointer"
                                       >
                                         <Archive className="w-3.5 h-3.5" />
                                         Arsipkan

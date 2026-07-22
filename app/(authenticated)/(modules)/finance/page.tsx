@@ -516,17 +516,17 @@ export default function FinancePage() {
                 return (
                   <div
                     key={p.id}
-                    className={`p-4 rounded-[20px] border transition-all ${
+                    className={`p-4 rounded-2xl border transition-all ${
                       isSelected
                         ? "border-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/10"
-                        : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-[#171717]/40"
+                        : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-2.5 min-w-0">
                         <input
                           type="checkbox"
-                          className="rounded border-zinc-300 dark:border-zinc-700 text-[#468432] focus:ring-[#468432] disabled:opacity-40 mt-1 cursor-pointer shrink-0"
+                          className="rounded border-zinc-300 dark:border-zinc-700 text-brand-emerald-600 focus-visible:ring-brand-emerald-500 disabled:opacity-40 mt-1 cursor-pointer shrink-0"
                           checked={isSelected}
                           onChange={() => handleSelectRowToggle(p.student_id)}
                           disabled={isPaid}
@@ -573,7 +573,7 @@ export default function FinancePage() {
                       {!isPaidStatus(p.payment_status) ? (
                         <button
                           onClick={() => handleOpenVerifyModal(p)}
-                          className="px-4 py-2 rounded-[12px] text-xs font-semibold text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition cursor-pointer"
+                          className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-brand-emerald-600 hover:bg-brand-emerald-700 active:bg-brand-emerald-800 transition cursor-pointer"
                         >
                           Verifikasi
                         </button>
@@ -606,7 +606,7 @@ export default function FinancePage() {
             <>
               <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800 text-sm">
-                  <thead className="bg-zinc-50 dark:bg-[#171717]">
+                  <thead className="bg-zinc-50 dark:bg-zinc-900">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">Nama Siswa</th>
                       <th className="hidden md:table-cell px-4 py-3 text-left font-semibold text-zinc-600 dark:text-zinc-400">NISN</th>
@@ -637,7 +637,7 @@ export default function FinancePage() {
                         <td className="px-4 py-3 text-center">
                           <button
                             onClick={() => handleOpenVerifyModalFromArrears(student)}
-                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#468432] hover:bg-[#3A6F2B] active:bg-[#305C23] transition"
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-brand-emerald-600 hover:bg-brand-emerald-700 active:bg-brand-emerald-800 transition"
                           >
                             Bayar Tunggakan
                           </button>
@@ -653,7 +653,7 @@ export default function FinancePage() {
                 {arrearsList.map((student) => (
                   <div
                     key={student.student_id}
-                    className="p-4 rounded-[20px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-[#171717]/40 space-y-3"
+                    className="p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 space-y-3"
                   >
                     <div className="flex justify-between items-start">
                       <div>
@@ -669,7 +669,7 @@ export default function FinancePage() {
                       </span>
                     </div>
 
-                    <div className="text-xs text-zinc-600 dark:text-zinc-400 bg-white dark:bg-[#121212] p-2 rounded-lg border border-zinc-100 dark:border-zinc-900">
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-950 p-2 rounded-lg border border-zinc-100 dark:border-zinc-900">
                       <span className="font-bold block text-[10px] uppercase tracking-wider text-zinc-400 mb-1">Rincian:</span>
                       {student.unpaid_months.map(m => `${months[m.payment_month - 1].label} ${m.payment_year}`).join(", ")}
                     </div>

@@ -10,6 +10,7 @@ import { PageHeader, ResponsiveContainer, LoadingState, ForbiddenState } from "@
 import { CelebrationModal } from "@/components/ui/celebration-modal";
 import { useAppreciation } from "@/hooks/useAppreciation";
 import { userFacingError } from "@/lib/utils/ui-error";
+import { notify } from "@/lib/notify";
 
 interface ClassReadiness {
   class_id: string;
@@ -363,7 +364,7 @@ export default function RolloverPage() {
           {readinessLoading && <LoadingState message="Memeriksa data kesiapan operasional..." />}
 
           {readinessError && (
-            <div className="p-4 rounded-[20px] bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
+            <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
               {readinessError}
             </div>
           )}
@@ -372,7 +373,7 @@ export default function RolloverPage() {
             <>
               {/* Overall status display */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#171717] shadow-sm flex flex-col justify-between">
+                <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-surface-1 shadow-sm flex flex-col justify-between">
                   <div>
                     <span className="text-xs font-semibold text-zinc-550 uppercase">Periode Aktif Terdeteksi</span>
                     <h4 className="text-lg font-bold text-zinc-950 dark:text-zinc-50 mt-1">
@@ -390,7 +391,7 @@ export default function RolloverPage() {
                   </div>
                 </div>
 
-                <div className="p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#171717] shadow-sm flex flex-col justify-between">
+                <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-surface-1 shadow-sm flex flex-col justify-between">
                   <div>
                     <span className="text-xs font-semibold text-zinc-550 uppercase">Status Kesiapan Operasional</span>
                     <div className="mt-2 flex items-center gap-2">
@@ -416,7 +417,7 @@ export default function RolloverPage() {
                   </p>
                 </div>
 
-                <div className="p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#171717] shadow-sm">
+                <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-surface-1 shadow-sm">
                   <span className="text-xs font-semibold text-zinc-550 uppercase">Ringkasan Setup</span>
                   <div className="mt-3 space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -425,7 +426,7 @@ export default function RolloverPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-550">Kelas Siap (Ready):</span>
-                      <span className="font-bold text-[#468432] dark:text-emerald-450">{readiness.summary.ready_classes}</span>
+                      <span className="font-bold text-brand-emerald-600 dark:text-emerald-450">{readiness.summary.ready_classes}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-zinc-550">Kelas Perlu Setup (Warning/Not Ready):</span>
@@ -438,7 +439,7 @@ export default function RolloverPage() {
               </div>
 
               {/* Class setup list */}
-              <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm space-y-4 p-5">
+              <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm space-y-4 p-5">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <h3 className="text-md font-bold text-zinc-900 dark:text-zinc-50">Daftar Detail Kelas</h3>
                   <input
@@ -446,7 +447,7 @@ export default function RolloverPage() {
                     placeholder="Cari kelas..."
                     value={readinessSearch}
                     onChange={(e) => setReadinessSearch(e.target.value)}
-                    className="w-full sm:w-64 px-3 py-1.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                    className="w-full sm:w-64 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                   />
                 </div>
 
@@ -538,7 +539,7 @@ export default function RolloverPage() {
       {activeTab === "assignment" && (
         <div className="space-y-6 animate-fade-in">
           {/* Explanation Alert */}
-          <div className="p-4 rounded-[20px] bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900 text-sm text-sky-800 dark:text-sky-300 space-y-1">
+          <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900 text-sm text-sky-800 dark:text-sky-300 space-y-1">
             <h4 className="font-bold">Ketentuan Penyalinan Wali Kelas:</h4>
             <ul className="list-disc list-inside space-y-1 text-xs mt-1 leading-relaxed">
               <li>Fitur ini menyalin konfigurasi penugasan guru wali kelas dari periode sumber ke periode target.</li>
@@ -548,14 +549,14 @@ export default function RolloverPage() {
             </ul>
           </div>
 
-          <div className="p-5 bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] shadow-sm">
+          <div className="p-5 bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm">
             <form onSubmit={handlePreviewAssignment} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div>
                 <label className="block text-xs font-semibold uppercase text-zinc-500 mb-1.5">Tahun Sumber</label>
                 <select
                   value={srcYearId}
                   onChange={(e) => setSrcYearId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {academicYears.map(y => (
                     <option key={y.id} value={y.id}>{y.name?.trim() || "Tahun ajaran tanpa nama"}</option>
@@ -568,7 +569,7 @@ export default function RolloverPage() {
                 <select
                   value={selectedSrcSemesterId}
                   onChange={(e) => setSelectedSrcSemesterId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {semesters.filter(s => s.academic_year_id === srcYearId).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -581,7 +582,7 @@ export default function RolloverPage() {
                 <select
                   value={tgtYearId}
                   onChange={(e) => setTgtYearId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {academicYears.map(y => (
                     <option key={y.id} value={y.id}>{y.name?.trim() || "Tahun ajaran tanpa nama"}</option>
@@ -594,7 +595,7 @@ export default function RolloverPage() {
                 <select
                   value={selectedTgtSemesterId}
                   onChange={(e) => setSelectedTgtSemesterId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {semesters.filter(s => s.academic_year_id === tgtYearId).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -606,7 +607,7 @@ export default function RolloverPage() {
                 <button
                   type="submit"
                   disabled={assignLoading}
-                  className="w-full px-4 py-2.5 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] text-white font-semibold shadow-md shadow-[#468432]/10 transition-colors disabled:opacity-50 text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl bg-brand-emerald-600 hover:bg-brand-emerald-700 text-white font-semibold shadow-md shadow-brand-emerald-600/10 transition-colors disabled:opacity-50 text-sm"
                 >
                   {assignLoading ? "Memproses..." : "Lihat Pratinjau"}
                 </button>
@@ -615,13 +616,13 @@ export default function RolloverPage() {
           </div>
 
           {assignError && (
-            <div className="p-4 rounded-[20px] bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
+            <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
               <p>{assignError}</p><button type="button" onClick={() => void handlePreviewAssignment({ preventDefault() {} } as React.FormEvent)} className="mt-3 rounded-lg border border-red-300 px-3 py-1.5 font-semibold dark:border-red-800">Coba Lagi</button>
             </div>
           )}
 
           {assignExec && (
-            <div className="p-5 rounded-[20px] bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 text-emerald-850 dark:text-emerald-400 space-y-2">
+            <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 text-emerald-850 dark:text-emerald-400 space-y-2">
               <h4 className="font-bold text-md">✔ Salin Penugasan Wali Kelas Sukses!</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pt-2">
                 <div>
@@ -637,7 +638,7 @@ export default function RolloverPage() {
           )}
 
           {assignPreview && (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm p-5 space-y-4">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm p-5 space-y-4">
               <div className="flex justify-between items-center border-b border-zinc-150 pb-3">
                 <h3 className="font-bold text-zinc-900 dark:text-zinc-50">
                   Pratinjau: {assignPreview.total_found} Penugasan Ditemukan
@@ -645,7 +646,7 @@ export default function RolloverPage() {
                 <button
                   onClick={() => setConfirmType("assignment")}
                   disabled={assignLoading}
-                  className="px-4 py-2 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] text-white font-semibold text-xs shadow-md shadow-[#468432]/10 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-brand-emerald-600 hover:bg-brand-emerald-700 text-white font-semibold text-xs shadow-md shadow-brand-emerald-600/10 transition-colors disabled:opacity-50"
                 >
                   {assignLoading ? "Menyalin..." : "Salin Wali Kelas"}
                 </button>
@@ -705,7 +706,7 @@ export default function RolloverPage() {
       {activeTab === "subject" && (
         <div className="space-y-6 animate-fade-in">
           {/* Explanation Alert */}
-          <div className="p-4 rounded-[20px] bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900 text-sm text-sky-800 dark:text-sky-300 space-y-1">
+          <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900 text-sm text-sky-800 dark:text-sky-300 space-y-1">
             <h4 className="font-bold">Ketentuan Penyalinan Mata Pelajaran di Kelas:</h4>
             <ul className="list-disc list-inside space-y-1 text-xs mt-1 leading-relaxed">
               <li>Fitur ini menyalin mata pelajaran di kelas dari periode sumber ke periode target.</li>
@@ -715,14 +716,14 @@ export default function RolloverPage() {
             </ul>
           </div>
 
-          <div className="p-5 bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] shadow-sm">
+          <div className="p-5 bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm">
             <form onSubmit={handlePreviewSubject} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div>
                 <label className="block text-xs font-semibold uppercase text-zinc-500 mb-1.5">Tahun Sumber</label>
                 <select
                   value={subSrcYearId}
                   onChange={(e) => setSubSrcYearId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {academicYears.map(y => (
                     <option key={y.id} value={y.id}>{y.name?.trim() || "Tahun ajaran tanpa nama"}</option>
@@ -735,7 +736,7 @@ export default function RolloverPage() {
                 <select
                   value={selectedSubSrcSemesterId}
                   onChange={(e) => setSelectedSubSrcSemesterId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {semesters.filter(s => s.academic_year_id === subSrcYearId).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -748,7 +749,7 @@ export default function RolloverPage() {
                 <select
                   value={subTgtYearId}
                   onChange={(e) => setSubTgtYearId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {academicYears.map(y => (
                     <option key={y.id} value={y.id}>{y.name?.trim() || "Tahun ajaran tanpa nama"}</option>
@@ -761,7 +762,7 @@ export default function RolloverPage() {
                 <select
                   value={selectedSubTgtSemesterId}
                   onChange={(e) => setSelectedSubTgtSemesterId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-[12px] border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus:outline-[#468432]"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-emerald-500"
                 >
                   {semesters.filter(s => s.academic_year_id === subTgtYearId).map(s => (
                     <option key={s.id} value={s.id}>{s.name}</option>
@@ -773,7 +774,7 @@ export default function RolloverPage() {
                 <button
                   type="submit"
                   disabled={subLoading}
-                  className="w-full px-4 py-2.5 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] text-white font-semibold shadow-md shadow-[#468432]/10 transition-colors disabled:opacity-50 text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl bg-brand-emerald-600 hover:bg-brand-emerald-700 text-white font-semibold shadow-md shadow-brand-emerald-600/10 transition-colors disabled:opacity-50 text-sm"
                 >
                   {subLoading ? "Memproses..." : "Lihat Pratinjau"}
                 </button>
@@ -782,13 +783,13 @@ export default function RolloverPage() {
           </div>
 
           {subError && (
-            <div className="p-4 rounded-[20px] bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
+            <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-650 dark:text-red-400">
               <p>{subError}</p><button type="button" onClick={() => void handlePreviewSubject({ preventDefault() {} } as React.FormEvent)} className="mt-3 rounded-lg border border-red-300 px-3 py-1.5 font-semibold dark:border-red-800">Coba Lagi</button>
             </div>
           )}
 
           {subExec && (
-            <div className="p-5 rounded-[20px] bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 text-emerald-850 dark:text-emerald-400 space-y-2">
+            <div className="p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 text-emerald-850 dark:text-emerald-400 space-y-2">
               <h4 className="font-bold text-md">Mata pelajaran di kelas berhasil disalin.</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm pt-2">
                 <div>
@@ -804,7 +805,7 @@ export default function RolloverPage() {
           )}
 
           {subPreview && (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm p-5 space-y-4">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm p-5 space-y-4">
               <div className="flex justify-between items-center border-b border-zinc-150 pb-3">
                 <h3 className="font-bold text-zinc-900 dark:text-zinc-50">
                   Pratinjau: {subPreview.total_found} Mata Pelajaran Ditemukan
@@ -812,7 +813,7 @@ export default function RolloverPage() {
                 <button
                   onClick={() => setConfirmType("subject")}
                   disabled={subLoading}
-                  className="px-4 py-2 rounded-[12px] bg-[#468432] hover:bg-[#3A6F2B] text-white font-semibold text-xs shadow-md shadow-[#468432]/10 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-brand-emerald-600 hover:bg-brand-emerald-700 text-white font-semibold text-xs shadow-md shadow-brand-emerald-600/10 transition-colors disabled:opacity-50"
                 >
                   {subLoading ? "Menyalin..." : "Salin Mata Pelajaran"}
                 </button>
@@ -863,7 +864,7 @@ export default function RolloverPage() {
           )}
         </div>
       )}
-      {confirmType && <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="rollover-confirm-title"><div className="w-full max-w-lg rounded-[20px] bg-white p-6 shadow-xl dark:bg-[#171717]"><h2 id="rollover-confirm-title" className="text-xl font-bold">Konfirmasi Penyalinan Pengaturan</h2><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><ConfirmItem label="Periode Sumber" value={confirmType === "assignment" ? periodLabel(srcYearId, selectedSrcSemesterId) : periodLabel(subSrcYearId, selectedSubSrcSemesterId)} wide /><ConfirmItem label="Periode Target" value={confirmType === "assignment" ? periodLabel(tgtYearId, selectedTgtSemesterId) : periodLabel(subTgtYearId, selectedSubTgtSemesterId)} wide /><ConfirmItem label="Penugasan Akan Disalin" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "ready").length || 0 : 0} /><ConfirmItem label="Mapel Akan Disalin" value={confirmType === "subject" ? subPreview?.subjects.filter((item) => item.status === "ready").length || 0 : 0} /><ConfirmItem label="Konflik" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "conflict").length || 0 : 0} /><ConfirmItem label="Duplikasi" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "duplicate").length || 0 : subPreview?.subjects.filter((item) => item.status === "duplicate").length || 0} /></dl><p className="mt-4 rounded-[12px] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">Proses ini akan menyalin konfigurasi ke periode baru dan tidak dapat dibatalkan secara otomatis.</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setConfirmType(null)} className="rounded-[12px] border border-zinc-300 px-4 py-2 dark:border-zinc-700">Batal</button><button type="button" onClick={() => { const type = confirmType; setConfirmType(null); if (type === "assignment") void handleExecuteAssignment(); else void handleExecuteSubject(); }} className="rounded-[12px] bg-red-600 px-4 py-2 font-semibold text-white">Ya, Proses</button></div></div></div>}
+      {confirmType && <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="rollover-confirm-title" onKeyDown={(e) => { if (e.key === "Escape") setConfirmType(null); }}><div className="w-full max-w-lg rounded-2xl bg-surface-1 p-6 shadow-xl"><h2 id="rollover-confirm-title" className="text-xl font-bold">Konfirmasi Penyalinan Pengaturan</h2><dl className="mt-4 grid grid-cols-2 gap-3 text-sm"><ConfirmItem label="Periode Sumber" value={confirmType === "assignment" ? periodLabel(srcYearId, selectedSrcSemesterId) : periodLabel(subSrcYearId, selectedSubSrcSemesterId)} wide /><ConfirmItem label="Periode Target" value={confirmType === "assignment" ? periodLabel(tgtYearId, selectedTgtSemesterId) : periodLabel(subTgtYearId, selectedSubTgtSemesterId)} wide /><ConfirmItem label="Penugasan Akan Disalin" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "ready").length || 0 : 0} /><ConfirmItem label="Mapel Akan Disalin" value={confirmType === "subject" ? subPreview?.subjects.filter((item) => item.status === "ready").length || 0 : 0} /><ConfirmItem label="Konflik" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "conflict").length || 0 : 0} /><ConfirmItem label="Duplikasi" value={confirmType === "assignment" ? assignPreview?.assignments.filter((item) => item.status === "duplicate").length || 0 : subPreview?.subjects.filter((item) => item.status === "duplicate").length || 0} /></dl><p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">Proses ini akan menyalin konfigurasi ke periode baru dan tidak dapat dibatalkan secara otomatis.</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setConfirmType(null)} className="rounded-xl border border-zinc-300 px-4 py-2 dark:border-zinc-700">Batal</button><button type="button" onClick={() => { const type = confirmType; setConfirmType(null); if (type === "assignment") void handleExecuteAssignment(); else void handleExecuteSubject(); }} className="rounded-xl bg-red-600 px-4 py-2 font-semibold text-white">Ya, Proses</button></div></div></div>}
 
       <CelebrationModal
         open={appOpen}

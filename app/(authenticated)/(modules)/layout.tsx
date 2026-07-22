@@ -189,6 +189,13 @@ const MENU_ITEMS: MenuItem[] = [
     icon: <ShieldCheck className="w-5 h-5" />,
   },
   {
+    name: "Design System",
+    href: "/design-system",
+    roles: ["administrator"],
+    category: "sistem",
+    icon: <Layout className="w-5 h-5" />,
+  },
+  {
     name: "Import",
     href: "/import",
     roles: ["administrator", "admin", "teacher"],
@@ -531,14 +538,14 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
         })}
       </div>
 
-      {/* Konfirmasi Logout — Dialog Radius 24px */}
+      {/* Konfirmasi Logout */}
       <ConfirmDialog
         open={confirmLogoutOpen}
-        onClose={() => setConfirmLogoutOpen(false)}
+        onOpenChange={setConfirmLogoutOpen}
         title="Keluar dari Sistem?"
         description="Anda akan diarahkan ke halaman login. Pastikan semua pekerjaan sudah tersimpan sebelum keluar."
-        confirmText="Ya, Keluar"
-        cancelText="Batal"
+        confirmLabel="Ya, Keluar"
+        cancelLabel="Batal"
         variant="destructive"
         onConfirm={handleConfirmLogout}
       />

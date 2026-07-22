@@ -130,6 +130,8 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'create_academic_assessment':    { method: 'POST', path: '/api/v1/academic-assessments' },
   'update_academic_assessment':    { method: 'PUT',  path: '/api/v1/academic-assessments/:id', idField: 'id' },
   'publish_academic_assessment':   { method: 'POST', path: '/api/v1/academic-assessments/:id/publish', idField: 'id' },
+  'lock_academic_assessment':      { method: 'POST', path: '/api/v1/academic-assessments/:id/lock', idField: 'id' },
+  'unlock_academic_assessment':    { method: 'POST', path: '/api/v1/academic-assessments/:id/unlock', idField: 'id' },
   'list_academic_scores_by_assessment': { method: 'GET', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
   'save_academic_scores':          { method: 'POST', path: '/api/v1/academic-assessments/:id/scores', idField: 'assessment_id' },
   // Grading roster — assessment_date stays server-side as a Date object; never serialized to a URL param.

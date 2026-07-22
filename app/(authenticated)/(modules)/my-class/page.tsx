@@ -55,7 +55,7 @@ export default function MyClassPage() {
       {loading && <LoadingState message="Memuat data kelas..." />}
 
       {error && (
-        <div className="p-4 rounded-[20px] bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-600 dark:text-red-400">
+        <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900 text-sm text-red-600 dark:text-red-400">
           {error}
         </div>
       )}
@@ -76,10 +76,10 @@ export default function MyClassPage() {
               <Link
                 key={a.assignment_id}
                 href={`/my-class/${a.class_id}?year=${a.academic_year_id}&sem=${a.semester_id}`}
-                className="group block bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] p-5 shadow-sm hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-800 transition-all"
+                className="group block bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-800 transition-all"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-[12px] bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-[#468432] dark:text-emerald-400">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-brand-emerald-600 dark:text-emerald-400">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                         d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
@@ -89,7 +89,7 @@ export default function MyClassPage() {
                     Aktif
                   </span>
                 </div>
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-[#468432] dark:group-hover:text-emerald-400 transition-colors">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-brand-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                   {className}
                 </h3>
                 <p className="text-xs text-zinc-500 mt-1">

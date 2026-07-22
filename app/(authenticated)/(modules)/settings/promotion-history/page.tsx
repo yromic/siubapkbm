@@ -116,7 +116,7 @@ export default function PromotionHistoryPage() {
         </div>
       )}
 
-      <section className="rounded-[20px] border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-[#171717]">
+      <section className="rounded-2xl border border-zinc-200 bg-surface-1 p-5 dark:border-zinc-800">
         {loading ? (
           <div className="py-10 text-center text-sm text-zinc-500">Memuat riwayat kenaikan kelas...</div>
         ) : history.length === 0 ? (

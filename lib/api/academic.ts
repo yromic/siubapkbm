@@ -144,6 +144,20 @@ export async function publishAcademicAssessment(
   return apiRequest<AcademicAssessment>("publish_academic_assessment", { id }, token);
 }
 
+export async function lockAcademicAssessment(
+  id: string,
+  token: string
+): Promise<AcademicAssessment> {
+  return apiRequest<AcademicAssessment>("lock_academic_assessment", { id }, token);
+}
+
+export async function unlockAcademicAssessment(
+  id: string,
+  token: string
+): Promise<AcademicAssessment> {
+  return apiRequest<AcademicAssessment>("unlock_academic_assessment", { id }, token);
+}
+
 export async function listMyClassSubjects(
   token: string,
   payload: {

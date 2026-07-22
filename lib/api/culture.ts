@@ -133,7 +133,12 @@ export interface TeacherCultureCompletenessResponse {
 
 export async function getTeacherCultureCompleteness(
   token: string,
-  payload: { period_mode: CultureCompletenessPeriodMode; class_id?: string }
+  payload: {
+    period_mode: CultureCompletenessPeriodMode;
+    class_id?: string;
+    academic_year_id?: string;
+    semester_id?: string;
+  }
 ): Promise<TeacherCultureCompletenessResponse> {
   return apiRequest<TeacherCultureCompletenessResponse>("get_teacher_culture_completeness", payload, token);
 }

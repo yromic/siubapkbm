@@ -270,7 +270,7 @@ export default function SubjectsPage() {
               description="Coba ubah kriteria pencarian atau status filter Anda."
             />
           ) : (
-            <div className="bg-white dark:bg-[#171717] border border-zinc-200 dark:border-zinc-800 rounded-[20px] overflow-hidden shadow-sm">
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -288,7 +288,7 @@ export default function SubjectsPage() {
                       const isArchived = currentStatus === "ARCHIVED";
 
                       return (
-                        <tr key={subj.id} className={`hover:bg-zinc-50/50 dark:hover:bg-[#262626]/40 transition-colors ${
+                        <tr key={subj.id} className={`hover:bg-zinc-50/50 dark:hover:bg-zinc-800/40 transition-colors ${
                           isArchived ? "opacity-60 bg-zinc-50/30 dark:bg-zinc-950/10" : ""
                         }`}>
                           <td className="p-4 font-bold text-zinc-900 dark:text-zinc-100 font-data">{subj.code}</td>

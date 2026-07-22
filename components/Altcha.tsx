@@ -28,6 +28,9 @@ export function Altcha({ challenge, onVerify }: AltchaProps) {
     setProgress(0);
     setStatus("Menyiapkan verifikasi keamanan...");
     
+    const MIN_ANIMATION_MS = 1200; // Minimal visual animation duration (1.2s)
+    const startTime = Date.now();
+
     const solve = async () => {
       try {
         const { challenge: targetChallenge, salt, maxnumber } = challenge;
@@ -40,15 +43,15 @@ export function Altcha({ challenge, onVerify }: AltchaProps) {
         for (let start = 0; start < maxnumber; start += chunkSize) {
           if (!active) return;
           
-          const currentProgress = Math.min(100, Math.floor((start / maxnumber) * 100));
+          const currentProgress = Math.min(90, Math.floor((start / maxnumber) * 100));
           setProgress(currentProgress);
 
           // Friendly changing status messages based on progress
-          if (currentProgress < 15) {
+          if (currentProgress < 20) {
             setStatus("Menyiapkan verifikasi keamanan...");
-          } else if (currentProgress < 40) {
+          } else if (currentProgress < 50) {
             setStatus("Memverifikasi browser...");
-          } else if (currentProgress < 75) {
+          } else if (currentProgress < 80) {
             setStatus("Memproses tantangan keamanan...");
           } else {
             setStatus("Hampir selesai...");
@@ -64,6 +67,30 @@ export function Altcha({ challenge, onVerify }: AltchaProps) {
               .join("");
             
             if (hashHex === target) {
+              if (!active) return;
+
+              // Ensure smooth minimum animation duration
+              const elapsedTime = Date.now() - startTime;
+              const remainingTime = Math.max(0, MIN_ANIMATION_MS - elapsedTime);
+
+              if (remainingTime > 0) {
+                const stepCount = 10;
+                const intervalMs = remainingTime / stepCount;
+                const startProgress = currentProgress;
+                
+                for (let s = 1; s <= stepCount; s++) {
+                  if (!active) return;
+                  await new Promise((res) => setTimeout(res, intervalMs));
+                  const interpolated = Math.min(99, Math.round(startProgress + ((100 - startProgress) * s) / stepCount));
+                  setProgress(interpolated);
+                  if (interpolated > 40 && interpolated < 80) {
+                    setStatus("Memverifikasi browser...");
+                  } else if (interpolated >= 80) {
+                    setStatus("Hampir selesai...");
+                  }
+                }
+              }
+
               if (!active) return;
               setProgress(100);
               setIsSolved(true);
@@ -85,7 +112,7 @@ export function Altcha({ challenge, onVerify }: AltchaProps) {
           }
           
           // Yield execution back to the browser event loop
-          await new Promise((resolve) => setTimeout(resolve, 5));
+          await new Promise((resolve) => setTimeout(resolve, 20));
         }
         
         if (active) {
