@@ -95,9 +95,9 @@ export async function listPayments(
   try {
     const query = db('spp_payments')
       .join('students', 'spp_payments.student_id', 'students.id')
-      .leftJoin('student_enrollments', function(this: any) {
+      .leftJoin('student_enrollments', function (this: any) {
         this.on('students.id', 'student_enrollments.student_id')
-            .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
+          .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
       })
       .whereNot('spp_payments.lifecycle_status', 'soft_deleted');
 
@@ -365,9 +365,9 @@ export async function getClassArrears(classId: string) {
   try {
     const records = await db('spp_payments')
       .join('students', 'spp_payments.student_id', 'students.id')
-      .join('student_enrollments', function(this: any) {
+      .join('student_enrollments', function (this: any) {
         this.on('students.id', 'student_enrollments.student_id')
-            .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
+          .andOn('student_enrollments.academic_year_id', 'spp_payments.academic_year_id');
       })
       .where('student_enrollments.class_id', classId)
       .whereIn('spp_payments.payment_status', ['unpaid', 'partial'])
@@ -488,12 +488,12 @@ export async function getSppDashboardStats(
     const paidQuery = db('spp_payments').whereNot('lifecycle_status', 'soft_deleted').whereIn('payment_status', ['paid', 'verified']);
 
     if (monthsList.length > 0) {
-      totalQuery.where(function(this: any) {
+      totalQuery.where(function (this: any) {
         for (const m of monthsList) {
           this.orWhere({ payment_month: m.month, payment_year: m.year });
         }
       });
-      paidQuery.where(function(this: any) {
+      paidQuery.where(function (this: any) {
         for (const m of monthsList) {
           this.orWhere({ payment_month: m.month, payment_year: m.year });
         }

@@ -132,7 +132,7 @@ export async function saveScores(
 
     // 3. Save scores using db transaction
     const results: any[] = [];
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const item of processedScores) {
         const existing = await trx("academic_scores")
           .where({
@@ -427,7 +427,7 @@ export async function getClassAcademicSummary(
       })
       .whereNot("lifecycle_status", "soft_deleted");
 
-    const assessmentIds = assessments.map((a) => a.id);
+    const assessmentIds = assessments.map((a: any) => a.id);
 
     // 2. Get all scores for these assessments
     const scores =
@@ -486,7 +486,7 @@ export async function getClassAcademicSummary(
           "students.nisn",
         );
 
-      const rosterStudentIds = new Set(roster.map((r) => r.student_id));
+      const rosterStudentIds = new Set(roster.map((r: any) => r.student_id));
       const assessmentScores = scoresByAssessment[assessment.id] || {};
 
       // Filter graded counts to only include students currently in the roster for this assessment

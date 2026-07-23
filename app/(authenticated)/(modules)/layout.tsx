@@ -188,13 +188,7 @@ const MENU_ITEMS: MenuItem[] = [
     category: "sistem",
     icon: <ShieldCheck className="w-5 h-5" />,
   },
-  {
-    name: "Design System",
-    href: "/design-system",
-    roles: ["administrator"],
-    category: "sistem",
-    icon: <Layout className="w-5 h-5" />,
-  },
+
   {
     name: "Import",
     href: "/import",

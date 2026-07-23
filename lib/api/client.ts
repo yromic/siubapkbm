@@ -201,6 +201,7 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   // System
   // NOTE: 'extended_health_check' is a virtual action — response is remapped in apiRequest above.
   'get_system_diagnostics_report': { method: 'GET',  path: '/api/v1/system/diagnostics' },
+  'health_check_v2':               { method: 'GET',  path: '/api/v1/system/health/v2' },
   // rawResponse: true — audit-logs.ts expects { logs, total, page, page_size }, transformed in apiRequest
   'search_audit_logs':             { method: 'GET',  path: '/api/v1/audit-logs', rawResponse: true },
   // NOTE: Virtual actions (handled before ACTION_MAP lookup):
