@@ -510,7 +510,7 @@ export async function getSppDashboardStats(
     const paidSpp = Number(paidRes?.count || 0);
 
     const completionRate = totalSpp > 0 ? Math.round((paidSpp / totalSpp) * 100) : 0;
-    const unpaidPercent = totalSpp > 0 ? Math.round(((totalSpp - paidSpp) / totalSpp) * 100) : 0;
+    const unpaidPercent = totalSpp > 0 ? 100 - completionRate : 0;
 
     // --- 3. Chart: last 6 months, aggregated in SQL ---
     const monthWindows: Array<{ m: number; y: number; key: string }> = [];
