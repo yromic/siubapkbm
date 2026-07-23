@@ -37,15 +37,15 @@ export async function getPeriodSetupReadiness() {
     .where('semester_id', activeSem.id)
     .whereNot('lifecycle_status', 'soft_deleted');
 
-  const classReadinessList = classes.map(c => {
-    const classEnrollments = enrollments.filter(e => e.class_id === c.id);
+  const classReadinessList = classes.map((c: any) => {
+    const classEnrollments = enrollments.filter((e: any) => e.class_id === c.id);
     const hasEnrollments = classEnrollments.length > 0;
     const enrollmentCount = classEnrollments.length;
 
-    const classAssignments = assignments.filter(a => a.class_id === c.id);
+    const classAssignments = assignments.filter((a: any) => a.class_id === c.id);
     const hasTeacherAssignment = classAssignments.length > 0;
 
-    const classSubjs = classSubjects.filter(s => s.class_id === c.id);
+    const classSubjs = classSubjects.filter((s: any) => s.class_id === c.id);
     const hasSubjectMapping = classSubjs.length > 0;
 
     const issues: string[] = [];
@@ -76,9 +76,9 @@ export async function getPeriodSetupReadiness() {
   });
 
   const totalClasses = classReadinessList.length;
-  const readyClasses = classReadinessList.filter(c => c.status === 'ready').length;
-  const warningClasses = classReadinessList.filter(c => c.status === 'warning').length;
-  const notReadyClasses = classReadinessList.filter(c => c.status === 'not_ready').length;
+  const readyClasses = classReadinessList.filter((c: any) => c.status === 'ready').length;
+  const warningClasses = classReadinessList.filter((c: any) => c.status === 'warning').length;
+  const notReadyClasses = classReadinessList.filter((c: any) => c.status === 'not_ready').length;
 
   let overallStatus: 'ready' | 'warning' | 'not_ready' = 'ready';
   if (notReadyClasses > 0) {
@@ -160,10 +160,10 @@ export async function previewAssignmentRollover(sourceSemesterId: string, target
       }
 
       const duplicate = targetAssignments.find(
-        ta => ta.class_id === a.class_id && ta.teacher_user_id === a.teacher_user_id
+        (ta: any) => ta.class_id === a.class_id && ta.teacher_user_id === a.teacher_user_id
       );
       const conflict = targetAssignments.find(
-        ta => ta.class_id === a.class_id && ta.teacher_user_id !== a.teacher_user_id
+        (ta: any) => ta.class_id === a.class_id && ta.teacher_user_id !== a.teacher_user_id
       );
 
       let status: 'ready' | 'duplicate' | 'conflict' = 'ready';
@@ -231,7 +231,7 @@ export async function executeAssignmentRollover(sourceSemesterId: string, target
     let skipped = 0;
     const errors: string[] = [];
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const a of sourceAssignments) {
         const isTeacherInactive = a.teacher_status !== 'active' || a.teacher_lifecycle_status === 'soft_deleted';
 
@@ -320,9 +320,9 @@ export async function previewSubjectRollover(sourceSemesterId: string, targetSem
       .where('semester_id', targetSemesterId)
       .whereNot('lifecycle_status', 'soft_deleted');
 
-    const subjects = sourceSubjects.map(s => {
+    const subjects = sourceSubjects.map((s: any) => {
       const isDuplicate = targetSubjects.some(
-        ts => ts.class_id === s.class_id && ts.subject_id === s.subject_id
+        (ts: any) => ts.class_id === s.class_id && ts.subject_id === s.subject_id
       );
       return {
         class_id: s.class_id,
@@ -375,7 +375,7 @@ export async function executeSubjectRollover(sourceSemesterId: string, targetSem
     let copied = 0;
     let skipped = 0;
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const s of classSubjects) {
         const existing = await trx('class_subjects')
           .where({

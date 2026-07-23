@@ -271,8 +271,8 @@ export async function exportCharacterSummaryCsvService(params: {
         'character_semester_summaries.h_score',
         'character_semester_summaries.days_counted'
       )
-      .join('student_enrollments', function () {
-        this.on('character_semester_summaries.student_id', '=', 'student_enrollments.student_id')
+      .join('student_enrollments', (j: any) => {
+        j.on('character_semester_summaries.student_id', '=', 'student_enrollments.student_id')
           .andOn('character_semester_summaries.academic_year_id', '=', 'student_enrollments.academic_year_id')
           .andOn('character_semester_summaries.semester_id', '=', 'student_enrollments.semester_id');
       })

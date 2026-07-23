@@ -167,7 +167,7 @@ export async function previewPromotion(
 
     // 3. Consecutive Academic Years sequence verification
     const allYears = await db('academic_years').whereNot('lifecycle_status', 'soft_deleted');
-    const intermediateYears = allYears.filter(y => {
+    const intermediateYears = allYears.filter((y: any) => {
       if (y.id === sourceAcademicYearId || y.id === targetAcademicYearId) return false;
       const yStart = y.start_date ? new Date(y.start_date).getTime() : 0;
       return yStart > srcStartDate && yStart < tgtStartDate;
@@ -203,12 +203,12 @@ export async function previewPromotion(
     const activeRules = await db('class_promotion_rules')
       .where('status', 'active')
       .whereNot('lifecycle_status', 'soft_deleted');
-    const rulesMap = new Map(activeRules.map(r => [r.source_class_id, r]));
+    const rulesMap = new Map(activeRules.map((r: any) => [r.source_class_id, r]));
 
     const activeClasses = await db('classes')
       .where('status', 'active')
       .whereNot('lifecycle_status', 'soft_deleted');
-    const classesMap = new Map(activeClasses.map(c => [c.id, c]));
+    const classesMap = new Map(activeClasses.map((c: any) => [c.id, c]));
 
     // Fetch active enrollments in the source period
     const sourceEnrollments = await db('student_enrollments')
@@ -251,8 +251,8 @@ export async function previewPromotion(
       let recTargetClassName = '';
       const studentBlockers: string[] = [];
 
-      const rule = rulesMap.get(e.class_id);
-      if (rule) {
+      const rule = rulesMap.get(e.class_id) as any;
+      if (rule && rule.target_class_id) {
         const tgtClass = classesMap.get(rule.target_class_id) || await db('classes').where('id', rule.target_class_id).first();
         if (tgtClass) {
           if (tgtClass.status === 'active') {
@@ -425,7 +425,7 @@ export async function executePromotion(
   };
 
   try {
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const item of preview.students) {
         result.processed++;
         try {

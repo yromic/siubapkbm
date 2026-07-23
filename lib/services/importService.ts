@@ -1109,7 +1109,7 @@ async function confirmStudentRows(
   importedIds: string[],
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;
@@ -1239,7 +1239,7 @@ async function confirmTeacherRows(
   importedIds: string[],
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;
@@ -1300,7 +1300,7 @@ async function confirmClassRows(
   importedIds: string[],
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;
@@ -1359,7 +1359,7 @@ async function confirmSubjectRows(
   importedIds: string[],
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;
@@ -1418,7 +1418,7 @@ async function confirmClassSubjectRows(
   importedIds: string[],
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;
@@ -1498,7 +1498,7 @@ async function confirmAcademicScoreRows(
   importedIds: string[],
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;
@@ -1570,7 +1570,7 @@ async function confirmCultureScoreRows(
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>,
   actorId?: string
 ): Promise<ConfirmResult> {
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: any) => {
     for (const previewRow of previewRows) {
       if (previewRow.operation === 'error') {
         errorCount++;

@@ -58,8 +58,8 @@ export async function listTeacherProfiles(
 
     if (filters.search) {
       const searchPattern = `%${filters.search}%`;
-      query.where(function () {
-        this.where('teacher_profiles.full_name', 'like', searchPattern)
+      query.where((q: any) => {
+        q.where('teacher_profiles.full_name', 'like', searchPattern)
           .orWhere('users.email', 'like', searchPattern)
           .orWhere('teacher_profiles.nip', 'like', searchPattern)
           .orWhere('teacher_profiles.nuptk', 'like', searchPattern);

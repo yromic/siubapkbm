@@ -6,7 +6,7 @@ import { downloadImportErrorReport, ImportLog, ImportLogStatus, ImportType, list
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui-states";
 import { downloadBase64File } from "@/lib/utils/files";
 
-const TYPE_LABELS: Record<ImportType, string> = { students: "Siswa", teachers: "Guru", classes: "Kelas", subjects: "Mata pelajaran", class_subjects: "Mapel kelas", academic_scores: "Nilai akademik", culture_scores: "Nilai budaya" };
+const TYPE_LABELS: Record<ImportType, string> = { students: "Siswa", teachers: "Guru", classes: "Kelas", subjects: "Mata pelajaran", class_subjects: "Mapel kelas", academic_scores: "Nilai akademik", culture_scores: "Nilai budaya", enrollments: "Rombel siswa" };
 const STATUS_LABELS: Record<ImportLogStatus, string> = { previewed: "Pratinjau", success: "Berhasil", partial_success: "Berhasil sebagian", failed: "Gagal" };
 
 function messageForError(error: unknown) {

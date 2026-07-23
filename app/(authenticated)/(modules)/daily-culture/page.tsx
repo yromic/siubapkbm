@@ -516,7 +516,7 @@ function DailyCulturePageContent() {
               <CardHeader
                 title="Daftar Input Skor"
                 bordered
-                description="Klik atau ketuk tombol skor untuk memilih nilai (1–4). Klik kembali untuk mengosongkan."
+                subtitle="Klik atau ketuk tombol skor untuk memilih nilai (1–4). Klik kembali untuk mengosongkan."
                 action={
                   <span className="text-xs font-plus-jakarta font-medium text-zinc-500 dark:text-zinc-400">
                     {dirtyRows.length > 0 ? (

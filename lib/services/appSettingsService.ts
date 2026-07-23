@@ -20,7 +20,7 @@ export async function getAppSettings(): Promise<Record<string, string>> {
 
 export async function updateAppSettings(settings: Record<string, string>, userId?: string): Promise<Record<string, string>> {
   try {
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const [key, value] of Object.entries(settings)) {
         const existing = await trx('app_settings').where('setting_key', key).first();
         if (existing) {

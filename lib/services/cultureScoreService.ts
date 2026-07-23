@@ -145,7 +145,7 @@ export async function saveCultureScores(input: SaveCultureScoresInput, actorId: 
 
     // 3. Perform insert/update within database transaction
     const results: any[] = [];
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       for (const item of processedScores) {
         // Unique combination check (student_id, score_date, semester_id)
         const dateString = item.score_date.toISOString().split('T')[0];

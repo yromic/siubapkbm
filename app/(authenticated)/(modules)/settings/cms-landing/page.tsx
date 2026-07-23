@@ -229,16 +229,16 @@ export default function CMSLandingPage() {
 
       <ConfirmDialog
         open={unsavedModalOpen}
-        onClose={() => {
-          setUnsavedModalOpen(false);
-          setPendingTab(null);
+        onOpenChange={(open) => {
+          setUnsavedModalOpen(open);
+          if (!open) setPendingTab(null);
         }}
         onConfirm={handleConfirmTabSwitch}
         title="Tinggalkan Halaman dengan Perubahan Belum Disimpan?"
         description="Perubahan pada tab ini akan hilang jika Anda berpindah tab tanpa menyimpan."
-        confirmText="Tetap Pindah"
-        cancelText="Batal"
-        variant="warning"
+        confirmLabel="Tetap Pindah"
+        cancelLabel="Batal"
+        variant="destructive"
       />
     </div>
   );

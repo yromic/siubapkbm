@@ -56,7 +56,7 @@ export async function calculateAndGetSemesterSummary(
     // 4. Calculate Semester Summary
     const semesterStats = calculateSummaryFromScores(scores);
 
-    await db.transaction(async (trx) => {
+    await db.transaction(async (trx: any) => {
       // Upsert Semester Summary
       await trx('character_semester_summaries')
         .insert({
@@ -370,7 +370,7 @@ export async function getClassCharacterSummary(
       })
       .whereNot('lifecycle_status', 'soft_deleted');
 
-    const studentIds = enrollments.map((e) => e.student_id);
+    const studentIds = enrollments.map((e: any) => e.student_id);
     if (studentIds.length === 0) {
       return [];
     }
