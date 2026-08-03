@@ -1174,7 +1174,7 @@ export default function DashboardPage() {
                           ))}
                         </Pie>
                         <Tooltip />
-                        <Legend verticalAlign="bottom" height={36} fontSize={10} />
+                        <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10 }} />
                       </ReChartsPieChart>
                     </ReChartsResponsiveContainer>
                   )}
