@@ -79,3 +79,4 @@ export async function down(knex: Knex): Promise<void> {
     table.dropColumn("deleted_by");
   });
 }
+

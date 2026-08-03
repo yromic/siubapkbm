@@ -132,3 +132,4 @@ export default function AuditLogPage() {
     </Dialog.Root>
   </ResponsiveContainer>;
 }
+

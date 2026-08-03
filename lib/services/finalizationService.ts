@@ -103,3 +103,4 @@ export async function getFinalizationStatus(semesterId: string) {
     );
   }
 }
+

@@ -18,3 +18,4 @@ export interface TriggerAppreciationOptions {
   academicYearId?: string;
   semesterId?: string;
 }
+

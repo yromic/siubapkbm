@@ -656,3 +656,4 @@ export default function PresenceRecapPage() {
     </ResponsiveContainer>
   );
 }
+

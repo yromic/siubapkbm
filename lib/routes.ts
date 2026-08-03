@@ -7,3 +7,4 @@ export function isPublicRoute(pathname: string): boolean {
     ["/gallery", "/profile", "/admission", "/contact"].includes(pathname)
   );
 }
+

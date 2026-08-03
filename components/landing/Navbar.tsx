@@ -131,3 +131,4 @@ export default function Navbar({ menuItems, shortName = "SIUBA", logoUrl }: Navb
     </>
   );
 }
+

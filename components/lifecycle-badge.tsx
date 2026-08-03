@@ -124,3 +124,4 @@ export function LifecycleBadge({ status }: { status: LifecycleStatus | string })
     </span>
   );
 }
+

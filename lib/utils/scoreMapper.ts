@@ -24,3 +24,4 @@ export function uiScoreToDb(val: number | null): number | null {
   if (val === undefined || val === null || val <= 0) return null;
   return val;
 }
+

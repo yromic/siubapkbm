@@ -1,5 +1,5 @@
 import { Knex } from 'knex';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function seed(knex: Knex): Promise<void> {
@@ -118,3 +118,4 @@ export async function seed(knex: Knex): Promise<void> {
     console.log('Seed: Ahmad Dani dummy student created.');
   }
 }
+

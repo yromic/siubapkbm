@@ -95,3 +95,4 @@ export interface HealthV2Response {
 export function getHealthCheckV2(): Promise<HealthV2Response> {
   return apiRequest<HealthV2Response>("health_check_v2", {});
 }
+

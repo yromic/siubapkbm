@@ -245,3 +245,4 @@ export function CultureCompletenessCard({ token }: { token: string }) {
     </section>
   );
 }
+

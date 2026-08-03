@@ -1,10 +1,11 @@
-// Trigger dev server restart for clean compilation context: 1721496000
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  output: 'standalone',
-  serverExternalPackages: ['knex', 'mysql2']
+  output: "standalone",
+  serverExternalPackages: ["knex", "mysql2"],
+  outputFileTracingRoot: path.join(__dirname),
 };
 
 export default nextConfig;
+

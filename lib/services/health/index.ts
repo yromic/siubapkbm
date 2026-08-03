@@ -117,3 +117,4 @@ export async function getHealthV2(): Promise<HealthResponse> {
 
 // Backward compatibility alias for Sprint 1
 export const getInfrastructureHealthV2 = getHealthV2;
+

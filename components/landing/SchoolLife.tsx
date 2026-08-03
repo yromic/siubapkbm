@@ -108,3 +108,4 @@ export default function SchoolLife({ title, subtitle, badge, items }: SchoolLife
     </section>
   );
 }
+

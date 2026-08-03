@@ -681,3 +681,4 @@ export function getIssueMetadata(
 ): IssueRegistryEntry | undefined {
   return ISSUE_REGISTRY[code as HealthCode];
 }
+

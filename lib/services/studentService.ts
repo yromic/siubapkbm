@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { AppError } from '@/lib/errors';
 import { validateNisn } from '@/lib/validation/student';
 
@@ -521,4 +521,5 @@ export async function getStudentsDataQualityStats(semesterId?: string): Promise<
     );
   }
 }
+
 

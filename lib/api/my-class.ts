@@ -25,3 +25,4 @@ export async function getMyClasses(
 ): Promise<MyClassAssignment[]> {
   return apiRequest<MyClassAssignment[]>("get_my_classes", payload, token);
 }
+

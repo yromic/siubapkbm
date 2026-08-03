@@ -139,7 +139,9 @@ export default function PresencePage() {
   const isHadir = (date: Date) => {
     const dStr = getLocalDateStr(date);
     return historyList.some(
-      (item) => item.date === dStr && (item.status || "").toLowerCase() === "hadir"
+      (item) =>
+        item.date === dStr &&
+        ["hadir", "present", "late"].includes((item.status || "").toLowerCase())
     );
   };
 
@@ -332,3 +334,4 @@ export default function PresencePage() {
     </ResponsiveContainer>
   );
 }
+

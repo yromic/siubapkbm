@@ -26,3 +26,4 @@ export function validateNisn(nisn: string): string | null {
   }
   return null;
 }
+

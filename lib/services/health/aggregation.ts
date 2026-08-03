@@ -60,3 +60,4 @@ export function aggregateHealthResults(sections: HealthSection[]): HealthRespons
     sections: enrichedSections,
   };
 }
+

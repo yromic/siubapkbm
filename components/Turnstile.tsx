@@ -70,3 +70,4 @@ export function Turnstile({ siteKey, onVerify }: TurnstileProps) {
 
   return <div ref={containerRef} className="cf-turnstile my-4 flex justify-center" />;
 }
+

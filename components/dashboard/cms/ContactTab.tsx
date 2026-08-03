@@ -337,3 +337,4 @@ export default function ContactTab({ config, onUpdate, setIsDirty }: ContactTabP
     </form>
   );
 }
+

@@ -546,3 +546,4 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
     </div>
   );
 }
+

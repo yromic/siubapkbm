@@ -314,3 +314,4 @@ export async function getStudentsWithoutCultureScores(
 
   return rows as Array<{ id: string; full_name: string; nisn: string; reason: string }>;
 }
+

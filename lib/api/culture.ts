@@ -142,3 +142,4 @@ export async function getTeacherCultureCompleteness(
 ): Promise<TeacherCultureCompletenessResponse> {
   return apiRequest<TeacherCultureCompletenessResponse>("get_teacher_culture_completeness", payload, token);
 }
+

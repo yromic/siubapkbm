@@ -187,3 +187,4 @@ export default function Footer({ config, footerMenuItems }: FooterProps) {
     </footer>
   );
 }
+

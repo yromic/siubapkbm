@@ -670,3 +670,4 @@ export default function TeachersPage() {
     </ResponsiveContainer>
   );
 }
+

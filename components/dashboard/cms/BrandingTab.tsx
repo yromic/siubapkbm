@@ -289,3 +289,4 @@ export default function BrandingTab({ config, onUpdate, setIsDirty }: BrandingTa
     </form>
   );
 }
+

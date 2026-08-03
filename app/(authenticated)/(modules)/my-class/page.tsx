@@ -113,3 +113,4 @@ export default function MyClassPage() {
     </ResponsiveContainer>
   );
 }
+

@@ -50,3 +50,4 @@ export const AFS_EVENT_REGISTRY: Record<string, AFSEventDefinition> = {
       `semester_finalize_${academicYearId || "year"}_${semesterId || "sem"}`,
   },
 };
+

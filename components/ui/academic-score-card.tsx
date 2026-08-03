@@ -65,3 +65,4 @@ export function AcademicScoreCard({
     </Card>
   );
 }
+

@@ -76,3 +76,4 @@ export async function getStudentWatchlist(
 ): Promise<WatchlistStudent[]> {
   return apiRequest<WatchlistStudent[]>("get_student_watchlist", payload, token);
 }
+

@@ -101,3 +101,4 @@ export default function FAQ({ title, subtitle, badge, items }: FAQProps) {
     </section>
   );
 }
+

@@ -39,3 +39,4 @@ export function downloadCsvFile(content: string, fileName: string): void {
   anchor.remove();
   URL.revokeObjectURL(url);
 }
+

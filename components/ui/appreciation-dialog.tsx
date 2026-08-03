@@ -8,3 +8,4 @@ export type AppreciationDialogProps = Omit<MilestoneCelebrationModalProps, "vari
 export function AppreciationDialog(props: AppreciationDialogProps) {
   return <MilestoneCelebrationModal {...props} variant="appreciation" />;
 }
+

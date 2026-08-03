@@ -32,3 +32,4 @@ export async function withAuth(
   (req as any).user = { id: user.id, role: user.role, name: user.name, email: user.email };
   return handler(req, {});
 }
+

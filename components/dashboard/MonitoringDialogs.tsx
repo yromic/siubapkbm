@@ -282,3 +282,4 @@ export function CultureMonitoringDialog({ isOpen, onClose, loading, error, data 
     </div>
   );
 }
+

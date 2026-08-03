@@ -24,3 +24,4 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   "faq": FAQ,
   "cta": CTA
 };
+

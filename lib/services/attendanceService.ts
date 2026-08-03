@@ -54,21 +54,26 @@ export async function recordAttendance(teacherId: string, lat: number, lng: numb
     }
 
     // Fetch school config
-    const schoolLat = parseFloat(await getSetting('school_lat', '-6.200000'));
-    const schoolLng = parseFloat(await getSetting('school_lng', '106.816666'));
-    const radius = parseFloat(await getSetting('geofence_radius', '100'));
+    const schoolLat = parseFloat(await getSetting('school_lat', '-7.1373034'));
+    const schoolLng = parseFloat(await getSetting('school_lng', '110.4047823'));
+    const radius = parseFloat(await getSetting('geofence_radius', '150'));
     const startTimeStr = await getSetting('school_start_time', '08:00:00');
 
     const distance = calculateHaversineDistance(lat, lng, schoolLat, schoolLng);
+    const roundedDistance = Math.round(distance);
     
-    let status = 'present';
     if (distance > radius) {
-      status = 'outside_geofence';
-    } else {
-      const timeNowStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
-      if (timeNowStr > startTimeStr) {
-        status = 'late';
-      }
+      throw new AppError(
+        `Anda berada ${roundedDistance} meter di luar area sekolah. Presensi gagal. (Radius maksimal: ${radius}m)`,
+        'ERR_OUT_OF_GEOFENCE',
+        400
+      );
+    }
+
+    let status = 'present';
+    const timeNowStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+    if (timeNowStr > startTimeStr) {
+      status = 'late';
     }
 
     const timeInStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
@@ -270,3 +275,4 @@ export async function getTeacherAttendanceSummary(
     );
   }
 }
+

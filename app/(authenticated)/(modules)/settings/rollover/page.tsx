@@ -886,3 +886,4 @@ export default function RolloverPage() {
 function ConfirmItem({ label, value, wide = false }: { label: string; value: string | number; wide?: boolean }) {
   return <div className={`rounded-[12px] bg-zinc-50 p-3 dark:bg-zinc-800 ${wide ? "col-span-2" : ""}`}><dt className="text-xs text-zinc-500">{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div>;
 }
+

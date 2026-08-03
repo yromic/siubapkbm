@@ -25,3 +25,4 @@ export async function down(knex: Knex): Promise<void> {
     table.unique(["source_class_id", "target_class_id"], { indexName: "uq_promotion_flow" });
   });
 }
+

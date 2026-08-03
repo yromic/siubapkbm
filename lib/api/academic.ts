@@ -208,3 +208,4 @@ export async function saveAcademicScores(
 ): Promise<AcademicScore[]> {
   return apiRequest<AcademicScore[]>("save_academic_scores", payload, token);
 }
+

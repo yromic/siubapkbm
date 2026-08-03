@@ -18,3 +18,4 @@ export async function withParentAuth(
   (req as any).parentSession = session;
   return handler(req, session.student_id);
 }
+

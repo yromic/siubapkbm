@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { resetUserPassword } from '@/lib/services/userService';
@@ -56,3 +56,4 @@ export async function POST(req: NextRequest) {
     }
   });
 }
+

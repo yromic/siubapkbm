@@ -201,3 +201,4 @@ export function Altcha({ challenge, onVerify }: AltchaProps) {
     </div>
   );
 }
+

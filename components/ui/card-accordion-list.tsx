@@ -94,3 +94,4 @@ export function CardAccordionList<T>({
     </div>
   );
 }
+

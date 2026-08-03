@@ -242,3 +242,4 @@ export default function SEOTab({ config, onUpdate, setIsDirty }: SEOTabProps) {
     </form>
   );
 }
+

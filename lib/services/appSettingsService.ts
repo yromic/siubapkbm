@@ -52,3 +52,4 @@ export async function updateAppSettings(settings: Record<string, string>, userId
     );
   }
 }
+

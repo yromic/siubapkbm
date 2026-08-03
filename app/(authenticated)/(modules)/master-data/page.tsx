@@ -579,3 +579,4 @@ export default function MasterDataPage() {
     </ResponsiveContainer>
   );
 }
+

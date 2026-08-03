@@ -149,3 +149,4 @@ export async function updateNavigationLinks(menuId: string, links: Array<Omit<Na
     );
   }
 }
+

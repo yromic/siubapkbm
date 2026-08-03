@@ -41,3 +41,4 @@ export interface AuditLogSearchResponse {
 export function searchAuditLogs(token: string, payload: AuditLogSearchPayload) {
   return apiRequest<AuditLogSearchResponse>("search_audit_logs", payload, token);
 }
+

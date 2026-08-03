@@ -99,3 +99,4 @@ export function humanizeError(error: unknown): string {
   
   return message || UX_COPY.error.default;
 }
+

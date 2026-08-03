@@ -65,3 +65,4 @@ export function previewStudentPromotion(token: string, payload: PromotionPayload
 export function executeStudentPromotion(token: string, payload: PromotionPayload) {
   return apiRequest<PromotionExecutionResult>("execute_student_promotion", payload, token);
 }
+

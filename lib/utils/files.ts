@@ -69,3 +69,4 @@ export function downloadBase64File(options: {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+

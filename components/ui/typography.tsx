@@ -184,3 +184,4 @@ export function NumericDisplay({ children, className = "" }: BaseProps) {
     </span>
   );
 }
+

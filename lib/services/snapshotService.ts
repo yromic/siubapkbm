@@ -150,3 +150,4 @@ export async function getSnapshot(studentId: string, academicYearId: string, sem
     );
   }
 }
+

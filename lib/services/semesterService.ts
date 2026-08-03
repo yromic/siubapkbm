@@ -415,3 +415,4 @@ export async function getActiveSemester(academicYearId: string): Promise<any> {
     );
   }
 }
+

@@ -45,3 +45,4 @@ export async function down(knex: Knex): Promise<void> {
     });
   } catch (e) {}
 }
+

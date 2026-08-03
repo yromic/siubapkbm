@@ -1,4 +1,0 @@
-{
-  "success": true,
-  "message": "Manual migration run successfully via route.ts."
-}

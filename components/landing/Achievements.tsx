@@ -164,3 +164,4 @@ export default function Achievements({ title, subtitle, badge, items }: Achievem
     </section>
   );
 }
+

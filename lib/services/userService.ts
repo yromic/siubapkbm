@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import bcrypt from "bcrypt";
+import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from "uuid";
 import { AppError } from "@/lib/errors";
 import { logAuthenticationEvent } from "@/lib/services/auditService";
@@ -552,3 +552,4 @@ export async function setUserStatus(
     );
   }
 }
+

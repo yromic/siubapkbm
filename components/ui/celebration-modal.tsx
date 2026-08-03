@@ -8,3 +8,4 @@ export type CelebrationModalProps = Omit<MilestoneCelebrationModalProps, "varian
 export function CelebrationModal(props: CelebrationModalProps) {
   return <MilestoneCelebrationModal {...props} variant="celebration" />;
 }
+

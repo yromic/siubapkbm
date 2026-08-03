@@ -151,3 +151,4 @@ export default function Testimonials({ title, badge, items }: TestimonialsProps)
     </section>
   );
 }
+

@@ -485,3 +485,4 @@ export function StudentGrowth({ historicalData }: StudentGrowthProps) {
     </div>
   );
 }
+

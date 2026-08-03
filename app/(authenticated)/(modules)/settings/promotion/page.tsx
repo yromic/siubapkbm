@@ -272,3 +272,4 @@ function Summary({ label, value, wide = false }: { label: string; value: string 
 function Select({ label, value, options, disabled, onChange }: { label: string; value: string; options: Array<{ value: string; label: string }>; disabled: boolean; onChange: (value: string) => void }) {
   return <label className="space-y-1 text-sm font-medium"><span>{label}</span><select value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} className="w-full rounded-[12px] border border-zinc-300 bg-transparent px-3 py-2.5 dark:border-zinc-700"><option value="">Pilih periode</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
 }
+

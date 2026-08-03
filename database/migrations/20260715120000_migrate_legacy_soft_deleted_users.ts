@@ -63,3 +63,4 @@ export async function up(knex: Knex): Promise<void> {
 export async function down(knex: Knex): Promise<void> {
   // Backfill migrations do not need revert actions because it's data normalization.
 }
+

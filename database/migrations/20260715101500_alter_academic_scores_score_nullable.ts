@@ -11,3 +11,4 @@ export async function down(knex: Knex): Promise<void> {
     table.decimal("score", 5, 2).notNullable().alter();
   });
 }
+

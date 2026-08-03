@@ -143,3 +143,4 @@ export default function About({ title, subtitle, badge, items, content }: AboutP
     </section>
   );
 }
+

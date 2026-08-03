@@ -10,3 +10,4 @@ export function errorResponse(message: string, code: string, status: number, det
     { status }
   );
 }
+

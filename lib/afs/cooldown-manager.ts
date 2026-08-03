@@ -9,3 +9,4 @@ export const cooldownManager = {
     milestoneStorage.recordMilestoneCelebrated(`${workflowId}_${classId || "global"}`);
   },
 };
+

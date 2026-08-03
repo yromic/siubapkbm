@@ -139,3 +139,4 @@ export function MilestoneCelebrationModal({
     </Dialog.Root>
   );
 }
+

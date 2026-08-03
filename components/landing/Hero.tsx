@@ -176,3 +176,4 @@ export default function Hero({ title, subtitle, badge, content, items }: HeroPro
     </section>
   );
 }
+

@@ -138,3 +138,4 @@ export default function Gallery({ title, subtitle, items }: GalleryProps) {
     </section>
   );
 }
+

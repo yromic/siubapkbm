@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { generateSessionToken, hashToken } from '@/lib/auth/tokenUtils';
 import { getStudentAcademicSummary } from './academicScoreService';
 import { calculateAndGetSemesterSummary } from './characterSummaryService';
@@ -450,3 +450,4 @@ export async function getParentAvailablePeriods(studentId: string) {
 
   return enrollments;
 }
+

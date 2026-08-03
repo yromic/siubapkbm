@@ -388,3 +388,4 @@ export async function checkEnvironmentConfiguration(): Promise<HealthSection> {
     details: envDetails,
   };
 }
+

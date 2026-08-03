@@ -87,3 +87,4 @@ export function getAppreciationMessage(
   const index = Math.floor(Math.random() * list.length);
   return list[index];
 }
+

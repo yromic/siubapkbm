@@ -1,31 +1,51 @@
-import { MetadataRoute } from 'next';
-import { getWebsiteConfig } from '@/lib/services/websiteConfigService';
+import { MetadataRoute } from "next";
+import { getWebsiteConfig } from "@/lib/services/websiteConfigService";
 
 export default async function robots(): Promise<MetadataRoute.Robots> {
   try {
     const config = await getWebsiteConfig();
-    const canonical = config.seo_defaults?.canonical_base_url || 'https://siuba.sch.id';
+    const canonical =
+      config.seo_defaults?.canonical_base_url || "https://siutsman.com";
     const rules = config.seo_defaults?.robots_rules || {
-      allowRules: ['/'],
-      disallowRules: ['/dashboard/', '/portal/', '/login', '/parent/dashboard/', '/parent/academic/', '/parent/character/', '/parent/spp/', '/api/']
+      allowRules: ["/"],
+      disallowRules: [
+        "/dashboard/",
+        "/portal/",
+        "/login",
+        "/parent/dashboard/",
+        "/parent/academic/",
+        "/parent/character/",
+        "/parent/spp/",
+        "/api/",
+      ],
     };
-    
+
     return {
       rules: {
-        userAgent: '*',
-        allow: rules.allowRules || '/',
+        userAgent: "*",
+        allow: rules.allowRules || "/",
         disallow: rules.disallowRules || [],
       },
-      sitemap: `${canonical.replace(/\/$/, '')}/sitemap.xml`,
+      sitemap: `${canonical.replace(/\/$/, "")}/sitemap.xml`,
     };
   } catch (error) {
     return {
       rules: {
-        userAgent: '*',
-        allow: '/',
-        disallow: ['/dashboard/', '/portal/', '/login', '/parent/dashboard/', '/parent/academic/', '/parent/character/', '/parent/spp/', '/api/'],
+        userAgent: "*",
+        allow: "/",
+        disallow: [
+          "/dashboard/",
+          "/portal/",
+          "/login",
+          "/parent/dashboard/",
+          "/parent/academic/",
+          "/parent/character/",
+          "/parent/spp/",
+          "/api/",
+        ],
       },
-      sitemap: 'https://siuba.sch.id/sitemap.xml',
+      sitemap: "https://siutsman.com/sitemap.xml",
     };
   }
 }
+

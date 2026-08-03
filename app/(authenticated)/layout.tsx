@@ -17,3 +17,4 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
 
   return <>{children}</>;
 }
+

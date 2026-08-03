@@ -395,3 +395,4 @@ export async function assertNotLocked(assessmentId: string): Promise<void> {
     throw new AppError('Cannot modify scores. The assessment is locked.', 'ERR_ASSESSMENT_LOCKED', 400);
   }
 }
+

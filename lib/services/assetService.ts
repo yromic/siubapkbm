@@ -81,9 +81,17 @@ export async function deleteAsset(id: string): Promise<void> {
       .where('image_id', id)
       .first();
 
-    if (configRefs || itemRefs) {
+    const testimonialRefs = await db('testimonials')
+      .where('avatar_image_id', id)
+      .first();
+
+    const galleryRefs = await db('gallery_items')
+      .where('image_id', id)
+      .first();
+
+    if (configRefs || itemRefs || testimonialRefs || galleryRefs) {
       throw new AppError(
-        'Cannot delete asset because it is currently referenced by website config or landing page sections.',
+        'Cannot delete asset because it is currently referenced by website config, landing page sections, testimonials, or gallery.',
         'ERR_REFERENTIAL_INTEGRITY',
         400
       );
@@ -111,3 +119,4 @@ export async function listAssets(): Promise<Asset[]> {
     );
   }
 }
+

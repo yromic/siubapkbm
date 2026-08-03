@@ -82,3 +82,4 @@ export const HEALTH_CODES = {
 } as const;
 
 export type HealthCode = keyof typeof HEALTH_CODES;
+

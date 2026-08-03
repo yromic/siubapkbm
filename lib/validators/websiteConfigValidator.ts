@@ -71,3 +71,4 @@ export function validateSEOConfig(data: Partial<SEOConfig>): void {
     }
   }
 }
+

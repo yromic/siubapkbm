@@ -24,3 +24,4 @@ export async function POST(req: NextRequest) {
     return errorResponse('Logout error', 'ERR_INTERNAL', 500);
   }
 }
+

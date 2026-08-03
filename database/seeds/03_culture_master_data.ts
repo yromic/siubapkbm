@@ -104,3 +104,4 @@ export async function seed(knex: Knex): Promise<void> {
 
   console.log('Seed: Culture indicators, values and mappings seeded successfully.');
 }
+

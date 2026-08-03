@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(process.cwd(), 'storage', 'uploads');
 
 function ensureUploadsDirectory() {
   if (!fs.existsSync(UPLOADS_DIR)) {
@@ -152,7 +152,7 @@ export async function DELETE(req: NextRequest) {
         // 1. Find the target asset to get its URL for file deletion
         const assets = await listAssets();
         const target = assets.find(a => a.id === id);
-        
+
         if (!target) {
           return errorResponse('Asset not found.', 'ERR_NOT_FOUND', 404);
         }
@@ -181,3 +181,4 @@ export async function DELETE(req: NextRequest) {
     });
   });
 }
+

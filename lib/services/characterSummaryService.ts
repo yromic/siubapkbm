@@ -571,3 +571,4 @@ export async function getBestCultureClassAverage(
     return null;
   }
 }
+

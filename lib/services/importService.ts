@@ -8,7 +8,7 @@ import path from 'path';
 import Papa from 'papaparse';
 import ExcelJS from 'exceljs';
 import { addJob } from './jobQueueService';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { assertNotLocked } from './assessmentService';
 
@@ -188,8 +188,8 @@ export async function parseAndValidate(
     await workbook.xlsx.readFile(filePath);
     const worksheet = workbook.worksheets[0];
     const headerRow = worksheet.getRow(1);
-    headerRow.eachCell((cell) => { columns.push(String(cell.text ?? '').trim()); });
-    worksheet.eachRow((row, rowNumber) => {
+    headerRow.eachCell((cell: ExcelJS.Cell) => { columns.push(String(cell.text ?? '').trim()); });
+    worksheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
       if (rowNumber === 1) return;
       const rowData: any = {};
       columns.forEach((col, index) => { rowData[col] = row.getCell(index + 1).value; });
@@ -1666,9 +1666,9 @@ async function getRawRows(filePath: string, importType: string): Promise<any[]> 
     const worksheet = workbook.worksheets[0];
     const columns: string[] = [];
     const headerRow = worksheet.getRow(1);
-    headerRow.eachCell((cell) => { columns.push(String(cell.text ?? '').trim()); });
+    headerRow.eachCell((cell: ExcelJS.Cell) => { columns.push(String(cell.text ?? '').trim()); });
     const rows: any[] = [];
-    worksheet.eachRow((row, rowNumber) => {
+    worksheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
       if (rowNumber === 1) return;
       const rowData: any = {};
       columns.forEach((col, index) => { rowData[col] = row.getCell(index + 1).value; });
@@ -1703,3 +1703,4 @@ export async function parseAndValidateFile(importLogId: string) {
   const validated = await parseAndValidate(importLogId, log.import_type, filePath);
   return validated;
 }
+

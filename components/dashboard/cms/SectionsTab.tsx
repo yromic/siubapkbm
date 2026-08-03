@@ -1359,3 +1359,4 @@ export default function SectionsTab({ config, onUpdateConfig }: SectionsTabProps
     </div>
   );
 }
+

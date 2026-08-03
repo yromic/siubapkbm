@@ -4,17 +4,17 @@ export async function seed(knex: Knex): Promise<void> {
   const settings = [
     {
       setting_key: 'school_lat',
-      setting_value: '-6.9175',
+      setting_value: '-7.1373034',
       description: 'School latitude coordinate for geofence attendance'
     },
     {
       setting_key: 'school_lng',
-      setting_value: '107.6191',
+      setting_value: '110.4047823',
       description: 'School longitude coordinate for geofence attendance'
     },
     {
       setting_key: 'geofence_radius',
-      setting_value: '100',
+      setting_value: '150',
       description: 'Radius in meters for geofence attendance check'
     },
     {
@@ -70,3 +70,4 @@ export async function seed(knex: Knex): Promise<void> {
     }
   }
 }
+

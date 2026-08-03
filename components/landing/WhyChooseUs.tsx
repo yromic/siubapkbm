@@ -133,3 +133,4 @@ export default function WhyChooseUs({ title, subtitle, badge, items }: WhyChoose
     </section>
   );
 }
+

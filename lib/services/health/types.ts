@@ -59,3 +59,4 @@ export interface HealthResponse {
   summary: HealthSummary;
   sections: HealthSection[];
 }
+
