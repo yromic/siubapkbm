@@ -1,11 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { withRole } from '@/lib/middleware/withRole';
-import { calculateAndGetSemesterSummary } from '@/lib/services/characterSummaryService';
+import { getUTSMANSummary, calculateAndSaveUTSMAN } from '@/lib/services/utsmanCalculationService';
 import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
-import { db } from '@/lib/db';
 
+/**
+ * GET /api/v1/students/:id/character-summary
+ *
+ * Returns UTSMAN semester summary for a student.
+ * semester_id is required. academic_year_id is accepted but not required
+ * (UTSMAN table only uses semester_id).
+ *
+ * ?refresh=true  -> recalculates from culture_scores before returning
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,57 +23,39 @@ export async function GET(
       try {
         const { id } = await params;
         const { searchParams } = new URL(req.url);
-        const academic_year_id = searchParams.get('academic_year_id');
         const semester_id = searchParams.get('semester_id');
         const refresh = searchParams.get('refresh') === 'true';
-        const monthStr = searchParams.get('month');
-        const yearStr = searchParams.get('year');
 
-        if (!academic_year_id || !semester_id) {
-          return errorResponse('academic_year_id and semester_id query parameters are required.', 'ERR_VALIDATION', 400);
+        if (!semester_id) {
+          return errorResponse('semester_id query parameter is required.', 'ERR_VALIDATION', 400);
         }
 
-        // Trigger calculations first to make sure tables are updated
-        const result = await calculateAndGetSemesterSummary(id, academic_year_id, semester_id, refresh);
+        let result = null;
 
-        if (monthStr && yearStr) {
-          const month = parseInt(monthStr, 10);
-          const year = parseInt(yearStr, 10);
-          const monthlySummary = await db('character_monthly_summaries')
-            .where({
-              student_id: id,
-              summary_month: month,
-              summary_year: year
-            })
-            .whereNot('lifecycle_status', 'soft_deleted')
-            .first();
-
-          const responseData = {
-            f: monthlySummary && monthlySummary.f_score !== null ? parseFloat(monthlySummary.f_score) : null,
-            i: monthlySummary && monthlySummary.i_score !== null ? parseFloat(monthlySummary.i_score) : null,
-            t: monthlySummary && monthlySummary.t_score !== null ? parseFloat(monthlySummary.t_score) : null,
-            r: monthlySummary && monthlySummary.r_score !== null ? parseFloat(monthlySummary.r_score) : null,
-            a: monthlySummary && monthlySummary.a_score !== null ? parseFloat(monthlySummary.a_score) : null,
-            h: monthlySummary && monthlySummary.h_score !== null ? parseFloat(monthlySummary.h_score) : null,
-            days_counted: monthlySummary ? Number(monthlySummary.days_counted) || 0 : 0,
-            period_information: `${monthStr}/${yearStr}`
-          };
-
-          return successResponse(responseData, 'Student character monthly summary retrieved.');
+        if (refresh) {
+          // Recalculate from culture_scores and persist
+          result = await calculateAndSaveUTSMAN(id, semester_id);
+        } else {
+          result = await getUTSMANSummary(id, semester_id);
+          // If no record exists yet, auto-calculate
+          if (!result) {
+            result = await calculateAndSaveUTSMAN(id, semester_id);
+          }
         }
 
         const responseData = {
-          f: result && result.f_score !== null ? parseFloat(result.f_score) : null,
-          i: result && result.i_score !== null ? parseFloat(result.i_score) : null,
-          t: result && result.t_score !== null ? parseFloat(result.t_score) : null,
-          r: result && result.r_score !== null ? parseFloat(result.r_score) : null,
-          a: result && result.a_score !== null ? parseFloat(result.a_score) : null,
-          h: result && result.h_score !== null ? parseFloat(result.h_score) : null,
-          days_counted: result ? Number(result.days_counted) || 0 : 0,
+          u: result && result.u_score !== null ? parseFloat(String(result.u_score)) : null,
+          t: result && result.t_score !== null ? parseFloat(String(result.t_score)) : null,
+          s: result && result.s_score !== null ? parseFloat(String(result.s_score)) : null,
+          m: result && result.m_score !== null ? parseFloat(String(result.m_score)) : null,
+          a: result && result.a_score !== null ? parseFloat(String(result.a_score)) : null,
+          n: result && result.n_score !== null ? parseFloat(String(result.n_score)) : null,
+          locked_at: result?.locked_at || null,
+          calculation_version: result?.calculation_version || null,
           period_information: 'Semester'
         };
 
-        return successResponse(responseData, 'Student character semester summary retrieved.');
+        return successResponse(responseData, 'Student UTSMAN character semester summary retrieved.');
       } catch (error) {
         if (error instanceof AppError) {
           return errorResponse(error.message, error.code, error.statusCode);

@@ -279,7 +279,7 @@ export function StudentGrowth({ historicalData }: StudentGrowthProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
           <div>
-            Data bulan terakhir masih terbatas ({analysis.latestDaysCounted} hari terisi). Interpretasi perkembangan perlu dilakukan dengan hati-hati.
+            Data bulan terakhir masih terbatas ({analysis.latestDaysCounted} minggu terisi). Interpretasi perkembangan perlu dilakukan dengan hati-hati.
           </div>
         </section>
       )}
@@ -412,14 +412,14 @@ export function StudentGrowth({ historicalData }: StudentGrowthProps) {
         </p>
       </section>
 
-      {/* 7. Days Counted Chart */}
+      {/* 7. Weeks Counted Chart */}
       <section className="bg-surface-2 border border-zinc-150 dark:border-zinc-850 rounded-2xl p-4 sm:p-5">
         <div className="mb-4">
           <h5 className="text-xs font-bold text-zinc-400 dark:text-zinc-550 tracking-wider uppercase">
-            Data Completeness (Hari Terisi)
+            Data Completeness (Minggu Terisi)
           </h5>
           <p className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">
-            Jumlah hari dengan minimal 1 entri budaya karakter untuk validitas interpretasi trend.
+            Jumlah minggu dengan minimal 1 entri budaya karakter untuk validitas interpretasi trend.
           </p>
         </div>
         <div className="w-full" style={{ height: "160px" }}>
@@ -452,7 +452,7 @@ export function StudentGrowth({ historicalData }: StudentGrowthProps) {
               />
               <Bar
                 dataKey="days_counted"
-                name="Hari Terisi"
+                name="Minggu Terisi"
                 fill="#8b5cf6"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={30}
@@ -461,7 +461,7 @@ export function StudentGrowth({ historicalData }: StudentGrowthProps) {
           </ResponsiveContainer>
         </div>
         <p className="text-[10px] text-zinc-400 dark:text-zinc-500 italic mt-3 text-center">
-          Days Counted menunjukkan jumlah hari budaya yang tercatat pada periode tersebut.
+          Weeks Counted menunjukkan jumlah minggu budaya yang tercatat pada periode tersebut.
         </p>
       </section>
 
@@ -478,7 +478,7 @@ export function StudentGrowth({ historicalData }: StudentGrowthProps) {
             <strong>Trend Dimensi FITRAH:</strong> Nilai kosong tidak dihitung sebagai nol.
           </li>
           <li>
-            <strong>Data Completeness:</strong> Days Counted menunjukkan jumlah hari budaya yang tercatat pada periode tersebut.
+            <strong>Data Completeness:</strong> Weeks Counted menunjukkan jumlah minggu budaya yang tercatat pada periode tersebut.
           </li>
         </ul>
       </section>

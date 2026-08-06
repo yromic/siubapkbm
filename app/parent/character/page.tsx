@@ -210,15 +210,23 @@ export default function ParentCharacterPage() {
               </div>
               <div className="bg-white dark:bg-[#171717] p-4 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col justify-between">
                 <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">
-                  Hari Input Budaya
+                  Minggu Terisi
                 </span>
                 <span className="text-2xl font-black text-zinc-900 dark:text-zinc-555 mt-1 block font-data">
                   {period?.days_counted || 0}
                 </span>
                 <span className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2 block">
-                  Hari Aktif Dinilai
+                  Minggu Aktif Dinilai
                 </span>
               </div>
+            </div>
+
+            {/* H10 Help Documentation Banner */}
+            <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 rounded-[16px] p-3.5 flex items-center gap-3 text-xs text-emerald-900 dark:text-emerald-300 font-medium">
+              <ClipboardList className="w-5 h-5 text-[#468432] dark:text-emerald-450 shrink-0" />
+              <span>
+                <strong>UTSMAN</strong> merupakan nilai karakter utama semester yang dihitung dari observasi SAHABAT mingguan. <strong>FITRAH</strong> tetap digunakan sebagai lapisan interpretasi karakter.
+              </span>
             </div>
 
             {/* Radar Chart or Empty State */}

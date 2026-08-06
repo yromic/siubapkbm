@@ -31,6 +31,7 @@ import {
   SaveCultureScoreItem,
 } from "@/lib/api/culture";
 import { dbScoreToUi, uiScoreToDb } from "@/lib/utils/scoreMapper";
+import { UX_COPY } from "@/lib/ux-copy";
 
 type IndicatorKey = "sss" | "am" | "hb" | "asm" | "br" | "ak" | "tm";
 
@@ -55,6 +56,8 @@ interface ScoreRow {
   student: StudentSummary;
   scores: Record<IndicatorKey, number | null>;
   originalScores: Record<IndicatorKey, number | null>;
+  observationNote: string;
+  originalObservationNote: string;
 }
 
 function getLocalDateString(date: Date = new Date()): string {
@@ -71,21 +74,60 @@ function isValidDateParam(value: string | null): value is string {
   return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
 }
 
+/**
+ * Calculates Monday (week_start_date) and Sunday (week_end_date) for any selected date
+ */
+function getWeekRange(dateInput: string) {
+  if (!dateInput || !isValidDateParam(dateInput)) return null;
+
+  const [year, month, day] = dateInput.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+
+  const dayOfWeek = date.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const diffToMonday = date.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+
+  const monday = new Date(year, month - 1, diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const formatISO = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const formatHuman = (d: Date) => {
+    return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  };
+
+  return {
+    week_start_date: formatISO(monday),
+    week_end_date: formatISO(sunday),
+    displayRange: `${formatHuman(monday)} - ${formatHuman(sunday)}`,
+    mondayDate: monday,
+    sundayDate: sunday,
+  };
+}
+
 function humanizeError(error: unknown) {
-  if (!(error instanceof Error)) return "Gagal menyimpan skor budaya.";
+  if (!(error instanceof Error)) return UX_COPY.culture.saveError;
   const message = error.message;
   const code = "code" in error ? String((error as { code?: unknown }).code || "") : "";
 
   if (code === "ERR_SEMESTER_FINALIZED" || message.toLowerCase().includes("finalized")) {
     return "Semester sudah difinalisasi. Nilai tidak dapat diubah.";
   }
-  if (code === "ERR_FORBIDDEN" || message.toLowerCase().includes("forbidden")) {
-    return "Anda tidak memiliki otorisasi untuk melakukan aksi ini.";
+  if (code === "ERR_SEMESTER_LOCKED" || message.toLowerCase().includes("dikunci oleh admin")) {
+    return UX_COPY.culture.semesterLocked;
   }
-  if (code === "ERR_PERIOD_LOCKED" || message.toLowerCase().includes("period for editing") || message.toLowerCase().includes("locked")) {
-    return "Periode pengisian nilai budaya untuk tanggal ini sudah terkunci (maksimal 7 hari lalu).";
+  if (code === "ERR_FORBIDDEN" || message.toLowerCase().includes("forbidden") || message.toLowerCase().includes("tidak memiliki akses")) {
+    return UX_COPY.culture.teacherNotAssigned;
   }
-  return message || "Gagal menyimpan skor budaya.";
+  if (code === "ERR_PERIOD_LOCKED" || message.toLowerCase().includes("period for editing") || message.toLowerCase().includes("sudah ditutup")) {
+    return UX_COPY.culture.periodLocked;
+  }
+  return message || UX_COPY.culture.saveError;
 }
 
 function DailyCulturePageContent() {
@@ -97,7 +139,10 @@ function DailyCulturePageContent() {
   // Selection States
   const [classes, setClasses] = useState<MyClassAssignment[]>([]);
   const [selectedClassId, setSelectedClassId] = useState(requestedClassId || "");
-  const [selectedDate, setSelectedDate] = useState(() => isValidDateParam(requestedDate) ? requestedDate : "");
+  const [selectedDate, setSelectedDate] = useState(() => isValidDateParam(requestedDate) ? requestedDate : getLocalDateString());
+
+  // Calculated Week Range
+  const weekRange = useMemo(() => getWeekRange(selectedDate), [selectedDate]);
 
   // Data States
   const [rows, setRows] = useState<ScoreRow[]>([]);
@@ -116,27 +161,55 @@ function DailyCulturePageContent() {
     return classes.find((item) => item.class_id === selectedClassId);
   }, [classes, selectedClassId]);
 
-  // Client-side date lock window (7 days limit check for Teacher role)
+  // Client-side date lock window (7 days limit check for Teacher role based on week_end_date)
   const isLockedByDate = useMemo(() => {
-    if (!selectedDate) return false;
-    if (user?.role === "administrator") return false;
+    if (!weekRange) return false;
+    const role = String(user?.role || "").toLowerCase();
+    if (role === "administrator" || role === "admin") return false;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Parse target date based on YYYY-MM-DD local format
-    const parts = selectedDate.split("-");
-    if (parts.length !== 3) return false;
-    const target = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 0, 0, 0, 0);
+    const lockCheckEndDate = new Date(weekRange.sundayDate);
+    lockCheckEndDate.setHours(23, 59, 59, 999);
 
-    const diffTime = today.getTime() - target.getTime();
+    const diffTime = today.getTime() - lockCheckEndDate.getTime();
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-    const limit = user?.role === "admin" ? 30 : 7;
+    const limit = (role === "admin" || role === "administrator") ? 30 : 7;
     return diffDays > limit;
-  }, [selectedDate, user]);
+  }, [weekRange, user]);
 
-  const isReadOnly = isSemesterLocked || isLockedByDate;
+  // Calculate week status badge (Improvement 1: Visibility of System Status)
+  const weekStatus = useMemo(() => {
+    if (isSemesterLocked || isLockedByDate) {
+      return { code: "locked", label: "Dikunci", badge: "🔴 Dikunci", color: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400 border-red-200 dark:border-red-800" };
+    }
+    if (!weekRange) return { code: "active", label: "Aktif", badge: "🟢 Aktif", color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lockCheckEndDate = new Date(weekRange.sundayDate);
+    lockCheckEndDate.setHours(23, 59, 59, 999);
+
+    const diffTime = today.getTime() - lockCheckEndDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const role = String(user?.role || "").toLowerCase();
+    const limit = (role === "admin" || role === "administrator") ? 30 : 7;
+    const warningDays = (role === "admin" || role === "administrator") ? 25 : 5;
+
+    if (diffDays >= warningDays && diffDays <= limit) {
+      return { code: "warning", label: "Mendekati Batas Pengisian", badge: "🟡 Mendekati batas pengisian", color: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-800" };
+    }
+
+    return { code: "active", label: "Aktif", badge: "🟢 Aktif", color: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" };
+  }, [isSemesterLocked, isLockedByDate, weekRange, user]);
+
+  const isReadOnly = Boolean(isSemesterLocked || isLockedByDate);
+
+  // Incomplete submit confirmation state (Improvement 3: Submit Prevention)
+  const [confirmIncompleteOpen, setConfirmIncompleteOpen] = useState(false);
+  const [incompleteCount, setIncompleteCount] = useState(0);
 
   // Load classes initially
   useEffect(() => {
@@ -149,7 +222,7 @@ function DailyCulturePageContent() {
         if (myClasses.length > 0) {
           const requestedClass = requestedClassId && myClasses.some((item) => item.class_id === requestedClassId)
             ? requestedClassId
-            : "";
+            : myClasses[0].class_id;
           setSelectedClassId(requestedClass);
           setLoading(false);
         } else {
@@ -164,9 +237,9 @@ function DailyCulturePageContent() {
     setTimeout(() => loadClasses(), 0);
   }, [token, user, requestedClassId]);
 
-  // Load roster and scores on class or date change
+  // Load roster and scores on class or week_start_date change
   const loadRosterAndScores = useCallback(async () => {
-    if (!token || !selectedClassId || !selectedDate || !selectedAssignment) {
+    if (!token || !selectedClassId || !weekRange || !selectedAssignment) {
       setLoading(false);
       return;
     }
@@ -177,15 +250,13 @@ function DailyCulturePageContent() {
     try {
       const { academic_year_id, semester_id } = selectedAssignment;
 
-      const dateStr = (selectedDate as any) instanceof Date ? getLocalDateString(selectedDate as any) : String(selectedDate);
-      if (!dateStr || !selectedClassId) return;
-
-      // 1. Fetch data in parallel
+      // 1. Fetch data in parallel using week_start_date
       const [roster, scores, finalization] = await Promise.all([
         listStudentsByClass(selectedClassId, academic_year_id, semester_id, token!),
         listCultureScoresByDate(token!, {
           class_id: selectedClassId,
-          score_date: dateStr,
+          week_start_date: weekRange.week_start_date,
+          score_date: weekRange.week_start_date,
           academic_year_id,
           semester_id,
         }),
@@ -219,40 +290,46 @@ function DailyCulturePageContent() {
           tm: dbScoreToUi(existing?.tm_score),
         };
 
+        const note = existing?.observation_note || "";
+
         return {
           student,
           scores: { ...itemScores },
           originalScores: { ...itemScores },
+          observationNote: note,
+          originalObservationNote: note,
         };
       });
 
       setRows(initialRows);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Gagal memuat data roster budaya.");
+      setError(err instanceof Error ? err.message : "Gagal memuat data roster budaya mingguan.");
     } finally {
       setLoading(false);
     }
-  }, [token, selectedClassId, selectedAssignment, selectedDate]);
+  }, [token, selectedClassId, selectedAssignment, weekRange]);
 
   useEffect(() => {
-    if (!selectedClassId || !selectedDate) return;
-    if (selectedClassId && selectedDate && selectedAssignment) {
+    if (!selectedClassId || !weekRange) return;
+    if (selectedClassId && weekRange && selectedAssignment) {
       setTimeout(() => loadRosterAndScores(), 0);
     } else {
       setLoading(false);
     }
-  }, [selectedClassId, selectedAssignment, selectedDate, loadRosterAndScores]);
+  }, [selectedClassId, selectedAssignment, weekRange, loadRosterAndScores]);
 
   // Identify dirty rows
   const dirtyRows = useMemo(() => {
     return rows.filter((row) => {
-      return INDICATORS.some(
+      const isScoreChanged = INDICATORS.some(
         (ind) => row.scores[ind.key] !== row.originalScores[ind.key]
       );
+      const isNoteChanged = row.observationNote !== row.originalObservationNote;
+      return isScoreChanged || isNoteChanged;
     });
   }, [rows]);
 
-  // Completion calculations
+  // Completion metrics
   const completionStats = useMemo(() => {
     const total = rows.length;
     let started = 0;
@@ -288,6 +365,21 @@ function DailyCulturePageContent() {
     );
   };
 
+  // Action update observation note for student
+  const updateObservationNote = (studentId: string, note: string) => {
+    if (isReadOnly) return;
+    setRows((current) =>
+      current.map((row) =>
+        row.student.id === studentId
+          ? {
+              ...row,
+              observationNote: note,
+            }
+          : row
+      )
+    );
+  };
+
   // Cancel confirm state
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
@@ -296,10 +388,11 @@ function DailyCulturePageContent() {
       current.map((row) => ({
         ...row,
         scores: { ...row.originalScores },
+        observationNote: row.originalObservationNote,
       }))
     );
     setSaveError(null);
-    notify.info("Perubahan skor budaya dibatalkan.");
+    notify.info(UX_COPY.culture.cancelSuccess);
   };
 
   const handleCancel = () => {
@@ -312,21 +405,18 @@ function DailyCulturePageContent() {
 
   const { open: appOpen, setOpen: setAppOpen, message: appMsg, triggerAppreciation } = useAppreciation();
 
-  // Submit batch saves
-  const handleSave = async () => {
-    if (!token || !selectedAssignment || isReadOnly || dirtyRows.length === 0) return;
+  // Execution function for batch save
+  const executeSave = async () => {
+    if (!token || !selectedAssignment || !weekRange || isReadOnly || dirtyRows.length === 0) return;
 
     setSaving(true);
     setSaveError(null);
     try {
       const { academic_year_id, semester_id } = selectedAssignment;
 
-      const dateStr = (selectedDate as any) instanceof Date ? getLocalDateString(selectedDate as any) : String(selectedDate);
-
       const payloadScores: SaveCultureScoreItem[] = dirtyRows.map((row) => {
         return {
           student_id: row.student.id,
-          score_date: dateStr,
           sss_score: uiScoreToDb(row.scores.sss),
           am_score: uiScoreToDb(row.scores.am),
           hb_score: uiScoreToDb(row.scores.hb),
@@ -334,6 +424,7 @@ function DailyCulturePageContent() {
           br_score: uiScoreToDb(row.scores.br),
           ak_score: uiScoreToDb(row.scores.ak),
           tm_score: uiScoreToDb(row.scores.tm),
+          observation_note: row.observationNote.trim() || null,
         };
       });
 
@@ -341,13 +432,14 @@ function DailyCulturePageContent() {
         class_id: selectedClassId,
         academic_year_id,
         semester_id,
-        score_date: dateStr,
+        week_start_date: weekRange.week_start_date,
+        week_end_date: weekRange.week_end_date,
         scores: payloadScores,
       });
 
       setLastSavedAt(new Date().toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }));
 
-      notify.success("Nilai budaya berhasil disimpan");
+      notify.success(UX_COPY.culture.saveSuccess);
 
       // Evaluate 100% weekly culture completion
       const isHundredPercent = completionStats.total > 0 && completionStats.complete === completionStats.total;
@@ -356,7 +448,7 @@ function DailyCulturePageContent() {
         triggerAppreciation({
           workflowId: "culture_100",
           classId: selectedClassId,
-          scoreDate: (selectedDate as any) instanceof Date ? getLocalDateString(selectedDate as any) : String(selectedDate),
+          scoreDate: weekRange.week_start_date,
           role: "teacher",
           level: 4,
         });
@@ -370,16 +462,35 @@ function DailyCulturePageContent() {
     }
   };
 
+  // Submit handler with incomplete assessment warning (Improvement 3: Submit Prevention)
+  const handleSave = async () => {
+    if (!token || !selectedAssignment || !weekRange || isReadOnly || dirtyRows.length === 0) return;
+
+    // Count dirty students that do not have all 7 indicators filled
+    const incompleteDirty = dirtyRows.filter((row) => {
+      const filledCount = INDICATORS.filter((ind) => row.scores[ind.key] !== null).length;
+      return filledCount < 7;
+    });
+
+    if (incompleteDirty.length > 0) {
+      setIncompleteCount(incompleteDirty.length);
+      setConfirmIncompleteOpen(true);
+    } else {
+      await executeSave();
+    }
+  };
+
   // Check roles permissions
-  if (!user || user.role !== "teacher") {
-    return <ForbiddenState message="Halaman Budaya Harian hanya dapat diakses oleh Guru Wali Kelas." />;
+  const userRoleStr = String(user?.role || "").toLowerCase();
+  if (!user || (userRoleStr !== "teacher" && userRoleStr !== "administrator" && userRoleStr !== "admin")) {
+    return <ForbiddenState message="Halaman Asesmen Budaya Mingguan hanya dapat diakses oleh Guru Wali Kelas atau Admin." />;
   }
 
   return (
     <ResponsiveContainer className="space-y-6">
       <PageHeader
-        title="Budaya Harian (SAHABAT)"
-        description="Input dan pantau skor budaya harian karakter siswa."
+        title="Asesmen Budaya Mingguan (SAHABAT)"
+        description="Input dan pantau skor asesmen budaya mingguan karakter siswa."
       />
 
       {/* Selectors Panel */}
@@ -404,13 +515,13 @@ function DailyCulturePageContent() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5 font-plus-jakarta">Tanggal</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1.5 font-plus-jakarta">Tanggal (Pilih Minggu)</label>
             <DatePicker
               value={selectedDate}
               onChange={(val) => setSelectedDate(val)}
               disabled={loading}
               maxDate={getLocalDateString()}
-              placeholder="Pilih tanggal..."
+              placeholder="Pilih tanggal minggu..."
             />
           </div>
 
@@ -424,6 +535,28 @@ function DailyCulturePageContent() {
         </div>
       </Card>
 
+      {/* Header Info Penilaian Minggu & Status Badge (Improvement 1) */}
+      {weekRange && (
+        <div className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-100 block">Penilaian Minggu</span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border backdrop-blur ${
+                weekStatus.code === 'locked' ? 'bg-red-500/20 text-red-100 border-red-300/40' :
+                weekStatus.code === 'warning' ? 'bg-amber-500/20 text-amber-100 border-amber-300/40' :
+                'bg-emerald-500/20 text-emerald-100 border-emerald-300/40'
+              }`}>
+                {weekStatus.badge}
+              </span>
+            </div>
+            <h2 className="text-lg font-bold font-plus-jakarta mt-0.5">{weekRange.displayRange}</h2>
+          </div>
+          <div className="text-xs bg-white/10 backdrop-blur px-3 py-1.5 rounded-lg border border-white/20 self-start sm:self-auto">
+            Senin ({weekRange.week_start_date}) s/d Minggu ({weekRange.week_end_date})
+          </div>
+        </div>
+      )}
+
       {isSemesterLocked && (
         <InfoBanner
           variant="error"
@@ -436,7 +569,7 @@ function DailyCulturePageContent() {
         <InfoBanner
           variant="warning"
           title="Batas Pengisian Terlewati"
-          description={`Tanggal ini berada di luar batas pengisian harian (maksimal 7 hari untuk guru, 30 hari untuk admin). Anda hanya dapat melihat data budaya yang sudah diisi.`}
+          description="Minggu ini berada di luar batas pengisian mingguan (maksimal 7 hari setelah akhir minggu untuk guru, 30 hari untuk admin). Anda hanya dapat melihat data budaya yang sudah diisi."
         />
       )}
 
@@ -450,7 +583,7 @@ function DailyCulturePageContent() {
 
       {/* Completion Metrics Section */}
       {!loading && !error && rows.length > 0 && (
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4" aria-label="Statistik pengisian budaya harian">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4" aria-label="Statistik pengisian budaya mingguan">
           <Card padding="md">
             <ColumnLabel className="block">Total Roster Siswa</ColumnLabel>
             <span className="mt-2 text-2xl font-fredoka font-bold text-zinc-950 dark:text-zinc-50 block">{completionStats.total}</span>
@@ -483,7 +616,7 @@ function DailyCulturePageContent() {
       )}
 
       {/* Main Content Area */}
-      {loading && <LoadingState message="Memuat roster & nilai budaya harian..." />}
+      {loading && <LoadingState message="Memuat roster & nilai budaya mingguan..." />}
 
       {!loading && error && <ErrorState message={error} onRetry={loadRosterAndScores} />}
 
@@ -498,8 +631,8 @@ function DailyCulturePageContent() {
 
           {(!selectedClassId || !selectedDate) && classes.length > 0 && (
             <EmptyState
-              title="Rekap Nilai Budaya"
-              description="Pilih kelas dan tanggal untuk melihat rekap"
+              title="Rekap Nilai Budaya Mingguan"
+              description="Pilih kelas dan minggu untuk melihat rekap"
             />
           )}
 
@@ -510,13 +643,27 @@ function DailyCulturePageContent() {
             />
           )}
 
+          {/* SAHABAT Score Legend (Improvement 2: Recognition Not Recall & Help) */}
+          {selectedClassId && selectedDate && rows.length > 0 && (
+            <div className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 text-xs font-plus-jakarta text-zinc-600 dark:text-zinc-400 flex flex-wrap items-center justify-between gap-2 shadow-xs">
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-xs">Skala Penilaian SAHABAT:</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px]">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-zinc-300 dark:bg-zinc-700"></span> <strong>0</strong> = Belum Dinilai</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> <strong>1</strong> = Perlu Pembinaan</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> <strong>2</strong> = Mulai Berkembang</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> <strong>3</strong> = Baik</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span> <strong>4</strong> = Sangat Baik</span>
+              </div>
+            </div>
+          )}
+
           {selectedClassId && selectedDate && rows.length > 0 && (
             <Card>
               {/* Header status bar */}
               <CardHeader
-                title="Daftar Input Skor"
+                title="Daftar Input Skor Mingguan"
                 bordered
-                subtitle="Klik atau ketuk tombol skor untuk memilih nilai (1–4). Klik kembali untuk mengosongkan."
+                subtitle="Klik atau ketuk tombol skor untuk memilih nilai (1–4). Klik kembali untuk mengosongkan (0 = tidak diamati)."
                 action={
                   <span className="text-xs font-plus-jakarta font-medium text-zinc-500 dark:text-zinc-400">
                     {dirtyRows.length > 0 ? (
@@ -536,15 +683,16 @@ function DailyCulturePageContent() {
                   <thead>
                     <tr className="bg-zinc-50 dark:bg-zinc-800/40 border-b border-zinc-100 dark:border-zinc-800 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
                       <th className="py-3 px-4 w-12 text-center" scope="col">No</th>
-                      <th className="py-3 px-4 min-w-[200px]" scope="col">Nama Siswa</th>
+                      <th className="py-3 px-4 min-w-[180px]" scope="col">Nama Siswa</th>
                       {INDICATORS.map((ind) => (
-                        <th key={ind.key} className="py-3 px-3 text-center min-w-[130px]" title={ind.description} scope="col">
+                        <th key={ind.key} className="py-3 px-2 text-center min-w-[120px]" title={ind.description} scope="col">
                           {ind.code}
-                          <span className="block text-[9px] font-normal lowercase text-zinc-400 dark:text-zinc-500 truncate max-w-[110px] mt-0.5">
+                          <span className="block text-[9px] font-normal lowercase text-zinc-400 dark:text-zinc-500 truncate max-w-[100px] mt-0.5">
                             {ind.name}
                           </span>
                         </th>
                       ))}
+                      <th className="py-3 px-4 min-w-[180px]" scope="col">Catatan Pengamatan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-plus-jakarta">
@@ -563,7 +711,7 @@ function DailyCulturePageContent() {
                           {INDICATORS.map((ind) => {
                             const val = row.scores[ind.key];
                             return (
-                              <td key={ind.key} className="py-3.5 px-3">
+                              <td key={ind.key} className="py-3.5 px-2">
                                 <div className="flex items-center justify-center">
                                   <ScoreSelector
                                     value={val}
@@ -574,6 +722,16 @@ function DailyCulturePageContent() {
                               </td>
                             );
                           })}
+                          <td className="py-3.5 px-4">
+                            <input
+                              type="text"
+                              value={row.observationNote}
+                              disabled={isReadOnly}
+                              onChange={(e) => updateObservationNote(row.student.id, e.target.value)}
+                              placeholder="Catatan..."
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-surface-1 text-xs font-plus-jakarta focus:outline-none focus:ring-1 focus:ring-brand-emerald-500 disabled:opacity-60"
+                            />
+                          </td>
                         </tr>
                       );
                     })}
@@ -586,7 +744,7 @@ function DailyCulturePageContent() {
                 {rows.map((row, index) => {
                   const isExpanded = expandedStudentId === row.student.id;
                   const filledCount = INDICATORS.filter((ind) => row.scores[ind.key] !== null).length;
-                  const isRowDirty = INDICATORS.some((ind) => row.scores[ind.key] !== row.originalScores[ind.key]);
+                  const isRowDirty = INDICATORS.some((ind) => row.scores[ind.key] !== row.originalScores[ind.key]) || row.observationNote !== row.originalObservationNote;
 
                   return (
                     <div key={row.student.id}>
@@ -672,6 +830,18 @@ function DailyCulturePageContent() {
                               </div>
                             );
                           })}
+
+                          <div className="pt-2">
+                            <label className="block text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-1">Catatan Pengamatan Guru</label>
+                            <input
+                              type="text"
+                              value={row.observationNote}
+                              disabled={isReadOnly}
+                              onChange={(e) => updateObservationNote(row.student.id, e.target.value)}
+                              placeholder="Masukkan catatan pengamatan..."
+                              className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-surface-1 text-xs font-plus-jakarta focus:outline-none focus:ring-2 focus:ring-brand-emerald-500 disabled:opacity-60"
+                            />
+                          </div>
                         </div>
                       )}
                     </div>
@@ -686,9 +856,9 @@ function DailyCulturePageContent() {
             <div className="sticky bottom-16 md:bottom-4 z-30 rounded-2xl bg-surface-1/95 backdrop-blur border border-zinc-200 dark:border-zinc-800 shadow-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" role="region" aria-label="Action Toolbar">
               <p className="text-sm font-plus-jakarta text-zinc-600 dark:text-zinc-400">
                 {dirtyRows.length > 0 ? (
-                  <span>Terdapat <span className="font-bold text-brand-emerald-600 dark:text-brand-emerald-400">{dirtyRows.length}</span> perubahan nilai belum disimpan.</span>
+                  <span>Terdapat <span className="font-bold text-brand-emerald-600 dark:text-brand-emerald-400">{dirtyRows.length}</span> perubahan nilai mingguan belum disimpan.</span>
                 ) : (
-                  "Tidak ada perubahan nilai harian."
+                  "Tidak ada perubahan nilai mingguan."
                 )}
               </p>
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -710,7 +880,7 @@ function DailyCulturePageContent() {
                       Menyimpan...
                     </>
                   ) : (
-                    "Simpan Skor"
+                    "Simpan Skor Mingguan"
                   )}
                 </button>
               </div>
@@ -721,11 +891,22 @@ function DailyCulturePageContent() {
             open={confirmCancelOpen}
             onOpenChange={setConfirmCancelOpen}
             title="Batalkan Perubahan Skor Budaya?"
-            description={`Terdapat ${dirtyRows.length} perubahan skor budaya yang belum disimpan. Semua perubahan akan dibatalkan.`}
+            description={`Terdapat ${dirtyRows.length} perubahan skor budaya mingguan yang belum disimpan. Semua perubahan akan dibatalkan.`}
             confirmLabel="Ya, Batalkan"
             cancelLabel="Tidak, Lanjutkan Pengisian"
             variant="destructive"
             onConfirm={executeCancelReset}
+          />
+
+          <ConfirmDialog
+            open={confirmIncompleteOpen}
+            onOpenChange={setConfirmIncompleteOpen}
+            title="Penilaian Siswa Belum Lengkap"
+            description={`Terdapat ${incompleteCount} siswa yang belum memiliki penilaian lengkap (7/7 indikator). Apakah Anda tetap ingin menyimpan nilai minggu ini?`}
+            confirmLabel="Simpan Tetap"
+            cancelLabel="Periksa Kembali"
+            variant="default"
+            onConfirm={executeSave}
           />
 
           <AppreciationDialog
@@ -742,9 +923,8 @@ function DailyCulturePageContent() {
 
 export default function DailyCulturePage() {
   return (
-    <Suspense fallback={<LoadingState message="Memuat halaman budaya harian..." />}>
+    <Suspense fallback={<LoadingState message="Memuat halaman budaya mingguan..." />}>
       <DailyCulturePageContent />
     </Suspense>
   );
 }
-

@@ -19,12 +19,12 @@
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
     "decimal.js": "^10.6.0",
-    "exceljs": "^4.4.0",
+    "exceljs": "^3.4.0",
     "framer-motion": "^12.42.2",
     "knex": "^3.3.0",
     "lucide-react": "^1.21.0",
     "mysql2": "^3.22.6",
-    "next": "16.2.9",
+    "next": "^16.2.12",
     "otplib": "^13.4.1",
     "papaparse": "^5.5.4",
     "pdfmake": "^0.3.11",
@@ -34,7 +34,7 @@
     "react-dom": "19.2.4",
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
-    "uuid": "^10.0.0"
+    "uuid": "^14.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

@@ -3,12 +3,13 @@ import { apiRequest } from "./client";
 export interface CultureScoreRecord {
   id: string;
   student_id: string;
-  student_enrollment_id: string;
-  class_id: string;
-  teacher_user_id: string;
-  academic_year_id: string;
+  student_enrollment_id?: string | null;
+  class_id?: string | null;
+  teacher_user_id?: string | null;
+  academic_year_id?: string | null;
   semester_id: string;
-  score_date: string; // YYYY-MM-DD
+  week_start_date: string; // YYYY-MM-DD
+  week_end_date: string; // YYYY-MM-DD
   sss_score: number | null;
   am_score: number | null;
   hb_score: number | null;
@@ -16,12 +17,12 @@ export interface CultureScoreRecord {
   br_score: number | null;
   ak_score: number | null;
   tm_score: number | null;
+  observation_note?: string | null;
   status: "active" | string;
 }
 
 export interface SaveCultureScoreItem {
   student_id: string;
-  score_date: string;
   sss_score: number | null;
   am_score: number | null;
   hb_score: number | null;
@@ -29,21 +30,24 @@ export interface SaveCultureScoreItem {
   br_score: number | null;
   ak_score: number | null;
   tm_score: number | null;
+  observation_note?: string | null;
 }
 
 export interface SaveCultureScoresPayload {
   class_id: string;
-  academic_year_id: string;
+  academic_year_id?: string;
   semester_id: string;
-  score_date: string; // YYYY-MM-DD
+  week_start_date: string; // YYYY-MM-DD
+  week_end_date: string; // YYYY-MM-DD
   scores: SaveCultureScoreItem[];
 }
 
 export interface ListCultureScoresPayload {
   class_id: string;
-  score_date: string; // YYYY-MM-DD
-  academic_year_id: string;
-  semester_id: string;
+  week_start_date?: string; // YYYY-MM-DD
+  score_date?: string; // Backwards compatible fallback
+  academic_year_id?: string;
+  semester_id?: string;
 }
 
 export interface SemesterFinalizationPayload {
@@ -77,6 +81,7 @@ export async function getSemesterFinalizationStatus(
 ): Promise<SemesterFinalizationResponse> {
   return apiRequest<SemesterFinalizationResponse>("get_semester_finalization_status", payload, token);
 }
+
 export interface CultureCompleteness {
   completed_students: number;
   pending_students: number;
@@ -142,4 +147,3 @@ export async function getTeacherCultureCompleteness(
 ): Promise<TeacherCultureCompletenessResponse> {
   return apiRequest<TeacherCultureCompletenessResponse>("get_teacher_culture_completeness", payload, token);
 }
-

@@ -4,7 +4,7 @@ import { AppError } from '@/lib/errors';
 import bcrypt from 'bcryptjs';
 import { generateSessionToken, hashToken } from '@/lib/auth/tokenUtils';
 import { getStudentAcademicSummary } from './academicScoreService';
-import { calculateAndGetSemesterSummary } from './characterSummaryService';
+import { getUTSMANSummary } from './utsmanCalculationService';
 import { getSecuritySettingNum } from '@/lib/auth/securityUtils';
 import { logAuthenticationEvent } from './auditService';
 
@@ -261,35 +261,24 @@ export async function getParentDashboard(studentId: string) {
     }
   }
 
-  // Character Summary calculation
+  // Character Summary calculation (UTSMAN schema)
   let character_summary = null;
   if (enrollment) {
-    const semSummary = await calculateAndGetSemesterSummary(studentId, enrollment.academic_year_id, enrollment.semester_id).catch(() => null);
-    if (semSummary) {
-      const f = semSummary.f_score !== null ? Number(semSummary.f_score) : null;
-      const i = semSummary.i_score !== null ? Number(semSummary.i_score) : null;
-      const t = semSummary.t_score !== null ? Number(semSummary.t_score) : null;
-      const r = semSummary.r_score !== null ? Number(semSummary.r_score) : null;
-      const a = semSummary.a_score !== null ? Number(semSummary.a_score) : null;
-      const h = semSummary.h_score !== null ? Number(semSummary.h_score) : null;
+    const utsmanData = await getUTSMANSummary(studentId, enrollment.semester_id).catch(() => null);
+    if (utsmanData) {
+      const u = utsmanData.u_score !== null ? Number(utsmanData.u_score) : null;
+      const t = utsmanData.t_score !== null ? Number(utsmanData.t_score) : null;
+      const s = utsmanData.s_score !== null ? Number(utsmanData.s_score) : null;
+      const m = utsmanData.m_score !== null ? Number(utsmanData.m_score) : null;
+      const a = utsmanData.a_score !== null ? Number(utsmanData.a_score) : null;
+      const n = utsmanData.n_score !== null ? Number(utsmanData.n_score) : null;
 
-      let overall_average = null;
-      const validScores = [f, i, t, r, a, h].filter(v => v !== null) as number[];
-      if (validScores.length > 0) {
-        overall_average = parseFloat((validScores.reduce((sum, val) => sum + val, 0) / validScores.length).toFixed(2));
-      }
+      const validScores = [u, t, s, m, a, n].filter(v => v !== null) as number[];
+      const overall_average = validScores.length > 0
+        ? parseFloat((validScores.reduce((sum, val) => sum + val, 0) / validScores.length).toFixed(2))
+        : null;
 
-      character_summary = {
-        f,
-        i,
-        t,
-        r,
-        a,
-        h,
-        overall_average,
-        days_counted: semSummary.days_counted || 0,
-        period_label: enrollment.semester_name || "Semester Aktif"
-      };
+      character_summary = { u, t, s, m, a, n, overall_average, period_label: enrollment.semester_name || 'Semester Aktif' };
     }
   }
 
@@ -371,9 +360,10 @@ export async function getParentCharacterSummary(studentId: string, academicYearI
   }
 
   try {
-    return await calculateAndGetSemesterSummary(studentId, yearId, semId, false);
+    return await getUTSMANSummary(studentId, semId) ||
+      { message: 'No character summary data yet.', u_score: 0, t_score: 0, s_score: 0, m_score: 0, a_score: 0, n_score: 0 };
   } catch (e) {
-    return { message: 'No character summary data yet.', f_score: 0, i_score: 0, t_score: 0, r_score: 0, a_score: 0, h_score: 0 };
+    return { message: 'No character summary data yet.', u_score: 0, t_score: 0, s_score: 0, m_score: 0, a_score: 0, n_score: 0 };
   }
 }
 

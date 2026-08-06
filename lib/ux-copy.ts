@@ -160,6 +160,22 @@ export const UX_COPY = {
     saveSuccess: "Hasil penilaian berhasil disimpan.",
     cancelChanges: "Perubahan data nilai berhasil dibatalkan.",
     publishSuccess: "Hasil penilaian berhasil dipublikasikan.",
-  }
+  },
+
+  // --- CULTURE / CHARACTER MODULE ---
+  culture: {
+    saveSuccess: "Nilai budaya mingguan berhasil disimpan.",
+    saveError: "Gagal menyimpan nilai budaya. Silakan coba kembali.",
+    cancelSuccess: "Perubahan skor budaya mingguan dibatalkan.",
+    periodLocked: "Periode pengisian nilai budaya untuk minggu ini sudah ditutup. Batas pengisian adalah 7 hari setelah akhir minggu.",
+    semesterLocked: "Semester sudah dikunci oleh admin. Nilai tidak dapat diubah. Hubungi administrator jika diperlukan.",
+    teacherNotAssigned: "Anda tidak memiliki akses ke kelas ini. Pastikan penugasan wali kelas sudah benar.",
+    emptyRoster: "Tidak ada siswa aktif di kelas ini untuk semester berjalan.",
+    noAssignment: "Anda belum memiliki kelas aktif yang ditugaskan untuk periode ini.",
+    noCharacterData: "Tidak ada penilaian karakter semester ini.",
+    loadingRoster: "Memuat daftar siswa dan nilai budaya mingguan...",
+    savingScores: "Menyimpan nilai budaya mingguan...",
+    noScoreData: "Belum ada data nilai budaya yang tersedia untuk periode ini.",
+  },
 };
 

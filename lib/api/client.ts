@@ -80,6 +80,12 @@ export function humanizeError(err: unknown): string {
   if (upperCode.includes("NOT_FOUND") || upperCode.includes("ERR_NOT_FOUND")) {
     return "Data yang diminta tidak ditemukan.";
   }
+  if (upperCode.includes("ERR_SEMESTER_LOCKED") || upperCode.includes("SEMESTER_LOCKED")) {
+    return "Semester sudah dikunci. Silakan hubungi admin untuk membuka kunci.";
+  }
+  if (upperCode.includes("ERR_PERIOD_LOCKED") || upperCode.includes("PERIOD_LOCKED")) {
+    return "Periode input nilai sudah ditutup. Silakan hubungi admin.";
+  }
 
   // Check for raw SQL query leak or technical system errors
   if (/\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|JOIN|INTO|TABLE|FOREIGN KEY|PRIMARY KEY|ER_[A_Z_]+)\b/i.test(message)) {
@@ -150,6 +156,12 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   'calculate_culture_completeness':{ method: 'GET',  path: '/api/v1/completeness/culture' },
   'get_teacher_culture_completeness': { method: 'GET', path: '/api/v1/completeness/teachers' },
   'get_semester_finalization_status': { method: 'GET', path: '/api/v1/semesters/:id/finalization-status', idField: 'semester_id' },
+  'get_utsman_summary':            { method: 'GET',  path: '/api/v1/character/utsman-summary' },
+  'get_fitrah_summary':            { method: 'GET',  path: '/api/v1/character/fitrah-summary' },
+  'get_sahabat_breakdown':         { method: 'GET',  path: '/api/v1/character/sahabat-breakdown' },
+  'get_character_completeness':    { method: 'GET',  path: '/api/v1/character/completeness' },
+  'get_semester_character_lock':   { method: 'GET',  path: '/api/v1/character/semester-lock' },
+  'lock_semester_character':       { method: 'POST', path: '/api/v1/character/semester-lock' },
 
   // Student Files
   'list_student_files':            { method: 'GET',  path: '/api/v1/students/:id/files', idField: 'student_id' },

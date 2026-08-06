@@ -7,8 +7,10 @@ const SIUBA_DB_TABLES = [
   'semesters', 'classes', 'subjects', 'class_subjects', 'class_teacher_assignments',
   'students', 'student_enrollments', 'culture_indicators', 'character_values',
   'culture_character_mappings', 'academic_assessments', 'academic_scores',
-  'culture_scores', 'character_weekly_summaries', 'character_monthly_summaries',
-  'character_semester_summaries', 'student_files', 'teacher_notes', 'teacher_attendance',
+  'culture_scores', 'character_utsman_semester_summary',
+  // Legacy tables (dropped in migration 20260805220000): character_weekly_summaries,
+  // character_monthly_summaries, character_semester_summaries — excluded from backups.
+  'student_files', 'teacher_notes', 'teacher_attendance',
   'spp_payments', 'parent_access_logs', 'parent_sessions', 'import_logs',
   'report_snapshots', 'report_exports', 'backup_snapshots', 'class_promotion_rules',
   'audit_logs', 'job_queue'

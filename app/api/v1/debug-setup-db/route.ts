@@ -1,6 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
+/**
+ * @deprecated
+ * Debug setup-db endpoint disabled for production security (Sprint 8).
+ */
 export async function GET() {
-  return new Response('Unauthorized', { status: 401 });
+  return NextResponse.json(
+    { status: "error", code: "ERR_NOT_FOUND", message: "Endpoint disabled in production." },
+    { status: 404 }
+  );
 }
 
+export async function POST() {
+  return NextResponse.json(
+    { status: "error", code: "ERR_NOT_FOUND", message: "Endpoint disabled in production." },
+    { status: 404 }
+  );
+}

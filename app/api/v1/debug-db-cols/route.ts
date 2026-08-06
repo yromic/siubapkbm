@@ -1,6 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  return new NextResponse('Not Found', { status: 404 });
+/**
+ * @deprecated
+ * Debug db-cols endpoint disabled for production security (Sprint 8).
+ */
+export async function GET() {
+  return NextResponse.json(
+    { status: "error", code: "ERR_NOT_FOUND", message: "Endpoint disabled in production." },
+    { status: 404 }
+  );
 }
-

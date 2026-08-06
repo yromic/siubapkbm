@@ -1,353 +1,32 @@
+/**
+ * Character Summary Service
+ *
+ * PARTIALLY DEPRECATED (Sprint 7):
+ * - `calculateAndGetSemesterSummary` → @deprecated — throws ERR_DEPRECATED immediately.
+ *   Use `utsmanCalculationService.calculateAndSaveUTSMAN()` instead.
+ * - `calculateSummaryFromScores`, `groupScoresByWeek`, `groupScoresByMonth` →
+ *   @deprecated internal helpers for the dropped legacy FITRAH tables.
+ *
+ * ACTIVE PRODUCTION FUNCTIONS (still used by dashboard + character-recap):
+ * - `getClassCharacterSummary` — queries culture_scores + character_utsman_semester_summary
+ * - `getFitrahRadarDataForSemester` — name kept for backwards compat; now reads UTSMAN table
+ * - `getBestCultureClassAverage` — name kept for backwards compat; now reads UTSMAN table
+ */
 import { db } from '@/lib/db';
-import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
-import { Decimal } from 'decimal.js';
 
-export async function calculateAndGetSemesterSummary(
-  studentId: string,
-  academicYearId: string,
-  semesterId: string,
-  refresh = false
-) {
-  if (!studentId || !academicYearId || !semesterId) {
-    throw new AppError('Student ID, Academic Year ID, and Semester ID are required.', 'ERR_VALIDATION', 400);
-  }
+/**
+ * Re-export legacy functions from ./legacy/characterSummaryService.legacy
+ * @deprecated Kept for historical reference.
+ */
+export {
+  calculateAndGetSemesterSummary,
+  calculateSummaryFromScores,
+  groupScoresByWeek,
+  groupScoresByMonth,
+} from './legacy/characterSummaryService.legacy';
 
-  try {
-    // 1. If not refresh, check if summary already exists in character_semester_summaries
-    if (!refresh) {
-      const existingSummary = await db('character_semester_summaries')
-        .where({
-          student_id: studentId,
-          academic_year_id: academicYearId,
-          semester_id: semesterId
-        })
-        .whereNot('lifecycle_status', 'soft_deleted')
-        .first();
 
-      if (existingSummary) {
-        return existingSummary;
-      }
-    }
-
-    // 2. Get active student enrollment
-    const enrollment = await db('student_enrollments')
-      .where({
-        student_id: studentId,
-        semester_id: semesterId,
-        status: 'active'
-      })
-      .whereNot('lifecycle_status', 'soft_deleted')
-      .first();
-
-    if (!enrollment) {
-      throw new AppError('Student has no active enrollment in this semester.', 'ERR_NO_ACTIVE_ENROLLMENT', 400);
-    }
-
-    // 3. Fetch all culture scores for student in this semester
-    const scores = await db('culture_scores')
-      .where({
-        student_id: studentId,
-        semester_id: semesterId
-      })
-      .whereNot('lifecycle_status', 'soft_deleted')
-      .orderBy('score_date', 'asc');
-
-    // 4. Calculate Semester Summary
-    const semesterStats = calculateSummaryFromScores(scores);
-
-    await db.transaction(async (trx: any) => {
-      // Upsert Semester Summary
-      await trx('character_semester_summaries')
-        .insert({
-          id: uuidv4(),
-          student_id: studentId,
-          student_enrollment_id: enrollment.id,
-          academic_year_id: academicYearId,
-          semester_id: semesterId,
-          ...semesterStats,
-          lifecycle_status: 'active',
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .onConflict(['student_id', 'semester_id'])
-        .merge({
-          student_enrollment_id: enrollment.id,
-          academic_year_id: academicYearId,
-          ...semesterStats,
-          lifecycle_status: 'active',
-          updated_at: new Date()
-        });
-
-      // 5. Calculate & Upsert Weekly summaries
-      const weeklyGroups = groupScoresByWeek(scores);
-      for (const group of weeklyGroups) {
-        const weeklyStats = calculateSummaryFromScores(group.scores);
-        await trx('character_weekly_summaries')
-          .insert({
-            id: uuidv4(),
-            student_id: studentId,
-            student_enrollment_id: enrollment.id,
-            academic_year_id: academicYearId,
-            semester_id: semesterId,
-            week_start_date: group.week_start_date,
-            week_end_date: group.week_end_date,
-            ...weeklyStats,
-            lifecycle_status: 'active',
-            created_at: new Date(),
-            updated_at: new Date()
-          })
-          .onConflict(['student_id', 'week_start_date'])
-          .merge({
-            student_enrollment_id: enrollment.id,
-            academic_year_id: academicYearId,
-            semester_id: semesterId,
-            week_end_date: group.week_end_date,
-            ...weeklyStats,
-            lifecycle_status: 'active',
-            updated_at: new Date()
-          });
-      }
-
-      // 6. Calculate & Upsert Monthly summaries
-      const monthlyGroups = groupScoresByMonth(scores);
-      for (const group of monthlyGroups) {
-        const monthlyStats = calculateSummaryFromScores(group.scores);
-        await trx('character_monthly_summaries')
-          .insert({
-            id: uuidv4(),
-            student_id: studentId,
-            student_enrollment_id: enrollment.id,
-            academic_year_id: academicYearId,
-            semester_id: semesterId,
-            summary_month: group.summary_month,
-            summary_year: group.summary_year,
-            ...monthlyStats,
-            lifecycle_status: 'active',
-            created_at: new Date(),
-            updated_at: new Date()
-          })
-          .onConflict(['student_id', 'summary_year', 'summary_month'])
-          .merge({
-            student_enrollment_id: enrollment.id,
-            academic_year_id: academicYearId,
-            semester_id: semesterId,
-            ...monthlyStats,
-            lifecycle_status: 'active',
-            updated_at: new Date()
-          });
-      }
-    });
-
-    // Return the updated summary
-    const finalSummary = await db('character_semester_summaries')
-      .where({
-        student_id: studentId,
-        academic_year_id: academicYearId,
-        semester_id: semesterId
-      })
-      .first();
-
-    return finalSummary;
-  } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError(
-      error instanceof Error ? error.message : 'Database error calculating summaries',
-      'ERR_DATABASE',
-      500
-    );
-  }
-}
-
-export function calculateSummaryFromScores(scores: any[]) {
-  let sss_sum = new Decimal(0);
-  let sss_count = 0;
-  let am_sum = new Decimal(0);
-  let am_count = 0;
-  let hb_sum = new Decimal(0);
-  let hb_count = 0;
-  let asm_sum = new Decimal(0);
-  let asm_count = 0;
-  let br_sum = new Decimal(0);
-  let br_count = 0;
-  let ak_sum = new Decimal(0);
-  let ak_count = 0;
-  let tm_sum = new Decimal(0);
-  let tm_count = 0;
-
-  const uniqueDates = new Set<string>();
-
-  for (const s of scores) {
-    const dateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(s.score_date);
-    uniqueDates.add(dateStr);
-
-    if (s.sss_score !== null && s.sss_score !== undefined) {
-      const val = Number(s.sss_score);
-      if (val > 0) {
-        sss_sum = sss_sum.plus(new Decimal(val));
-        sss_count++;
-      }
-    }
-    if (s.am_score !== null && s.am_score !== undefined) {
-      const val = Number(s.am_score);
-      if (val > 0) {
-        am_sum = am_sum.plus(new Decimal(val));
-        am_count++;
-      }
-    }
-    if (s.hb_score !== null && s.hb_score !== undefined) {
-      const val = Number(s.hb_score);
-      if (val > 0) {
-        hb_sum = hb_sum.plus(new Decimal(val));
-        hb_count++;
-      }
-    }
-    if (s.asm_score !== null && s.asm_score !== undefined) {
-      const val = Number(s.asm_score);
-      if (val > 0) {
-        asm_sum = asm_sum.plus(new Decimal(val));
-        asm_count++;
-      }
-    }
-    if (s.br_score !== null && s.br_score !== undefined) {
-      const val = Number(s.br_score);
-      if (val > 0) {
-        br_sum = br_sum.plus(new Decimal(val));
-        br_count++;
-      }
-    }
-    if (s.ak_score !== null && s.ak_score !== undefined) {
-      const val = Number(s.ak_score);
-      if (val > 0) {
-        ak_sum = ak_sum.plus(new Decimal(val));
-        ak_count++;
-      }
-    }
-    if (s.tm_score !== null && s.tm_score !== undefined) {
-      const val = Number(s.tm_score);
-      if (val > 0) {
-        tm_sum = tm_sum.plus(new Decimal(val));
-        tm_count++;
-      }
-    }
-  }
-
-  const days_counted = uniqueDates.size;
-
-  const f_score = asm_count > 0 ? asm_sum.dividedBy(asm_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
-  const i_score = am_count > 0 ? am_sum.dividedBy(am_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
-  const t_score = br_count > 0 ? br_sum.dividedBy(br_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
-
-  const avg_sss = sss_count > 0 ? sss_sum.dividedBy(sss_count) : null;
-  const avg_hb = hb_count > 0 ? hb_sum.dividedBy(hb_count) : null;
-
-  let r_score = 0;
-  if (avg_sss !== null && avg_hb !== null) {
-    r_score = avg_sss.plus(avg_hb).dividedBy(2).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
-  } else if (avg_sss !== null) {
-    r_score = avg_sss.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
-  } else if (avg_hb !== null) {
-    r_score = avg_hb.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber();
-  }
-
-  const a_score = ak_count > 0 ? ak_sum.dividedBy(ak_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
-  const h_score = tm_count > 0 ? tm_sum.dividedBy(tm_count).toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber() : 0;
-
-  return {
-    f_score,
-    i_score,
-    t_score,
-    r_score,
-    a_score,
-    h_score,
-    sss_sum: sss_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    sss_count,
-    am_sum: am_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    am_count,
-    hb_sum: hb_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    hb_count,
-    asm_sum: asm_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    asm_count,
-    br_sum: br_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    br_count,
-    ak_sum: ak_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    ak_count,
-    tm_sum: tm_sum.toDecimalPlaces(2, Decimal.ROUND_HALF_UP).toNumber(),
-    tm_count,
-    days_counted
-  };
-}
-
-export function groupScoresByWeek(scores: any[]) {
-  const groups: Record<string, { week_start_date: Date; week_end_date: Date; scores: any[] }> = {};
-
-  for (const s of scores) {
-    const dateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(s.score_date);
-
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const localDate = new Date(y, m - 1, d);
-    
-    // Get Monday of that week
-    const monday = new Date(localDate);
-    monday.setDate(localDate.getDate() - (localDate.getDay() === 0 ? 6 : localDate.getDay() - 1));
-    monday.setHours(0, 0, 0, 0);
-
-    // Get Sunday of that week
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    const key = monday.toISOString().split('T')[0];
-    if (!groups[key]) {
-      groups[key] = {
-        week_start_date: monday,
-        week_end_date: sunday,
-        scores: []
-      };
-    }
-    groups[key].scores.push(s);
-  }
-
-  return Object.values(groups);
-}
-
-export function groupScoresByMonth(scores: any[]) {
-  const groups: Record<string, { summary_month: number; summary_year: number; scores: any[] }> = {};
-
-  for (const s of scores) {
-    const dateStr = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).format(s.score_date);
-
-    const year = parseInt(dateStr.substring(0, 4), 10);
-    const month = parseInt(dateStr.substring(5, 7), 10);
-    const key = `${year}-${month}`;
-
-    if (!groups[key]) {
-      groups[key] = {
-        summary_month: month,
-        summary_year: year,
-        scores: []
-      };
-    }
-    groups[key].scores.push(s);
-  }
-
-  return Object.values(groups);
-}
 
 export async function getClassCharacterSummary(
   classId: string,
@@ -381,90 +60,115 @@ export async function getClassCharacterSummary(
       .whereNot('status', 'soft_deleted')
       .orderBy('full_name', 'asc');
 
-    // 3. Fetch semester details for coverage calculations
-    const semester = await db('semesters')
-      .where('id', semesterId)
-      .first();
-
-    if (!semester) {
-      throw new AppError('Semester not found.', 'ERR_VALIDATION', 404);
-    }
-
-    let coverageStartDate = semester.start_date;
-    let coverageEndDate = semester.end_date;
-
-    // 4. Fetch the summaries based on selected period mode (Weekly, Monthly, or Semester)
-    let summaries: any[] = [];
-    if (filters.week_start_date) {
-      summaries = await db('character_weekly_summaries')
-        .where('week_start_date', filters.week_start_date)
-        .whereIn('student_id', studentIds)
-        .whereNot('lifecycle_status', 'soft_deleted');
-
-      const weekStart = new Date(filters.week_start_date);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      coverageStartDate = weekStart;
-      coverageEndDate = weekEnd;
-    } else if (filters.month && filters.year) {
-      summaries = await db('character_monthly_summaries')
-        .where({
-          summary_month: filters.month,
-          summary_year: filters.year
-        })
-        .whereIn('student_id', studentIds)
-        .whereNot('lifecycle_status', 'soft_deleted');
-
-      coverageStartDate = new Date(filters.year, filters.month - 1, 1);
-      coverageEndDate = new Date(filters.year, filters.month, 0);
-    } else {
-      summaries = await db('character_semester_summaries')
-        .where({
-          academic_year_id: academicYearId,
-          semester_id: semesterId
-        })
-        .whereIn('student_id', studentIds)
-        .whereNot('lifecycle_status', 'soft_deleted');
-    }
-
-    const summaryMap: Record<string, any> = {};
-    for (const s of summaries) {
-      summaryMap[s.student_id] = s;
-    }
-
     const list = [];
-    for (const student of students) {
-      const summary = summaryMap[student.id];
 
-      // Fetch count of unique dates with scores for this student in the date range
-      const scoreDatesResult = await db('culture_scores')
-        .where('student_id', student.id)
+    if (filters.week_start_date) {
+      // ── Weekly mode: query culture_scores directly ──────────────────────
+      // character_weekly_summaries was dropped in migration 20260805220000
+      const weekStart = filters.week_start_date;
+      const weekScores = await db('culture_scores')
+        .where('week_start_date', weekStart)
         .where('semester_id', semesterId)
-        .where('score_date', '>=', coverageStartDate)
-        .where('score_date', '<=', coverageEndDate)
-        .whereNot('lifecycle_status', 'soft_deleted')
-        .countDistinct('score_date as count')
-        .first();
+        .whereIn('student_id', studentIds)
+        .whereNot('lifecycle_status', 'soft_deleted');
 
-      const days_with_scores = Number(scoreDatesResult?.count || 0);
+      const scoreMap: Record<string, any> = {};
+      for (const s of weekScores) {
+        scoreMap[s.student_id] = s;
+      }
 
-      list.push({
-        student_id: student.id,
-        full_name: student.full_name,
-        nisn: student.nisn,
-        f: summary && summary.f_score !== null ? Number(summary.f_score) : null,
-        i: summary && summary.i_score !== null ? Number(summary.i_score) : null,
-        t: summary && summary.t_score !== null ? Number(summary.t_score) : null,
-        r: summary && summary.r_score !== null ? Number(summary.r_score) : null,
-        a: summary && summary.a_score !== null ? Number(summary.a_score) : null,
-        h: summary && summary.h_score !== null ? Number(summary.h_score) : null,
-        days_counted: summary ? Number(summary.days_counted) || 0 : 0,
-        coverage: days_with_scores
-      });
+      for (const student of students) {
+        const s = scoreMap[student.id];
+        list.push({
+          student_id: student.id,
+          full_name: student.full_name,
+          nisn: student.nisn,
+          // Weekly: expose raw SAHABAT scores directly
+          sss_score: s ? Number(s.sss_score) : null,
+          am_score: s ? Number(s.am_score) : null,
+          hb_score: s ? Number(s.hb_score) : null,
+          asm_score: s ? Number(s.asm_score) : null,
+          br_score: s ? Number(s.br_score) : null,
+          ak_score: s ? Number(s.ak_score) : null,
+          tm_score: s ? Number(s.tm_score) : null,
+          observation_note: s?.observation_note ?? null,
+          week_start_date: s?.week_start_date ?? weekStart,
+          coverage: s ? 1 : 0,
+        });
+      }
+    } else if (filters.month && filters.year) {
+      // ── Monthly mode: character_monthly_summaries was dropped ───────────
+      // No monthly aggregation table in new schema. Return empty/placeholder.
+      for (const student of students) {
+        list.push({
+          student_id: student.id,
+          full_name: student.full_name,
+          nisn: student.nisn,
+          u: null, t: null, s: null, m: null, a: null, n: null,
+          coverage: 0,
+          _note: 'Monthly aggregation tidak tersedia pada schema baru',
+        });
+      }
+    } else {
+      // ── Semester mode: query character_utsman_semester_summary ──────────
+      // character_semester_summaries was dropped in migration 20260805220000
+      const summaries = await db('character_utsman_semester_summary')
+        .where({ semester_id: semesterId })
+        .whereIn('student_id', studentIds);
+
+      const summaryMap: Record<string, any> = {};
+      for (const s of summaries) {
+        summaryMap[s.student_id] = s;
+      }
+
+      // Count weeks with culture_scores for coverage
+      // PERFORMANCE FIX (Sprint 7): Use a single batch GROUP BY query instead of
+      // one countDistinct query per student (was O(N) — now O(1)).
+      const semester = await db('semesters').where('id', semesterId).first();
+      const coverageStartDate = semester?.start_date;
+      const coverageEndDate = semester?.end_date;
+
+      // Batch-fetch coverage counts for all students in one query
+      const coverageMap: Record<string, number> = {};
+      if (coverageStartDate && coverageEndDate && studentIds.length > 0) {
+        const coverageRows = await db('culture_scores')
+          .whereIn('student_id', studentIds)
+          .where('semester_id', semesterId)
+          .where('week_start_date', '>=', coverageStartDate)
+          .where('week_start_date', '<=', coverageEndDate)
+          .whereNot('lifecycle_status', 'soft_deleted')
+          .groupBy('student_id')
+          .select(
+            'student_id',
+            db.raw('COUNT(DISTINCT week_start_date) as coverage')
+          );
+        for (const row of coverageRows) {
+          coverageMap[row.student_id] = Number(row.coverage);
+        }
+      }
+
+      for (const student of students) {
+        const summary = summaryMap[student.id];
+        const coverage = coverageMap[student.id] ?? 0;
+
+        list.push({
+          student_id: student.id,
+          full_name: student.full_name,
+          nisn: student.nisn,
+          u: summary && summary.u_score !== null ? Number(summary.u_score) : null,
+          t: summary && summary.t_score !== null ? Number(summary.t_score) : null,
+          s: summary && summary.s_score !== null ? Number(summary.s_score) : null,
+          m: summary && summary.m_score !== null ? Number(summary.m_score) : null,
+          a: summary && summary.a_score !== null ? Number(summary.a_score) : null,
+          n: summary && summary.n_score !== null ? Number(summary.n_score) : null,
+          calculation_version: summary?.calculation_version ?? null,
+          coverage,
+        });
+      }
     }
 
     return list;
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof AppError) throw error;
     throw new AppError(
       error instanceof Error ? error.message : 'Database error retrieving class character summaries',
@@ -474,10 +178,14 @@ export async function getClassCharacterSummary(
   }
 }
 
+
 /**
- * Returns the FITRAH radar chart data for a semester.
- * Reads from character_semester_summaries and computes AVG per dimension in SQL.
- * Fallback (all zeros) is returned here if no summaries exist — dashboard never owns this logic.
+ * Returns the character radar chart data for a semester using UTSMAN schema.
+ * Maps UTSMAN dimensions (U,T,S,M,A,N) → legacy FITRAH labels to preserve
+ * existing dashboard format without UI changes.
+ *
+ * @deprecated Function name kept for backwards compatibility. Now reads from
+ * character_utsman_semester_summary instead of character_semester_summaries.
  *
  * @param semesterId - active semester ID
  */
@@ -485,39 +193,38 @@ export async function getFitrahRadarDataForSemester(
   semesterId: string
 ): Promise<Array<{ subject: string; A: number; fullMark: number }>> {
   const DEFAULT: Array<{ subject: string; A: number; fullMark: number }> = [
-    { subject: 'Fathonah', A: 0, fullMark: 4 },
-    { subject: 'Istiqamah', A: 0, fullMark: 4 },
-    { subject: 'Tanggung Jawab', A: 0, fullMark: 4 },
-    { subject: 'Ramah', A: 0, fullMark: 4 },
-    { subject: 'Amanah', A: 0, fullMark: 4 },
-    { subject: 'Harmonis', A: 0, fullMark: 4 }
+    { subject: 'Unggul (U)', A: 0, fullMark: 4 },
+    { subject: 'Terampil (T)', A: 0, fullMark: 4 },
+    { subject: 'Santun (S)', A: 0, fullMark: 4 },
+    { subject: 'Mandiri (M)', A: 0, fullMark: 4 },
+    { subject: 'Amanah (A)', A: 0, fullMark: 4 },
+    { subject: 'Nasionalis (N)', A: 0, fullMark: 4 }
   ];
 
   if (!semesterId) return DEFAULT;
 
   try {
-    const averages = await db('character_semester_summaries')
+    const averages = await db('character_utsman_semester_summary')
       .where({ semester_id: semesterId })
-      .whereNot('lifecycle_status', 'soft_deleted')
       .select(
-        db.raw('AVG(f_score) as f'),
-        db.raw('AVG(i_score) as i'),
+        db.raw('AVG(u_score) as u'),
         db.raw('AVG(t_score) as t'),
-        db.raw('AVG(r_score) as r'),
+        db.raw('AVG(s_score) as s'),
+        db.raw('AVG(m_score) as m'),
         db.raw('AVG(a_score) as a'),
-        db.raw('AVG(h_score) as h')
+        db.raw('AVG(n_score) as n')
       )
       .first();
 
-    if (!averages || averages.f === null) return DEFAULT;
+    if (!averages || averages.u === null) return DEFAULT;
 
     return [
-      { subject: 'Fathonah', A: parseFloat(Number(averages.f || 0).toFixed(2)), fullMark: 4 },
-      { subject: 'Istiqamah', A: parseFloat(Number(averages.i || 0).toFixed(2)), fullMark: 4 },
-      { subject: 'Tanggung Jawab', A: parseFloat(Number(averages.t || 0).toFixed(2)), fullMark: 4 },
-      { subject: 'Ramah', A: parseFloat(Number(averages.r || 0).toFixed(2)), fullMark: 4 },
-      { subject: 'Amanah', A: parseFloat(Number(averages.a || 0).toFixed(2)), fullMark: 4 },
-      { subject: 'Harmonis', A: parseFloat(Number(averages.h || 0).toFixed(2)), fullMark: 4 }
+      { subject: 'Unggul (U)', A: parseFloat(Number(averages.u || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Terampil (T)', A: parseFloat(Number(averages.t || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Santun (S)', A: parseFloat(Number(averages.s || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Mandiri (M)', A: parseFloat(Number(averages.m || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Amanah (A)', A: parseFloat(Number(averages.a || 0).toFixed(2)), fullMark: 4 },
+      { subject: 'Nasionalis (N)', A: parseFloat(Number(averages.n || 0).toFixed(2)), fullMark: 4 }
     ];
   } catch {
     return DEFAULT;
@@ -525,9 +232,10 @@ export async function getFitrahRadarDataForSemester(
 }
 
 /**
- * Returns the class with the highest average culture (FITRAH) score for a semester.
- * AVG is computed across all 6 FITRAH dimensions per class via SQL GROUP BY.
- * Fully semester-scoped — no all-time leakage.
+ * Returns the class with the highest average UTSMAN character score for a semester.
+ * Queries character_utsman_semester_summary (replaces dropped character_semester_summaries).
+ *
+ * @deprecated Name kept for backwards compat. Now reads from character_utsman_semester_summary.
  *
  * @param semesterId - active semester ID
  * @param classes    - array of { id, name } for active classes
@@ -541,20 +249,22 @@ export async function getBestCultureClassAverage(
   try {
     const classIds = classes.map(c => c.id);
 
-    const rows = await db('character_semester_summaries')
+    const rows = await db('character_utsman_semester_summary')
       .join(
         'student_enrollments',
-        'character_semester_summaries.student_enrollment_id',
-        'student_enrollments.id'
+        function (this: any) {
+          this.on('character_utsman_semester_summary.student_id', '=', 'student_enrollments.student_id')
+            .andOn('character_utsman_semester_summary.semester_id', '=', 'student_enrollments.semester_id');
+        }
       )
       .where('student_enrollments.semester_id', semesterId)
       .where('student_enrollments.status', 'active')
+      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
       .whereIn('student_enrollments.class_id', classIds)
-      .whereNot('character_semester_summaries.lifecycle_status', 'soft_deleted')
       .groupBy('student_enrollments.class_id')
       .select(
         'student_enrollments.class_id',
-        db.raw('AVG((character_semester_summaries.f_score + character_semester_summaries.i_score + character_semester_summaries.t_score + character_semester_summaries.r_score + character_semester_summaries.a_score + character_semester_summaries.h_score) / 6.0) as culture_avg')
+        db.raw('AVG((character_utsman_semester_summary.u_score + character_utsman_semester_summary.t_score + character_utsman_semester_summary.s_score + character_utsman_semester_summary.m_score + character_utsman_semester_summary.a_score + character_utsman_semester_summary.n_score) / 6.0) as culture_avg')
       )
       .orderBy('culture_avg', 'desc')
       .limit(1);
@@ -571,4 +281,5 @@ export async function getBestCultureClassAverage(
     return null;
   }
 }
+
 

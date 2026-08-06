@@ -9,7 +9,7 @@ for (const [key, value] of Object.entries(pdfFonts)) {
   pdfmake.virtualfs.storage[key] = Buffer.from(value as string, 'base64');
 }
 import { getStudentAcademicSummary } from './academicScoreService';
-import { calculateAndGetSemesterSummary } from './characterSummaryService';
+import { calculateAndSaveUTSMAN, getUTSMANSummary } from './utsmanCalculationService';
 
 const REPORTS_DIR = path.join(process.cwd(), 'storage', 'reports');
 
@@ -115,35 +115,56 @@ export async function exportStudentReport(
     }
 
     if (reportType === 'character' || reportType === 'full') {
-      let charData: any = {};
+      // Fetch from new UTSMAN schema; auto-calculate if not yet saved
+      let utsmanData: any = null;
       try {
-        charData = await calculateAndGetSemesterSummary(studentId, academicYearId, semesterId, false);
+        utsmanData = await getUTSMANSummary(studentId, semesterId);
+        if (!utsmanData) {
+          utsmanData = await calculateAndSaveUTSMAN(studentId, semesterId);
+        }
       } catch (e) {
-        // use fallback empty structure
+        utsmanData = {}; // graceful fallback
       }
+
+      function utsmanGrade(score: number): string {
+        const s = Number(score || 0);
+        if (s >= 3.5) return 'Sangat Baik';
+        if (s >= 2.5) return 'Baik';
+        if (s >= 1.5) return 'Cukup';
+        return 'Perlu Pembinaan';
+      }
+
+      function fmt(v: any): string { return v !== null && v !== undefined ? Number(v).toFixed(2) : '0.00'; }
 
       const tableBody = [
         [
-          { text: 'Nilai Karakter FITRAH', style: 'tableHeader' },
-          { text: 'Skor Akhir', style: 'tableHeader' }
+          { text: 'Dimensi Profil UTSMAN', style: 'tableHeader' },
+          { text: 'Skor (1–4)', style: 'tableHeader' },
+          { text: 'Keterangan', style: 'tableHeader' }
         ],
-        [{ text: 'Fathonah (F)', style: 'tableCell' }, { text: charData?.f_score || '0.00', style: 'tableCell' }],
-        [{ text: 'Istiqamah (I)', style: 'tableCell' }, { text: charData?.i_score || '0.00', style: 'tableCell' }],
-        [{ text: 'Tanggung Jawab (T)', style: 'tableCell' }, { text: charData?.t_score || '0.00', style: 'tableCell' }],
-        [{ text: 'Ramah (R)', style: 'tableCell' }, { text: charData?.r_score || '0.00', style: 'tableCell' }],
-        [{ text: 'Amanah (A)', style: 'tableCell' }, { text: charData?.a_score || '0.00', style: 'tableCell' }],
-        [{ text: 'Harmonis (H)', style: 'tableCell' }, { text: charData?.h_score || '0.00', style: 'tableCell' }]
+        [{ text: 'U — Ulet & Unggul', style: 'tableCell' }, { text: fmt(utsmanData?.u_score), style: 'tableCell' }, { text: utsmanGrade(utsmanData?.u_score), style: 'tableCell' }],
+        [{ text: 'T — Ta\'at & Tangguh', style: 'tableCell' }, { text: fmt(utsmanData?.t_score), style: 'tableCell' }, { text: utsmanGrade(utsmanData?.t_score), style: 'tableCell' }],
+        [{ text: 'S — Santun & Empati', style: 'tableCell' }, { text: fmt(utsmanData?.s_score), style: 'tableCell' }, { text: utsmanGrade(utsmanData?.s_score), style: 'tableCell' }],
+        [{ text: 'M — Mandiri & Rapi', style: 'tableCell' }, { text: fmt(utsmanData?.m_score), style: 'tableCell' }, { text: utsmanGrade(utsmanData?.m_score), style: 'tableCell' }],
+        [{ text: 'A — Amanah & Jujur', style: 'tableCell' }, { text: fmt(utsmanData?.a_score), style: 'tableCell' }, { text: utsmanGrade(utsmanData?.a_score), style: 'tableCell' }],
+        [{ text: 'N — Nalar & Inisiatif', style: 'tableCell' }, { text: fmt(utsmanData?.n_score), style: 'tableCell' }, { text: utsmanGrade(utsmanData?.n_score), style: 'tableCell' }]
       ];
 
       docContent.push(
-        { text: 'B. EVALUASI BUDAYA & KARAKTER FITRAH', style: 'sectionHeader', margin: [0, 10, 0, 10] },
+        { text: 'B. EVALUASI BUDAYA & PROFIL KARAKTER UTSMAN', style: 'sectionHeader', margin: [0, 10, 0, 10] },
         {
           table: {
             headerRows: 1,
-            widths: ['*', 100],
+            widths: ['*', 70, 100],
             body: tableBody
           },
-          margin: [0, 0, 0, 20]
+          margin: [0, 0, 0, 8]
+        },
+        {
+          text: 'Keterangan: Sangat Baik (3.50–4.00) | Baik (2.50–3.49) | Cukup (1.50–2.49) | Perlu Pembinaan (<1.50)',
+          fontSize: 7,
+          color: '#888888',
+          margin: [0, 0, 0, 16]
         }
       );
     }

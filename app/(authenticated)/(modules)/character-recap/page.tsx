@@ -16,11 +16,16 @@ import {
   getClassCharacterSummary,
   getStudentWatchlist,
   getStudentCharacterSummary,
+  getUTSMANSummaryApi,
   StudentCharacterSummary,
   WatchlistStudent,
   IndividualCharacterSummary,
+  UtsmanSummaryRecord,
 } from "@/lib/api/character";
 import { FitrahRadarChart } from "@/components/character/fitrah-radar-chart";
+import { UtsmanRadarChart, UtsmanDimensionCode, UTSMAN_DIMENSIONS_CONFIG } from "@/components/character/utsman-radar-chart";
+import { UtsmanDrilldownModal } from "@/components/character/utsman-drilldown-modal";
+import { UtsmanCompletenessWidget } from "@/components/character/utsman-completeness-widget";
 import { StudentGrowth } from "@/components/character/student-growth";
 import {
   CharacterPeriodFilter,
@@ -49,6 +54,23 @@ const FITRAH_DIMENSIONS: FitrahConfig[] = [
   { code: "A", name: "Amanah", description: "Jujur Berkarya Sesuai Syariat", indicators: ["Aktif Berkarya (AK)"] },
   { code: "H", name: "Harmonis", description: "Empati & Peduli Sosial", indicators: ["Tolong Menolong (TM)"] },
 ];
+
+export const UTSMAN_DIMENSIONS_LIST: { code: UtsmanDimensionCode; key: "u" | "t" | "s" | "m" | "a" | "n"; name: string; fullLabel: string }[] = [
+  { code: "U", key: "u", name: "Ulet & Unggul", fullLabel: "U — Ulet & Unggul" },
+  { code: "T", key: "t", name: "Ta'at & Tangguh", fullLabel: "T — Ta'at & Tangguh" },
+  { code: "S", key: "s", name: "Santun & Empati", fullLabel: "S — Santun & Empati" },
+  { code: "M", key: "m", name: "Mandiri & Rapi", fullLabel: "M — Mandiri & Rapi" },
+  { code: "A", key: "a", name: "Amanah & Jujur", fullLabel: "A — Amanah & Jujur" },
+  { code: "N", key: "n", name: "Nalar & Inisiatif", fullLabel: "N — Nalar & Inisiatif" },
+];
+
+export const getUtsmanPredicate = (val: number | null): string => {
+  if (val === null || val === undefined || isNaN(val) || val === 0) return "Belum ada data";
+  if (val >= 3.5) return "Sangat Baik";
+  if (val >= 3.0) return "Baik";
+  if (val >= 2.0) return "Cukup";
+  return "Perlu Penguatan";
+};
 
 export default function CharacterRecapPage() {
   const { token, user } = useAuth();
@@ -84,6 +106,12 @@ export default function CharacterRecapPage() {
   // Status states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // UTSMAN Profile & Drilldown states
+  const [selectedStudentUtsman, setSelectedStudentUtsman] = useState<UtsmanSummaryRecord | null>(null);
+  const [utsmanLoading, setUtsmanLoading] = useState(false);
+  const [drilldownDimension, setDrilldownDimension] = useState<UtsmanDimensionCode | null>(null);
+  const [showDrilldown, setShowDrilldown] = useState(false);
 
   const selectedAssignment = useMemo(() => {
     return classes.find((item) => item.class_id === selectedClassId);
@@ -168,11 +196,61 @@ export default function CharacterRecapPage() {
     setGrowthDataCache({});
   }, [selectedClassId]);
 
-  // Reset tab to summary when selected student changes
+  // Reset tab to summary when selected student changes and load UTSMAN summary
   useEffect(() => {
     setActiveTab("summary");
     setGrowthError(null);
-  }, [selectedStudentId]);
+
+    if (!selectedStudent || !selectedAssignment || !token) {
+      setSelectedStudentUtsman(null);
+      return;
+    }
+
+    async function loadUtsman() {
+      setUtsmanLoading(true);
+      try {
+        const res = await getUTSMANSummaryApi(token!, {
+          studentId: selectedStudent!.student_id,
+          semesterId: selectedAssignment!.semester_id,
+        });
+        setSelectedStudentUtsman(res);
+      } catch (err) {
+        console.error("Gagal memuat profil UTSMAN:", err);
+      } finally {
+        setUtsmanLoading(false);
+      }
+    }
+
+    loadUtsman();
+  }, [selectedStudent, selectedAssignment, token]);
+
+  const utsmanInsights = useMemo(() => {
+    if (!selectedStudentUtsman) return null;
+
+    const dims: { code: UtsmanDimensionCode; score: number }[] = [
+      { code: "U", score: Number(selectedStudentUtsman.u_score || 0) },
+      { code: "T", score: Number(selectedStudentUtsman.t_score || 0) },
+      { code: "S", score: Number(selectedStudentUtsman.s_score || 0) },
+      { code: "M", score: Number(selectedStudentUtsman.m_score || 0) },
+      { code: "A", score: Number(selectedStudentUtsman.a_score || 0) },
+      { code: "N", score: Number(selectedStudentUtsman.n_score || 0) },
+    ];
+
+    const sorted = [...dims].sort((a, b) => b.score - a.score);
+    const highest = sorted[0];
+    const lowest = sorted[sorted.length - 1];
+
+    return {
+      highest: highest && highest.score > 0 ? {
+        ...highest,
+        config: UTSMAN_DIMENSIONS_CONFIG[highest.code],
+      } : null,
+      lowest: lowest ? {
+        ...lowest,
+        config: UTSMAN_DIMENSIONS_CONFIG[lowest.code],
+      } : null,
+    };
+  }, [selectedStudentUtsman]);
 
   const loadStudentGrowth = useCallback(
     async (studentId: string) => {
@@ -231,31 +309,54 @@ export default function CharacterRecapPage() {
     }
   }, [activeTab, selectedStudentId, loadStudentGrowth]);
 
-  // Compute class averages
+  // Compute class averages (UTSMAN)
   const classAverages = useMemo(() => {
     if (studentSummaries.length === 0) return null;
 
-    const totals = { f: 0, i: 0, t: 0, r: 0, a: 0, h: 0 };
-    const counts = { f: 0, i: 0, t: 0, r: 0, a: 0, h: 0 };
+    const totals = { u: 0, t: 0, s: 0, m: 0, a: 0, n: 0 };
+    const counts = { u: 0, t: 0, s: 0, m: 0, a: 0, n: 0 };
 
     studentSummaries.forEach((s) => {
-      if (s.f !== null) { totals.f += s.f; counts.f++; }
-      if (s.i !== null) { totals.i += s.i; counts.i++; }
-      if (s.t !== null) { totals.t += s.t; counts.t++; }
-      if (s.r !== null) { totals.r += s.r; counts.r++; }
-      if (s.a !== null) { totals.a += s.a; counts.a++; }
-      if (s.h !== null) { totals.h += s.h; counts.h++; }
+      const uVal = s.u ?? null;
+      const tVal = s.t ?? null;
+      const sVal = s.s ?? null;
+      const mVal = s.m ?? null;
+      const aVal = s.a ?? null;
+      const nVal = s.n ?? null;
+
+      if (uVal !== null && !isNaN(uVal)) { totals.u += uVal; counts.u++; }
+      if (tVal !== null && !isNaN(tVal)) { totals.t += tVal; counts.t++; }
+      if (sVal !== null && !isNaN(sVal)) { totals.s += sVal; counts.s++; }
+      if (mVal !== null && !isNaN(mVal)) { totals.m += mVal; counts.m++; }
+      if (aVal !== null && !isNaN(aVal)) { totals.a += aVal; counts.a++; }
+      if (nVal !== null && !isNaN(nVal)) { totals.n += nVal; counts.n++; }
     });
 
+    const hasAnyCount = Object.values(counts).some((c) => c > 0);
+    if (!hasAnyCount) return null;
+
+    const u = counts.u > 0 ? Number((totals.u / counts.u).toFixed(2)) : null;
+    const t = counts.t > 0 ? Number((totals.t / counts.t).toFixed(2)) : null;
+    const s = counts.s > 0 ? Number((totals.s / counts.s).toFixed(2)) : null;
+    const m = counts.m > 0 ? Number((totals.m / counts.m).toFixed(2)) : null;
+    const a = counts.a > 0 ? Number((totals.a / counts.a).toFixed(2)) : null;
+    const n = counts.n > 0 ? Number((totals.n / counts.n).toFixed(2)) : null;
+
     return {
-      f: counts.f > 0 ? Number((totals.f / counts.f).toFixed(2)) : null,
-      i: counts.i > 0 ? Number((totals.i / counts.i).toFixed(2)) : null,
-      t: counts.t > 0 ? Number((totals.t / counts.t).toFixed(2)) : null,
-      r: counts.r > 0 ? Number((totals.r / counts.r).toFixed(2)) : null,
-      a: counts.a > 0 ? Number((totals.a / counts.a).toFixed(2)) : null,
-      h: counts.h > 0 ? Number((totals.h / counts.h).toFixed(2)) : null,
+      u, t, s, m, a, n,
+      radarRecord: {
+        student_id: "CLASS_AVG",
+        semester_id: selectedAssignment?.semester_id || "",
+        u_score: u ?? 0,
+        t_score: t ?? 0,
+        s_score: s ?? 0,
+        m_score: m ?? 0,
+        a_score: a ?? 0,
+        n_score: n ?? 0,
+        calculation_version: "v1.0.0",
+      } as UtsmanSummaryRecord,
     };
-  }, [studentSummaries]);
+  }, [studentSummaries, selectedAssignment]);
 
   const atRiskStudents = useMemo(() => {
     return watchlist.filter((w) => w.risk_status === "AT_RISK");
@@ -267,7 +368,7 @@ export default function CharacterRecapPage() {
 
   const isClassAveragesEmpty = useMemo(() => {
     if (!classAverages) return true;
-    return Object.values(classAverages).every((v) => v === null);
+    return [classAverages.u, classAverages.t, classAverages.s, classAverages.m, classAverages.a, classAverages.n].every((v) => v === null);
   }, [classAverages]);
 
   if (!user || user.role !== "teacher") {
@@ -326,9 +427,19 @@ export default function CharacterRecapPage() {
   return (
     <ResponsiveContainer className="space-y-6">
       <PageHeader
-        title="Rekap Karakter & FITRAH"
-        description="Pantau ringkasan hasil perkembangan karakter FITRAH siswa kelas Anda."
+        title="Rekap Karakter UTSMAN"
+        description="Pantau ringkasan hasil perkembangan karakter utama UTSMAN dan interpretasi FITRAH siswa kelas Anda."
       />
+
+      {/* H10 Help Documentation Banner */}
+      <div className="bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/50 rounded-[16px] p-3.5 flex items-center gap-3 text-xs text-emerald-900 dark:text-emerald-300 font-medium">
+        <svg className="w-5 h-5 text-[#468432] dark:text-emerald-450 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>
+          <strong>UTSMAN</strong> merupakan nilai karakter utama semester yang dihitung dari observasi SAHABAT mingguan. <strong>FITRAH</strong> tetap digunakan sebagai lapisan interpretasi karakter.
+        </span>
+      </div>
 
       {/* Selectors Panel */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-surface-1 p-5 border border-zinc-200 dark:border-zinc-800/80 rounded-[20px] shadow-sm">
@@ -550,12 +661,12 @@ export default function CharacterRecapPage() {
 
           {studentSummaries.length > 0 && (
             <div className="space-y-6">
-              {/* Class averages overview cards */}
+              {/* Class averages overview cards (UTSMAN) */}
               {classAverages && (
                 <section className="bg-surface-1 border border-zinc-200 dark:border-zinc-800 rounded-[20px] shadow-sm p-6 space-y-4">
                   <div>
-                    <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">Rata-rata Karakter Kelas</h2>
-                    <p className="text-xs text-zinc-500 mt-0.5">Nilai rata-rata dari seluruh siswa yang terisi di periode ini.</p>
+                    <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">Profil Karakter Kelas — UTSMAN</h2>
+                    <p className="text-xs text-zinc-500 mt-0.5">Rata-rata 6 Dimensi Karakter UTSMAN dari seluruh siswa kelas pada periode ini.</p>
                   </div>
                   {isClassAveragesEmpty ? (
                     <div className="p-4 rounded-[12px] bg-surface-2 border border-zinc-150 dark:border-zinc-850 text-center text-sm text-zinc-500 dark:text-zinc-400">
@@ -565,19 +676,26 @@ export default function CharacterRecapPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                       <div className="lg:col-span-4 bg-surface-2 border border-zinc-150 dark:border-zinc-850 rounded-[12px] p-4 flex justify-center">
                         <div className="w-full max-w-[320px]">
-                          <FitrahRadarChart data={classAverages} />
+                          <UtsmanRadarChart data={classAverages.radarRecord} />
                         </div>
                       </div>
                       <div className="lg:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-4">
-                        {FITRAH_DIMENSIONS.map((dim) => {
-                          const val = classAverages[dim.code.toLowerCase() as "f" | "i" | "t" | "r" | "a" | "h"];
+                        {UTSMAN_DIMENSIONS_LIST.map((dim) => {
+                          const val = classAverages[dim.key];
+                          const predicate = getUtsmanPredicate(val);
                           return (
                             <div key={dim.code} className="p-4 rounded-[12px] bg-surface-2 border border-zinc-150 dark:border-zinc-850 space-y-2">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-bold text-zinc-400 dark:text-zinc-650">{dim.code} — {dim.name}</span>
-                                <span className="text-sm font-black text-zinc-950 dark:text-zinc-50">{val !== null && val !== undefined ? val : "-"}</span>
+                                <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">{dim.fullLabel}</span>
+                                <span className="text-sm font-black text-zinc-950 dark:text-zinc-50">
+                                  {val !== null && val !== undefined && !isNaN(val) ? val.toFixed(2) : "-"}
+                                </span>
                               </div>
                               {renderProgressBar(val)}
+                              <div className="text-[10px] font-semibold text-emerald-650 dark:text-emerald-400 flex items-center justify-between pt-0.5">
+                                <span>Predikat:</span>
+                                <span className="font-bold">{predicate}</span>
+                              </div>
                             </div>
                           );
                         })}
@@ -601,9 +719,9 @@ export default function CharacterRecapPage() {
                       <tr className="bg-surface-2 border-b border-zinc-150 dark:border-zinc-800 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                         <th className="py-3 px-4 w-12 text-center">No</th>
                         <th className="py-3 px-4 min-w-[200px]">Nama Siswa</th>
-                        <th className="py-3 px-4 text-center">Hari Diisi</th>
-                        {FITRAH_DIMENSIONS.map((dim) => (
-                          <th key={dim.code} className="py-3 px-4 text-center min-w-[90px]" title={dim.description}>
+                        <th className="py-3 px-4 text-center">Minggu Terisi</th>
+                        {UTSMAN_DIMENSIONS_LIST.map((dim) => (
+                          <th key={dim.code} className="py-3 px-4 text-center min-w-[90px]" title={dim.name}>
                             {dim.code}
                             <span className="block text-[9px] font-normal lowercase text-zinc-400 dark:text-zinc-650 truncate max-w-[80px] mt-0.5">
                               {dim.name}
@@ -615,6 +733,7 @@ export default function CharacterRecapPage() {
                     <tbody className="divide-y divide-zinc-100 dark:divide-zinc-850">
                       {studentSummaries.map((s, index) => {
                         const hasRisk = watchlist.some((w) => w.student_id === s.student_id);
+                        const coverageWeeks = s.coverage ?? s.days_counted ?? 0;
                         return (
                           <tr
                             key={s.student_id}
@@ -644,13 +763,13 @@ export default function CharacterRecapPage() {
                               </div>
                             </td>
                             <td className="py-3.5 px-4 text-center text-sm font-medium text-zinc-700 dark:text-zinc-350">
-                              {s.days_counted !== null && s.days_counted !== undefined ? s.days_counted : 0} hari
+                              {coverageWeeks} minggu
                             </td>
-                            {FITRAH_DIMENSIONS.map((dim) => {
-                              const val = s[dim.code.toLowerCase() as "f" | "i" | "t" | "r" | "a" | "h"];
+                            {UTSMAN_DIMENSIONS_LIST.map((dim) => {
+                              const val = s[dim.key];
                               return (
                                 <td key={dim.code} className="py-3.5 px-4 text-center font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                                  {val !== null && val !== undefined ? val : "-"}
+                                  {val !== null && val !== undefined && !isNaN(val) ? val.toFixed(2) : "-"}
                                 </td>
                               );
                             })}
@@ -663,6 +782,7 @@ export default function CharacterRecapPage() {
                 <div className="block md:hidden divide-y divide-zinc-150 dark:divide-zinc-800">
                   {studentSummaries.map((s, index) => {
                     const hasRisk = watchlist.some((w) => w.student_id === s.student_id);
+                    const coverageWeeks = s.coverage ?? s.days_counted ?? 0;
                     return (
                       <button
                         key={s.student_id}
@@ -694,18 +814,20 @@ export default function CharacterRecapPage() {
                             </div>
                           </div>
                           <span className="px-2.5 py-0.5 rounded-full bg-surface-2 text-zinc-655 dark:text-zinc-400 text-[10px] font-bold">
-                            {s.days_counted !== null && s.days_counted !== undefined ? s.days_counted : 0} hari
+                            {coverageWeeks} minggu
                           </span>
                         </div>
 
                         {/* Dimensions horizontal summary grid */}
                         <div className="grid grid-cols-3 gap-2 pt-1">
-                          {FITRAH_DIMENSIONS.map((dim) => {
-                            const val = s[dim.code.toLowerCase() as "f" | "i" | "t" | "r" | "a" | "h"];
+                          {UTSMAN_DIMENSIONS_LIST.map((dim) => {
+                            const val = s[dim.key];
                             return (
                               <div key={dim.code} className="text-xs py-1.5 px-2 bg-surface-2 border border-zinc-150 dark:border-zinc-850 rounded-lg flex items-center justify-between">
                                 <span className="font-semibold text-zinc-400 dark:text-zinc-600">{dim.code}</span>
-                                <span className="font-bold text-zinc-900 dark:text-zinc-100">{val !== null && val !== undefined ? val : "-"}</span>
+                                <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                                  {val !== null && val !== undefined && !isNaN(val) ? val.toFixed(2) : "-"}
+                                </span>
                               </div>
                             );
                           })}
@@ -728,7 +850,9 @@ export default function CharacterRecapPage() {
             <div className="flex items-center justify-between p-5 border-b border-zinc-150 dark:border-zinc-800/80 bg-surface-2 shrink-0">
               <div>
                 <h3 className="text-base font-bold text-zinc-950 dark:text-zinc-50">{selectedStudent.full_name}</h3>
-                <p className="text-xs text-zinc-500 mt-0.5">NISN: {selectedStudent.nisn} • {selectedStudent.days_counted !== null && selectedStudent.days_counted !== undefined ? selectedStudent.days_counted : 0} Hari terisi</p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  NISN: {selectedStudent.nisn} • {selectedStudent.coverage ?? selectedStudent.days_counted ?? 0} Minggu terisi
+                </p>
               </div>
               <button
                 type="button"
@@ -771,28 +895,95 @@ export default function CharacterRecapPage() {
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {activeTab === "summary" && (
                 <>
-                  {/* Radar Chart */}
-                  {!(selectedStudent.days_counted === 0 || (!selectedStudent.f && !selectedStudent.i && !selectedStudent.t && !selectedStudent.r && !selectedStudent.a && !selectedStudent.h)) && (
-                    <div className="p-4 bg-zinc-50/50 dark:bg-zinc-950/20 border border-zinc-150 dark:border-zinc-850 rounded-[12px] flex justify-center">
-                      <div className="w-full max-w-[320px]">
-                        <FitrahRadarChart data={selectedStudent} />
-                      </div>
+                  {/* 1. Completeness Widget */}
+                  {selectedAssignment && (
+                    <UtsmanCompletenessWidget
+                      token={token!}
+                      studentId={selectedStudent.student_id}
+                      semesterId={selectedAssignment.semester_id}
+                    />
+                  )}
+
+                  {/* 2. UTSMAN Radar Chart */}
+                  <div className="p-4 bg-surface-2 border border-zinc-200 dark:border-zinc-800 rounded-[16px] flex flex-col items-center">
+                    <div className="w-full flex items-center justify-between mb-2 px-1">
+                      <span className="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400 font-plus-jakarta">
+                        Profil Karakter UTSMAN
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold">
+                        6 Dimensi
+                      </span>
+                    </div>
+                    <div className="w-full max-w-[320px]">
+                      <UtsmanRadarChart
+                        data={selectedStudentUtsman}
+                        onSelectDimension={(code) => {
+                          setDrilldownDimension(code);
+                          setShowDrilldown(true);
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 3. Character Insight Card */}
+                  {utsmanInsights && (utsmanInsights.highest || utsmanInsights.lowest) && (
+                    <div className="p-4 rounded-[16px] bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-300 font-plus-jakarta flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Sorotan Karakter (Insight)
+                      </h4>
+
+                      {utsmanInsights.highest && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-zinc-900/80 border border-emerald-150 dark:border-emerald-900/40">
+                          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide block">
+                            Karakter Menonjol:
+                          </span>
+                          <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
+                            <span className="font-bold text-emerald-700 dark:text-emerald-300">
+                              {utsmanInsights.highest.code} ({utsmanInsights.highest.config.label})
+                            </span>{" "}
+                            merupakan karakter terkuat dengan nilai{" "}
+                            <span className="font-bold font-fredoka text-emerald-600">
+                              {utsmanInsights.highest.score.toFixed(2)}
+                            </span>.
+                          </p>
+                          <p className="text-[11px] text-zinc-500 mt-1">{utsmanInsights.highest.config.description}</p>
+                        </div>
+                      )}
+
+                      {utsmanInsights.lowest && (
+                        <div className="p-3 rounded-xl bg-white/80 dark:bg-zinc-900/80 border border-amber-200 dark:border-amber-900/40">
+                          <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide block">
+                            Area Penguatan:
+                          </span>
+                          <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
+                            <span className="font-bold text-amber-700 dark:text-amber-300">
+                              {utsmanInsights.lowest.code} ({utsmanInsights.lowest.config.label})
+                            </span>{" "}
+                            menjadi area penguatan utama dengan nilai{" "}
+                            <span className="font-bold font-fredoka text-amber-600">
+                              {utsmanInsights.lowest.score.toFixed(2)}
+                            </span>.
+                          </p>
+                          <p className="text-[11px] text-zinc-500 mt-1">{utsmanInsights.lowest.config.description}</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Empty Data Warning */}
-                  {(selectedStudent.days_counted === 0 || (!selectedStudent.f && !selectedStudent.i && !selectedStudent.t && !selectedStudent.r && !selectedStudent.a && !selectedStudent.h)) && (
-                    <div className="p-4 rounded-[12px] bg-zinc-50 dark:bg-zinc-950/20 border border-zinc-150 dark:border-zinc-850 text-center text-xs text-zinc-500 dark:text-zinc-400">
-                      Belum ada data budaya pada periode ini.
+                  {/* FITRAH Progress Bars (Interpretasi) */}
+                  <div className="space-y-4 pt-2 border-t border-zinc-150 dark:border-zinc-800/80">
+                    <div>
+                      <h4 className="text-sm font-bold text-zinc-950 dark:text-zinc-50 uppercase tracking-wider">Interpretasi FITRAH</h4>
+                      <p className="text-xs text-zinc-500 mt-0.5">FITRAH merupakan interpretasi karakter yang terbentuk dari dimensi UTSMAN.</p>
                     </div>
-                  )}
-
-                  {/* FITRAH Progress Bars */}
-                  <div className="space-y-4">
-                    <h4 className="text-sm font-bold text-zinc-950 dark:text-zinc-50 uppercase tracking-wider">Hasil Dimensi FITRAH</h4>
                     <div className="space-y-3.5">
                       {FITRAH_DIMENSIONS.map((dim) => {
-                        const val = selectedStudent[dim.code.toLowerCase() as "f" | "i" | "t" | "r" | "a" | "h"];
+                        const key = dim.code.toLowerCase() as keyof StudentCharacterSummary;
+                        const rawVal = selectedStudent[key];
+                        const val = typeof rawVal === "number" ? rawVal : null;
                         return (
                           <div key={dim.code} className="space-y-1.5">
                             <div className="flex justify-between items-baseline">
@@ -872,6 +1063,24 @@ export default function CharacterRecapPage() {
           </div>
           <div className="flex-1" onClick={() => setSelectedStudentId(null)} />
         </div>
+      )}
+
+      {/* UTSMAN Dimension Drilldown Modal */}
+      {selectedStudent && selectedAssignment && (
+        <UtsmanDrilldownModal
+          open={showDrilldown}
+          onOpenChange={setShowDrilldown}
+          token={token!}
+          studentId={selectedStudent.student_id}
+          studentName={selectedStudent.full_name}
+          semesterId={selectedAssignment.semester_id}
+          dimensionCode={drilldownDimension}
+          utsmanScore={
+            selectedStudentUtsman && drilldownDimension
+              ? Number(selectedStudentUtsman[`${drilldownDimension.toLowerCase()}_score` as keyof UtsmanSummaryRecord] || 0)
+              : null
+          }
+        />
       )}
     </ResponsiveContainer>
   );

@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 import { getStudentAcademicSummary } from './academicScoreService';
-import { calculateAndGetSemesterSummary } from './characterSummaryService';
+import { getUTSMANSummary } from './utsmanCalculationService';
 
 export async function takeStudentSnapshot(studentId: string, academicYearId: string, semesterId: string, actorId: string) {
   if (!studentId || !academicYearId || !semesterId) {
@@ -34,7 +34,7 @@ export async function takeStudentSnapshot(studentId: string, academicYearId: str
     const academicSummary = await getStudentAcademicSummary(studentId, academicYearId, semesterId);
     let characterSummary = null;
     try {
-      characterSummary = await calculateAndGetSemesterSummary(studentId, academicYearId, semesterId, true);
+      characterSummary = await getUTSMANSummary(studentId, semesterId);
     } catch (e) {
       // character summary might be empty or error, handle gracefully
     }

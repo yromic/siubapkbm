@@ -88,19 +88,23 @@ const TEMPLATES: Record<string, { required_columns: string[]; optional_columns: 
     ]
   },
   culture_scores: {
-    required_columns: ['nisn', 'score_date', 'sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'],
-    optional_columns: [],
+    // New schema: week_start_date (YYYY-MM-DD, harus hari Senin) menggantikan score_date
+    // Backward compat: score_date masih diterima sebagai fallback dan akan dinormalisasi ke Senin
+    required_columns: ['nisn', 'week_start_date', 'sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'],
+    optional_columns: ['week_end_date', 'observation_note', 'score_date'],
     sample_rows: [
       {
         nisn: '1234567890',
-        score_date: '2026-06-20',
+        week_start_date: '2026-06-16', // harus hari Senin
+        week_end_date: '2026-06-22',   // opsional, dihitung otomatis jika kosong
         sss_score: '4',
         am_score: '3',
         hb_score: '4',
         asm_score: '4',
         br_score: '3',
         ak_score: '4',
-        tm_score: '4'
+        tm_score: '4',
+        observation_note: 'Catatan opsional'
       }
     ]
   },

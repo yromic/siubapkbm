@@ -49,11 +49,11 @@ export async function getCultureCompleteness(classId: string, academicYearId: st
     const studentIds = activeStudents.map((s: any) => s.student_id);
     if (studentIds.length === 0) return 100;
 
-    // Get unique dates for this class-semester in culture_scores
+    // Get unique weeks for this class-semester in culture_scores
     const datesRes = await db('culture_scores')
       .where({ class_id: classId, semester_id: semesterId })
       .whereNot('lifecycle_status', 'soft_deleted')
-      .distinct('score_date');
+      .distinct('week_start_date');
 
     const totalDays = datesRes.length;
     if (totalDays === 0) return 0;
@@ -233,14 +233,14 @@ export async function getTeacherCompleteness(
       scoresQuery = scoresQuery.where('class_id', classId);
     }
 
-    const cultureScores = await scoresQuery.select('student_id', 'score_date');
+    const cultureScores = await scoresQuery.select('student_id', 'week_start_date');
 
     const expectedDatesMap = new Set(expected.expected_dates);
     const studentCompletedDatesMap: Record<string, Set<string>> = {};
 
     for (const score of cultureScores) {
       const sId = score.student_id;
-      const dateStr = formatDateString(parseLocalDate(score.score_date));
+      const dateStr = formatDateString(parseLocalDate(score.week_start_date));
       if (expectedDatesMap.has(dateStr)) {
         if (!studentCompletedDatesMap[sId]) {
           studentCompletedDatesMap[sId] = new Set();

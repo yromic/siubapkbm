@@ -900,17 +900,46 @@ async function validateAcademicScoreRows(
 // ============================================================================
 //  CULTURE SCORE ROWS
 // ============================================================================
+
+/**
+ * Normalises a date string to the Monday of its week (YYYY-MM-DD).
+ * Used for week_start_date validation — mirrors cultureScoreService behaviour.
+ */
+function normaliseToMonday(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const day = date.getDay(); // 0=Sun, 1=Mon
+  const diff = day === 0 ? -6 : 1 - day; // shift to Monday
+  date.setDate(date.getDate() + diff);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
 async function validateCultureScoreRows(
   importLogId: string, fileName: string, rows: any[], columns: string[]
 ): Promise<ImportSessionResult> {
-  const REQUIRED = ['nisn', 'score_date', 'sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'];
-  const missing = REQUIRED.filter(col => !columns.includes(col));
+  // Accept week_start_date (new) or score_date (legacy fallback)
+  const hasWeekStart = columns.includes('week_start_date');
+  const hasScoreDate = columns.includes('score_date');
+  const REQUIRED_NEW = ['nisn', 'week_start_date', 'sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'];
+  const REQUIRED_LEGACY = ['nisn', 'score_date', 'sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'];
+
+  const useDateField = hasWeekStart ? 'week_start_date' : hasScoreDate ? 'score_date' : null;
+  if (!useDateField) {
+    throw new AppError(
+      `Kolom wajib tidak ditemukan: week_start_date (atau score_date). Gunakan format baru: ${REQUIRED_NEW.join(', ')}`,
+      'ERR_VALIDATION',
+      400
+    );
+  }
+
+  const requiredCheck = hasWeekStart ? REQUIRED_NEW : REQUIRED_LEGACY;
+  const missing = requiredCheck.filter(col => !columns.includes(col));
   if (missing.length > 0) {
     throw new AppError(`Kolom wajib tidak ditemukan: ${missing.join(', ')}`, 'ERR_VALIDATION', 400);
   }
-
-  const activeYearId = await getActiveAcademicYearId();
-  const activeSemesterId = await getActiveSemesterId();
 
   const previewRows: any[] = [];
   const topLevelErrors: any[] = [];
@@ -936,21 +965,48 @@ async function validateCultureScoreRows(
       }
     }
 
-    const normDate = normaliseDate(r.score_date);
+    // Resolve date from week_start_date or legacy score_date field
+    const rawDateValue = hasWeekStart ? r.week_start_date : r.score_date;
+    const rawDateField = hasWeekStart ? 'week_start_date' : 'score_date';
+
+    if (!hasWeekStart && hasScoreDate) {
+      ctx.rowWarnings.push({
+        row_number: rowNum,
+        field: 'score_date',
+        message: 'score_date deprecated, converted automatically to week_start_date',
+        severity: 'warning',
+      });
+    }
+
+    const normDate = normaliseDate(rawDateValue);
+    let resolvedWeekStart: string | null = null;
+
     if (!normDate) {
-      ctx.rowErrors.push({ row_number: rowNum, field: 'score_date', message: `Format tanggal tidak valid`, severity: 'error' });
+      ctx.rowErrors.push({ row_number: rowNum, field: rawDateField, message: `Format tanggal tidak valid (harus YYYY-MM-DD)`, severity: 'error' });
     } else {
-      r.score_date = normDate;
+      // Normalize to Monday — auto-correct if not a Monday
+      const monday = normaliseToMonday(normDate);
+      if (monday !== normDate) {
+        ctx.rowWarnings.push({
+          row_number: rowNum,
+          field: rawDateField,
+          message: `Tanggal ${normDate} bukan hari Senin — dinormalisasi ke ${monday}`,
+          severity: 'warning',
+        });
+      }
+      resolvedWeekStart = monday;
+      // Store normalised week_start_date for confirm phase
+      r._week_start_date = monday;
     }
 
     const scoreFields = ['sss_score', 'am_score', 'hb_score', 'asm_score', 'br_score', 'ak_score', 'tm_score'];
     for (const sf of scoreFields) {
       const rawVal = String(r[sf] ?? '').trim();
-      const numVal = parseFloat(rawVal);
-      if (!rawVal || isNaN(numVal) || numVal < 0 || numVal > 100) {
+      const numVal = parseInt(rawVal, 10);
+      if (!rawVal || isNaN(numVal) || numVal < 0 || numVal > 4) {
         ctx.rowErrors.push({
           row_number: rowNum, field: sf,
-          message: `Nilai harus 0-100`, severity: 'error',
+          message: `Nilai harus 0-4`, severity: 'error',
         });
       } else {
         r[sf] = numVal;
@@ -958,16 +1014,16 @@ async function validateCultureScoreRows(
     }
 
     let operation: 'create' | 'update' | 'error' = 'create';
-    if (studentId && normDate) {
+    if (studentId && resolvedWeekStart) {
       const existing = await db('culture_scores')
         .where('student_id', studentId)
-        .where('score_date', normDate)
+        .where('week_start_date', resolvedWeekStart)
         .first();
       if (existing) {
         operation = 'update';
         ctx.rowWarnings.push({
           row_number: rowNum, field: 'nisn',
-          message: `Skor budaya sudah ada — akan diperbarui`, severity: 'warning',
+          message: `Skor budaya minggu ${resolvedWeekStart} sudah ada — akan diperbarui`, severity: 'warning',
         });
       }
     }
@@ -982,7 +1038,7 @@ async function validateCultureScoreRows(
       else updateCount++;
     }
 
-    previewRows.push(makeRowPayload(rowNum, operation, `${nisn}@${normDate}`, studentName || nisn, ctx));
+    previewRows.push(makeRowPayload(rowNum, operation, `${nisn}@${resolvedWeekStart ?? normDate}`, studentName || nisn, ctx));
   }
 
   return {
@@ -1583,7 +1639,20 @@ async function confirmCultureScoreRows(
 
       try {
         const nisn = String(rawRow.nisn ?? '').trim();
-        const scoreDate = normaliseDate(rawRow.score_date);
+
+        // Use _week_start_date set during validate phase (already normalised to Monday)
+        // Fall back to score_date (legacy) if _week_start_date not set
+        const rawWeekStart = rawRow._week_start_date
+          || normaliseDate(rawRow.week_start_date)
+          || normaliseDate(rawRow.score_date);
+        if (!rawWeekStart) throw new Error(`week_start_date tidak valid`);
+        const weekStart = normaliseToMonday(rawWeekStart);
+
+        // Compute week_end_date = weekStart + 6 days
+        const [wy, wm, wd] = weekStart.split('-').map(Number);
+        const endDate = new Date(wy, wm - 1, wd);
+        endDate.setDate(endDate.getDate() + 6);
+        const weekEnd = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
 
         const student = await trx('students').where('nisn', nisn).first();
         if (!student) throw new Error(`Siswa ${nisn} tidak ditemukan`);
@@ -1604,23 +1673,26 @@ async function confirmCultureScoreRows(
         const enrollmentId = enrollment.id;
 
         const scoreData = {
-          sss_score: parseFloat(String(rawRow.sss_score ?? 0).trim()),
-          am_score: parseFloat(String(rawRow.am_score ?? 0).trim()),
-          hb_score: parseFloat(String(rawRow.hb_score ?? 0).trim()),
-          asm_score: parseFloat(String(rawRow.asm_score ?? 0).trim()),
-          br_score: parseFloat(String(rawRow.br_score ?? 0).trim()),
-          ak_score: parseFloat(String(rawRow.ak_score ?? 0).trim()),
-          tm_score: parseFloat(String(rawRow.tm_score ?? 0).trim()),
-        };                                                                                                                                                                                                                      
+          sss_score: parseInt(String(rawRow.sss_score ?? 0).trim(), 10),
+          am_score: parseInt(String(rawRow.am_score ?? 0).trim(), 10),
+          hb_score: parseInt(String(rawRow.hb_score ?? 0).trim(), 10),
+          asm_score: parseInt(String(rawRow.asm_score ?? 0).trim(), 10),
+          br_score: parseInt(String(rawRow.br_score ?? 0).trim(), 10),
+          ak_score: parseInt(String(rawRow.ak_score ?? 0).trim(), 10),
+          tm_score: parseInt(String(rawRow.tm_score ?? 0).trim(), 10),
+        };
 
         if (previewRow.operation === 'update') {
           const existing = await trx('culture_scores')
             .where('student_id', studentId)
-            .where('score_date', scoreDate)
+            .where('week_start_date', weekStart)
             .first();
           if (existing) {
             await trx('culture_scores').where('id', existing.id).update({
-              ...scoreData, updated_at: new Date(),
+              ...scoreData,
+              week_end_date: weekEnd,
+              observation_note: rawRow.observation_note ?? existing.observation_note,
+              updated_at: new Date(),
             });
             importedIds.push(existing.id);
             processedRows.push({ row_number: previewRow.row_number, entity_id: existing.id, action: 'update' });
@@ -1631,7 +1703,9 @@ async function confirmCultureScoreRows(
           await trx('culture_scores').insert({
             id: cultureScoreId, student_id: studentId, student_enrollment_id: enrollmentId,
             class_id: classId, teacher_user_id: actorId || null,
-            academic_year_id: activeYear.id, semester_id: activeSem.id, score_date: scoreDate,
+            academic_year_id: activeYear.id, semester_id: activeSem.id,
+            week_start_date: weekStart, week_end_date: weekEnd,
+            observation_note: rawRow.observation_note ?? null,
             ...scoreData, status: 'active', lifecycle_status: 'active',
             created_at: new Date(), updated_at: new Date(),
           });
@@ -1639,7 +1713,7 @@ async function confirmCultureScoreRows(
           processedRows.push({ row_number: previewRow.row_number, entity_id: cultureScoreId, action: 'create' });
           successCount++;
         }
-      } catch (err) {   
+      } catch (err) {
         errorCount++;
         confirmErrors.push({
           row_number: previewRow.row_number,

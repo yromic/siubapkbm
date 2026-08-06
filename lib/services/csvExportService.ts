@@ -249,7 +249,7 @@ export async function exportAcademicScoresCsvService(params: {
   }
 }
 
-// ─── Character Summary CSV ────────────────────────────────────────────────────
+// ─── Character Summary CSV (UTSMAN Schema) ────────────────────────────────────
 
 export async function exportCharacterSummaryCsvService(params: {
   classId: string;
@@ -258,50 +258,75 @@ export async function exportCharacterSummaryCsvService(params: {
   actorId: string;
 }) {
   try {
-    const summaries = await db('character_semester_summaries')
-      .join('students', 'character_semester_summaries.student_id', 'students.id')
-      .select(
-        'students.nisn',
-        'students.full_name',
-        'character_semester_summaries.f_score',
-        'character_semester_summaries.i_score',
-        'character_semester_summaries.t_score',
-        'character_semester_summaries.r_score',
-        'character_semester_summaries.a_score',
-        'character_semester_summaries.h_score',
-        'character_semester_summaries.days_counted'
-      )
-      .join('student_enrollments', (j: any) => {
-        j.on('character_semester_summaries.student_id', '=', 'student_enrollments.student_id')
-          .andOn('character_semester_summaries.academic_year_id', '=', 'student_enrollments.academic_year_id')
-          .andOn('character_semester_summaries.semester_id', '=', 'student_enrollments.semester_id');
+    // LEFT JOIN so students with no UTSMAN summary still appear (values empty, not error)
+    const summaries = await db('student_enrollments')
+      .join('students', 'student_enrollments.student_id', 'students.id')
+      .join('classes', 'student_enrollments.class_id', 'classes.id')
+      .join('semesters', 'student_enrollments.semester_id', 'semesters.id')
+      .leftJoin('character_utsman_semester_summary', (j: any) => {
+        j.on('character_utsman_semester_summary.student_id', '=', 'student_enrollments.student_id')
+          .andOn('character_utsman_semester_summary.semester_id', '=', 'student_enrollments.semester_id');
       })
+      .select(
+        'students.full_name as student_name',
+        'students.nisn as student_nis',
+        'classes.name as class_name',
+        'semesters.name as semester',
+        'character_utsman_semester_summary.u_score',
+        'character_utsman_semester_summary.t_score',
+        'character_utsman_semester_summary.s_score',
+        'character_utsman_semester_summary.m_score',
+        'character_utsman_semester_summary.a_score',
+        'character_utsman_semester_summary.n_score',
+        'character_utsman_semester_summary.calculation_version',
+      )
       .where('student_enrollments.class_id', params.classId)
-      .where('character_semester_summaries.academic_year_id', params.academicYearId)
-      .where('character_semester_summaries.semester_id', params.semesterId)
+      .where('student_enrollments.academic_year_id', params.academicYearId)
+      .where('student_enrollments.semester_id', params.semesterId)
       .where('student_enrollments.status', 'active')
+      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
       .orderBy('students.full_name', 'asc');
 
     const headers = [
-      'NISN', 'Nama Siswa',
-      'F (Fathonah)', 'I (Istiqamah)', 'T (Tanggung Jawab)',
-      'R (Ramah)', 'A (Amanah)', 'H (Harmonis)',
-      'Hari Dicatat',
+      'Nama Siswa', 'NIS',
+      'Kelas', 'Semester',
+      'U (Unggul)', 'T (Terampil)', 'S (Santun)',
+      'M (Mandiri)', 'A (Amanah)', 'N (Nasionalis)',
+      'Rata-rata', 'Versi Kalkulasi',
     ];
-    const rows = summaries.map((s: any) => [
-      s.nisn ?? '',
-      s.full_name ?? '',
-      s.f_score != null ? String(s.f_score) : '0',
-      s.i_score != null ? String(s.i_score) : '0',
-      s.t_score != null ? String(s.t_score) : '0',
-      s.r_score != null ? String(s.r_score) : '0',
-      s.a_score != null ? String(s.a_score) : '0',
-      s.h_score != null ? String(s.h_score) : '0',
-      s.days_counted != null ? String(s.days_counted) : '0',
-    ]);
+
+    const rows = summaries.map((s: any) => {
+      const u = s.u_score != null ? Number(s.u_score) : null;
+      const t = s.t_score != null ? Number(s.t_score) : null;
+      const sv = s.s_score != null ? Number(s.s_score) : null;
+      const m = s.m_score != null ? Number(s.m_score) : null;
+      const a = s.a_score != null ? Number(s.a_score) : null;
+      const n = s.n_score != null ? Number(s.n_score) : null;
+
+      const validScores = [u, t, sv, m, a, n].filter((v): v is number => v !== null);
+      const overall =
+        validScores.length > 0
+          ? (validScores.reduce((acc, v) => acc + v, 0) / validScores.length).toFixed(2)
+          : '';
+
+      return [
+        s.student_name ?? '',
+        s.student_nis ?? '',
+        s.class_name ?? '',
+        s.semester ?? '',
+        u != null ? String(u) : '',
+        t != null ? String(t) : '',
+        sv != null ? String(sv) : '',
+        m != null ? String(m) : '',
+        a != null ? String(a) : '',
+        n != null ? String(n) : '',
+        overall,
+        s.calculation_version ?? '',
+      ];
+    });
 
     const csvContent = buildCsv(headers, rows);
-    const fileName = `character_summary_export_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = `character_utsman_export_${new Date().toISOString().split('T')[0]}.csv`;
 
     return await saveExport({
       csvContent,
@@ -317,7 +342,7 @@ export async function exportCharacterSummaryCsvService(params: {
     if (error instanceof AppError) throw error;
     console.error('[csvExportService] exportCharacterSummaryCsvService error:', error);
     throw new AppError(
-      error instanceof Error ? error.message : 'Error generating character summary CSV.',
+      error instanceof Error ? error.message : 'Error generating character UTSMAN summary CSV.',
       'ERR_INTERNAL_SERVER',
       500
     );
