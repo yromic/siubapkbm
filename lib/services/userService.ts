@@ -8,6 +8,10 @@ export interface UserListFilter {
   role?: "administrator" | "admin" | "teacher";
   status?: "active" | "inactive";
   search?: string;
+  includeInactive?: boolean;
+  includeArchived?: boolean;
+  onlyArchived?: boolean;
+  onlyDeleted?: boolean;
 }
 
 export interface UserInput {
@@ -89,14 +93,34 @@ export async function listUsers(
   limit = 20,
 ) {
   try {
-    const query = db("users").whereNot("lifecycle_status", "soft_deleted");
+    const query = db("users");
+
+    if (filters.onlyDeleted) {
+      query.where("lifecycle_status", "soft_deleted");
+    } else if (filters.onlyArchived) {
+      query.where("lifecycle_status", "archived");
+    } else if (filters.includeArchived) {
+      query.whereNot("lifecycle_status", "soft_deleted");
+    } else if (filters.includeInactive) {
+      query.whereNotIn("lifecycle_status", ["soft_deleted", "archived"]);
+    } else if (filters.status === "inactive") {
+      query
+        .whereNotIn("lifecycle_status", ["soft_deleted", "archived"])
+        .where(function (this: any) {
+          this.where("lifecycle_status", "inactive").orWhere("status", "inactive");
+        });
+    } else if (filters.status === "active") {
+      query
+        .whereNotIn("lifecycle_status", ["soft_deleted", "archived"])
+        .where(function (this: any) {
+          this.where("lifecycle_status", "active").orWhere("status", "active");
+        });
+    } else {
+      query.whereNotIn("lifecycle_status", ["soft_deleted", "archived"]);
+    }
 
     if (filters.role) {
       query.where("role", filters.role);
-    }
-
-    if (filters.status) {
-      query.where("status", filters.status);
     }
 
     if (filters.search) {
@@ -288,8 +312,19 @@ export async function createUser(input: UserInput) {
 
     const { password_hash, ...sanitizedUser } = newUser;
     return sanitizedUser;
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof AppError) throw error;
+    if (
+      error?.code === "ER_DUP_ENTRY" ||
+      error?.message?.includes("ER_DUP_ENTRY") ||
+      error?.message?.includes("DUPLICATE ENTRY")
+    ) {
+      throw new AppError(
+        "Email atau username sudah terdaftar dalam sistem.",
+        "ERR_DUPLICATE_ENTRY",
+        400,
+      );
+    }
     throw new AppError(
       error instanceof Error ? error.message : "Database error creating user",
       "ERR_DATABASE",
@@ -393,8 +428,19 @@ export async function updateUser(
     }
 
     return await getUserById(id);
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof AppError) throw error;
+    if (
+      error?.code === "ER_DUP_ENTRY" ||
+      error?.message?.includes("ER_DUP_ENTRY") ||
+      error?.message?.includes("DUPLICATE ENTRY")
+    ) {
+      throw new AppError(
+        "Email atau username sudah terdaftar dalam sistem.",
+        "ERR_DUPLICATE_ENTRY",
+        400,
+      );
+    }
     throw new AppError(
       error instanceof Error ? error.message : "Database error updating user",
       "ERR_DATABASE",

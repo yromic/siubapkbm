@@ -14,24 +14,58 @@ id,nisn,nik,full_name,birth_place,birth_date,gender,religion,phone,affirmation,s
 
 #academic_years
 id,name,start_date,end_date,is_active,created_at,updated_at,lifecycle_status,locked_at,locked_by,archived_at,archived_by
+AY_2026_2027,2026/2027,2026-07-13,2027-07-11,1,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,,,,
 
 #semesters
 id,academic_year_id,name,start_date,end_date,is_active,created_at,updated_at,lifecycle_status,locked_at,locked_by,archived_at,archived_by
+SEM_20261_GANJIL,AY_2026_2027,Ganjil,2026-07-13,2026-12-21,1,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,,,,
+SEM_20262_GENAP,AY_2026_2027,Genap,2027-01-02,2027-07-01,0,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,,,,
 
 #classes
 id,code,name,level,status,created_at,updated_at,lifecycle_status,archived_at,archived_by
+CLS_F1,F1,Fathimah bintu Muhammad,1,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_K1,K1,Khadijah Bintu Khuwailid,1,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_A2,A2,Ali bin Abi Thalib,2,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_U2,U2,Umar Bin Khattab,2,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_H3,H3,Hamzah bin Abdul Muthalib,3,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_U3,U3,Utsman bin Affan,3,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_S4,S4,Sa'ad bin Abi Waqqash,4,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_Z4,Z4,Zubair bin al-'Awwam,4,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_AU5,AU5,Abu Ubaidah bin al jarrah,5,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_X5,X5,-,5,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+CLS_AB6,AB6,Abu Bakr Ash Shidiq,6,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
 
 #class_teacher_assignments
 id,class_id,teacher_user_id,academic_year_id,semester_id,effective_from,effective_until,status,created_at,updated_at,lifecycle_status
+CTA_001,CLS_AU5,USE_1781806369724_1794,AY_2026_2027,SEM_20261_GANJIL,2026-07-13,2026-12-21,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
+CTA_002,CLS_F1,USE_1781806369724_9938,AY_2026_2027,SEM_20261_GANJIL,2026-07-13,2026-12-21,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
 
 #student_enrollments
 id,student_id,class_id,academic_year_id,semester_id,status,created_at,updated_at,lifecycle_status
 
 #subjects
 id,code,name,description,status,created_at,updated_at,lifecycle_status,archived_at,archived_by
+SBJ_ADK,ADK,Adab/Akhlak,Pembelajaran akhlak dan etika dalam kehidupan sehari-hari,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_AQD,AQD,Tauhid/Aqidah,Ilmu tentang keimanan dan aqidah Islam,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_BAR,BAR,Bahasa Arab,Pembelajaran bahasa Arab untuk komunikasi dan teks agama,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_BIG,BIG,Bahasa Inggris,Pembelajaran bahasa Inggris untuk komunikasi global,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_BIN,BIN,Bahasa Indonesia,Pembelajaran bahasa dan sastra Indonesia,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_BJW,BJW,Bahasa Jawa,Pembelajaran bahasa dan budaya Jawa,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_FKH,FKH,Fikih,Ilmu hukum Islam terkait ibadah dan muamalah,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_IPS,IPS,IPAS,Ilmu Pengetahuan Alam dan Sosial,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_MTK,MTK,Matematika,Ilmu berhitung,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_PJK,PJK,PJOK,Pendidikan Jasmani,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_PNC,PNC,Pancasila,Pendidikan Pancasila dan kewarganegaraan,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_SRH,SRH,Sirah,Sejarah kehidupan Nabi dan sahabat,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
+SBJ_SRP,SRP,Seni Rupa,Pembelajaran seni visual dan keterampilan kreatif,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active,,
 
 #class_subjects
 id,class_id,subject_id,academic_year_id,semester_id,status,created_at,updated_at,lifecycle_status
+CS_F1_ADK,CLS_F1,SBJ_ADK,AY_2026_2027,SEM_20261_GANJIL,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
+CS_F1_AQD,CLS_F1,SBJ_AQD,AY_2026_2027,SEM_20261_GANJIL,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
+CS_F1_MTK,CLS_F1,SBJ_MTK,AY_2026_2027,SEM_20261_GANJIL,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
+CS_AU5_MTK,CLS_AU5,SBJ_MTK,AY_2026_2027,SEM_20261_GANJIL,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
+CS_AU5_IPS,CLS_AU5,SBJ_IPS,AY_2026_2027,SEM_20261_GANJIL,active,2026-08-10T10:00:00.000Z,2026-08-10T10:00:00.000Z,active
 
 #academic_assessments
 id,teacher_user_id,class_id,subject_id,academic_year_id,semester_id,title,description,assessment_date,score_min,score_max,status,created_at,updated_at,lifecycle_status,deleted_at,deleted_by,locked_at,locked_by

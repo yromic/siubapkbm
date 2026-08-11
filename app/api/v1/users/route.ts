@@ -13,10 +13,18 @@ export async function GET(req: NextRequest) {
         const role = searchParams.get('role') as any || undefined;
         const status = searchParams.get('status') as any || undefined;
         const search = searchParams.get('search') || undefined;
+        const includeInactive = searchParams.get('includeInactive') === 'true';
+        const includeArchived = searchParams.get('includeArchived') === 'true';
+        const onlyArchived = searchParams.get('onlyArchived') === 'true';
+        const onlyDeleted = searchParams.get('onlyDeleted') === 'true';
         const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = parseInt(searchParams.get('limit') || '20', 10);
 
-        const result = await listUsers({ role, status, search }, page, limit);
+        const result = await listUsers(
+          { role, status, search, includeInactive, includeArchived, onlyArchived, onlyDeleted },
+          page,
+          limit
+        );
         return successResponse(result, 'Users list retrieved.');
       } catch (error) {
         if (error instanceof AppError) {

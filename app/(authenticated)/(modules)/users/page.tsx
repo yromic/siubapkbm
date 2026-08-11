@@ -94,8 +94,10 @@ export default function UsersPage() {
       } else if (filterStatus === "Semua") {
         filters.includeInactive = true;
         filters.includeArchived = true;
+      } else if (filterStatus === "ACTIVE") {
+        filters.status = "active";
       } else if (filterStatus === "INACTIVE") {
-        filters.includeInactive = true;
+        filters.status = "inactive";
       } else if (filterStatus === "ARCHIVED") {
         filters.onlyArchived = true;
       } else if (filterStatus === "SOFT_DELETED") {
