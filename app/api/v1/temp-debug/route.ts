@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 /**
  * @deprecated
- * Temporary debug endpoint disabled for production security (Sprint 8).
+ * Temporary debug endpoint disabled for production security.
  */
 export async function GET() {
   return NextResponse.json(

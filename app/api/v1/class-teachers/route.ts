@@ -7,7 +7,7 @@ import { AppError } from '@/lib/errors';
 
 export async function GET(req: NextRequest) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'admin'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher', 'operator', 'guru'], req, async () => {
       try {
         const { searchParams } = new URL(req.url);
         const class_id = searchParams.get('class_id') || undefined;

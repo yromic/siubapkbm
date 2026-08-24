@@ -38,11 +38,13 @@ import {
   Layout,
 } from "lucide-react";
 
+import { UserRole } from "@/lib/api/client";
+
 interface MenuItem {
   name: string;
   href: string;
   icon: React.ReactNode;
-  roles: ("administrator" | "admin" | "teacher")[];
+  roles: UserRole[];
   category: "utama" | "akademik" | "website" | "sistem" | "data";
 }
 
@@ -91,8 +93,40 @@ const MENU_ITEMS: MenuItem[] = [
     icon: <PieChart className="w-5 h-5" />,
   },
   {
+    name: "Assessment Trisula",
+    href: "/trisula",
+    roles: ["administrator", "admin", "teacher"],
+    category: "akademik",
+    icon: <FileText className="w-5 h-5" />,
+  },
+  {
+    name: "Bank Modul BLC",
+    href: "/blc",
+
+    roles: ["administrator", "admin", "teacher"],
+    category: "akademik",
+    icon: <BookOpen className="w-5 h-5" />,
+  },
+  {
+    name: "Rencana Pemelajaran (RPM)",
+    href: "/rpm",
+
+    roles: ["administrator", "admin", "teacher"],
+    category: "akademik",
+    icon: <FileText className="w-5 h-5" />,
+  },
+  {
+    name: "Assessment KKTP",
+    href: "/kktp",
+
+    roles: ["administrator", "admin", "teacher"],
+    category: "akademik",
+    icon: <FileText className="w-5 h-5" />,
+  },
+  {
     name: "Siswa",
     href: "/students",
+
     roles: ["administrator", "admin"],
     category: "akademik",
     icon: <Users className="w-5 h-5" />,
@@ -273,7 +307,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
   return (
     <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] text-zinc-900 dark:text-zinc-50 font-sans">
       {/* Topbar - Header Section */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#171717]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#171717]/90 backdrop-blur-md print:hidden">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <button
@@ -312,7 +346,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
 
       <div className="flex-1 flex">
         {/* Desktop Sidebar - Surface 1 */}
-        <aside className="hidden md:flex flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#171717] shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-hidden">
+        <aside className="hidden md:flex flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#171717] shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-hidden print:hidden">
           <nav className="flex-1 overflow-y-auto space-y-4 px-3 py-6 pr-2">
             <Link
               href="/portal"
@@ -393,7 +427,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
 
         {/* Mobile Sidebar overlay */}
         {sidebarOpen && (
-          <div className="fixed inset-0 z-50 flex md:hidden bg-zinc-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex md:hidden bg-zinc-900/40 backdrop-blur-sm print:hidden">
             <div className="w-72 bg-white dark:bg-[#171717] p-6 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-800 animate-fadeIn">
               <div className="flex items-center justify-between pb-6 border-b border-zinc-100 dark:border-zinc-800 mb-6">
                 <div>
@@ -456,7 +490,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                               pathname === item.href ||
                               (pathname.startsWith(`${item.href}/`) &&
                                 !userMenuItems.some(
-                                  (other) =>
+                                   (other) =>
                                     other.href !== item.href &&
                                     other.href.startsWith(item.href) &&
                                     pathname.startsWith(other.href)
@@ -501,8 +535,8 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
         )}
 
         {/* Content Area */}
-        <main className="flex-1 flex flex-col min-w-0 pb-20 md:pb-6">
-          <div className="p-4 sm:p-6 lg:p-8 flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col min-w-0 pb-20 md:pb-6 print:p-0 print:m-0 print:pb-0">
+          <div className="p-4 sm:p-6 lg:p-8 flex-1 flex flex-col print:p-0 print:m-0">
             {hasAccess ? (
               children
             ) : (
@@ -513,7 +547,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
       </div>
 
       {/* Bottom Navigation Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-[#171717]/95 backdrop-blur-md md:hidden flex justify-around items-center px-2">
+      <div className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-[#171717]/95 backdrop-blur-md md:hidden flex justify-around items-center px-2 print:hidden">
         {userMenuItems.slice(0, 4).map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (

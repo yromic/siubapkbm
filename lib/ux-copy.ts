@@ -177,5 +177,61 @@ export const UX_COPY = {
     savingScores: "Menyimpan nilai budaya mingguan...",
     noScoreData: "Belum ada data nilai budaya yang tersedia untuk periode ini.",
   },
+
+  // --- DOCUMENT MODULES (RPM, KKTP, TRISULA, BLC) ---
+  documents: {
+    statusLabel: {
+      DRAFT: "Belum Selesai",
+      PUBLISHED: "Menunggu Persetujuan",
+      APPROVED: "Sudah Disahkan",
+      ARCHIVED: "Arsip",
+    },
+    statusBadgeColor: {
+      DRAFT: "bg-gray-100 text-gray-700 border-gray-200",
+      PUBLISHED: "bg-amber-100 text-amber-800 border-amber-200",
+      APPROVED: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      ARCHIVED: "bg-slate-200 text-slate-700 border-slate-300",
+    },
+    watermarkText: {
+      DRAFT: "DRAFT",
+      PUBLISHED: "",
+      APPROVED: "",
+      ARCHIVED: "ARSIP",
+    },
+    actions: {
+      submitForReview: "Kirim untuk Ditinjau",
+      approve: "Sahkan Dokumen",
+      reject: "Kembalikan ke Draf",
+      clone: "Gunakan Modul Ini",
+      bundle: "Cetak Paket Semester",
+    },
+  },
+
+  // --- RPM-SPECIFIC LABELS (Zero-Approval Workflow) ---
+  // Hanya digunakan oleh komponen RPM. KKTP/Trisula tetap menggunakan documents.statusLabel di atas.
+  rpm: {
+    status: {
+      ready: "Siap Dipakai",
+      signed: "✓ Sudah Ditandatangani Resmi",
+      unsigned: "Belum Ditandatangani",
+      watermarkUnsigned: "Belum Ditandatangani Resmi",
+    },
+    actions: {
+      sign: "✓ Tandatangani",
+      shareToBLC: "Bagikan ke Bank Modul BLC",
+      unshareToBLC: "Batalkan Berbagi",
+      deleteRPM: "Hapus RPM",
+      saveReady: "Simpan & Siap Dipakai",
+    },
+    messages: {
+      signatureReset: "Tanda tangan resmi telah direset karena konten RPM diubah. Minta kepala sekolah menandatangani ulang jika diperlukan.",
+      signSuccess: "RPM berhasil ditandatangani resmi.",
+      shareSuccess: "RPM berhasil dibagikan ke Bank Modul BLC.",
+      unshareSuccess: "RPM berhasil dihapus dari Bank Modul BLC.",
+      deleteConfirm: "Hapus RPM ini secara permanen?",
+      deleteSuccess: "RPM berhasil dihapus.",
+    },
+  },
 };
+
 
