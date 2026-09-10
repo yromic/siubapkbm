@@ -60,8 +60,16 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const userId = authenticatedReq.user.id;
 
-        // Special action: seed Trisula default curriculum
+        // Special action: seed Trisula default curriculum (Admin only)
         if (body.action === "seed_trisula") {
+          const role = authenticatedReq.user.role;
+          if (!["administrator", "admin"].includes(role)) {
+            return errorResponse(
+              "Hanya administrator yang dapat menyinkronkan kurikulum standar BLC.",
+              "ERR_FORBIDDEN",
+              403
+            );
+          }
           const seedResult = await seedInitialTrisulaCurriculum();
           return successResponse(seedResult, "Kurikulum Trisula BLC berhasil diselaraskan ke Bank CP & TP.");
         }

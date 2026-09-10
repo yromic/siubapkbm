@@ -5,23 +5,25 @@ import { resolvePhaseByClassLevel, resolvePhaseByClassName } from "@/lib/utils/a
 
 export interface BankTPItem {
   id: string;
+  kode?: string | null;
   cp_id?: string | null;
   cp_kode?: string | null;
   cp_teks?: string | null;
   cp_domain_trisula?: string | null;
   teks: string;
-  mata_pelajaran_id: string | null;
-  mata_pelajaran_name: string | null;
+  mata_pelajaran_id?: string | null;
+  mata_pelajaran_name?: string | null;
   fase: string;
-  sumber: "dari_rpm" | "manual" | "ai_generated";
-  created_by: string;
+  sumber?: "dari_rpm" | "manual" | "ai_generated";
+  created_by?: string;
   creator_name?: string;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface BankTPFilters {
   cp_id?: string;
+  kode?: string;
   mata_pelajaran_id?: string;
   mata_pelajaran_name?: string;
   fase?: string;
@@ -30,44 +32,92 @@ export interface BankTPFilters {
   search?: string;
 }
 
+export interface UpdateTPInput {
+  teks?: string;
+  cp_id?: string | null;
+  mata_pelajaran_id?: string | null;
+  mata_pelajaran_name?: string | null;
+  fase?: string;
+}
+
+let ensuringTpTablePromise: Promise<void> | null = null;
+
 export async function ensureTpBankTableExists(): Promise<void> {
-  const exists = await db.schema.hasTable("tp_bank");
-  if (!exists) {
-    await db.raw("SET FOREIGN_KEY_CHECKS = 0;");
-    await db.raw(`
-      CREATE TABLE IF NOT EXISTS \`tp_bank\` (
-        \`id\` CHAR(36) NOT NULL,
-        \`cp_id\` CHAR(36) NULL,
-        \`teks\` TEXT NOT NULL,
-        \`mata_pelajaran_id\` CHAR(36) NULL,
-        \`mata_pelajaran_name\` VARCHAR(255) NULL,
-        \`fase\` VARCHAR(50) NOT NULL DEFAULT 'Fase C',
-        \`sumber\` ENUM('dari_rpm', 'manual', 'ai_generated') NOT NULL DEFAULT 'manual',
-        \`created_by\` CHAR(36) NOT NULL,
-        \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`updated_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (\`id\`),
-        INDEX \`idx_tp_bank_mapel_fase\` (\`mata_pelajaran_id\`, \`fase\`),
-        INDEX \`idx_tp_bank_cp_id\` (\`cp_id\`),
-        INDEX \`idx_tp_bank_created_by\` (\`created_by\`),
-        INDEX \`idx_tp_bank_fase\` (\`fase\`),
-        CONSTRAINT \`fk_tp_bank_created_by\` FOREIGN KEY (\`created_by\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE,
-        CONSTRAINT \`fk_tp_bank_subject\` FOREIGN KEY (\`mata_pelajaran_id\`) REFERENCES \`subjects\` (\`id\`) ON DELETE SET NULL
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-    await db.raw("SET FOREIGN_KEY_CHECKS = 1;");
-  } else {
-    const hasCpId = await db.schema.hasColumn("tp_bank", "cp_id");
-    if (!hasCpId) {
-      await db.raw("SET FOREIGN_KEY_CHECKS = 0;");
-      await db.raw(`
-        ALTER TABLE \`tp_bank\`
-        ADD COLUMN \`cp_id\` CHAR(36) NULL AFTER \`teks\`,
-        ADD INDEX \`idx_tp_bank_cp_id\` (\`cp_id\`);
-      `);
-      await db.raw("SET FOREIGN_KEY_CHECKS = 1;");
-    }
+  if (ensuringTpTablePromise) {
+    return ensuringTpTablePromise;
   }
+
+  ensuringTpTablePromise = (async () => {
+    try {
+      const exists = await db.schema.hasTable("tp_bank");
+      if (!exists) {
+        await db.raw("SET FOREIGN_KEY_CHECKS = 0;");
+        await db.raw(`
+          CREATE TABLE IF NOT EXISTS \`tp_bank\` (
+            \`id\` CHAR(36) NOT NULL,
+            \`cp_id\` CHAR(36) NULL,
+            \`kode\` VARCHAR(100) NULL,
+            \`teks\` TEXT NOT NULL,
+            \`mata_pelajaran_id\` CHAR(36) NULL,
+            \`mata_pelajaran_name\` VARCHAR(255) NULL,
+            \`fase\` VARCHAR(50) NOT NULL DEFAULT 'Fase C',
+            \`sumber\` ENUM('dari_rpm', 'manual', 'ai_generated') NOT NULL DEFAULT 'manual',
+            \`created_by\` CHAR(36) NOT NULL,
+            \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            \`updated_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (\`id\`),
+            INDEX \`idx_tp_bank_mapel_fase\` (\`mata_pelajaran_id\`, \`fase\`),
+            INDEX \`idx_tp_bank_cp_id\` (\`cp_id\`),
+            INDEX \`idx_tp_bank_kode\` (\`kode\`),
+            INDEX \`idx_tp_bank_created_by\` (\`created_by\`),
+            INDEX \`idx_tp_bank_fase\` (\`fase\`),
+            CONSTRAINT \`fk_tp_bank_created_by\` FOREIGN KEY (\`created_by\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE,
+            CONSTRAINT \`fk_tp_bank_subject\` FOREIGN KEY (\`mata_pelajaran_id\`) REFERENCES \`subjects\` (\`id\`) ON DELETE SET NULL
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+        `);
+        await db.raw("SET FOREIGN_KEY_CHECKS = 1;");
+      } else {
+        const hasCpId = await db.schema.hasColumn("tp_bank", "cp_id");
+        if (!hasCpId) {
+          try {
+            await db.raw("SET FOREIGN_KEY_CHECKS = 0;");
+            await db.raw(`
+              ALTER TABLE \`tp_bank\`
+              ADD COLUMN \`cp_id\` CHAR(36) NULL AFTER \`teks\`,
+              ADD INDEX \`idx_tp_bank_cp_id\` (\`cp_id\`);
+            `);
+            await db.raw("SET FOREIGN_KEY_CHECKS = 1;");
+          } catch (e: any) {
+            if (!e?.message?.includes("Duplicate column") && !e?.message?.includes("ER_DUP_FIELDNAME")) {
+              throw e;
+            }
+          }
+        }
+
+        const hasKode = await db.schema.hasColumn("tp_bank", "kode");
+        if (!hasKode) {
+          try {
+            await db.raw("SET FOREIGN_KEY_CHECKS = 0;");
+            await db.raw(`
+              ALTER TABLE \`tp_bank\`
+              ADD COLUMN \`kode\` VARCHAR(100) NULL AFTER \`cp_id\`,
+              ADD INDEX \`idx_tp_bank_kode\` (\`kode\`);
+            `);
+            await db.raw("SET FOREIGN_KEY_CHECKS = 1;");
+          } catch (e: any) {
+            if (!e?.message?.includes("Duplicate column") && !e?.message?.includes("ER_DUP_FIELDNAME")) {
+              throw e;
+            }
+          }
+        }
+      }
+    } catch (err) {
+      ensuringTpTablePromise = null;
+      throw err;
+    }
+  })();
+
+  return ensuringTpTablePromise;
 }
 
 /**
@@ -101,6 +151,10 @@ export async function listBankTPs(
     query.where("tp_bank.cp_id", filters.cp_id);
   }
 
+  if (filters.kode) {
+    query.where("tp_bank.kode", filters.kode);
+  }
+
   if (filters.mata_pelajaran_id) {
     query.where("tp_bank.mata_pelajaran_id", filters.mata_pelajaran_id);
   } else if (filters.mata_pelajaran_name) {
@@ -119,17 +173,19 @@ export async function listBankTPs(
     const term = `%${filters.search.trim()}%`;
     query.where((builder: any) => {
       builder
-        .whereILike("tp_bank.teks", term)
-        .orWhereILike("tp_bank.mata_pelajaran_name", term)
-        .orWhereILike("tp_bank.fase", term)
-        .orWhereILike("cp_bank.teks", term);
+        .where("tp_bank.teks", "like", term)
+        .orWhere("tp_bank.kode", "like", term)
+        .orWhere("tp_bank.mata_pelajaran_name", "like", term)
+        .orWhere("cp_bank.teks", "like", term)
+        .orWhere("cp_bank.kode", "like", term);
     });
   }
 
-  const countQuery = query.clone();
-  const countRes = await countQuery.count("tp_bank.id as total").first();
-  const total = Number(countRes?.total || 0);
+  // Count total matching items
+  const countResult = await query.clone().clearSelect().count("tp_bank.id as total").first();
+  const total = Number(countResult?.total || 0);
 
+  // Apply sorting and pagination
   const offset = (page - 1) * limit;
   const items = await query
     .orderBy("tp_bank.created_at", "desc")
@@ -138,104 +194,87 @@ export async function listBankTPs(
 
   return {
     data: items,
-    pagination: { page, limit, total },
+    pagination: {
+      page,
+      limit,
+      total,
+    },
   };
 }
 
 /**
- * Automatically saves a batch of TPs to the Bank in the background.
- * Checks for exact duplicates (same text, subject, and fase) and prevents duplicate creation.
- * Optionally links to a parent CP if cp_id is specified.
+ * Auto-save unique TP entries from a created/updated document (RPM or KKTP) into Bank TP.
  */
 export async function autoSaveTPsToBank(params: {
-  tps: Array<{ teks: string; sourceType?: string; cp_id?: string | null }>;
+  tujuanPembelajaran: string[];
   mata_pelajaran_id?: string | null;
   mata_pelajaran_name?: string | null;
   fase?: string | null;
-  cp_id?: string | null;
+  class_level?: number | string;
+  class_name?: string | null;
   userId: string;
+  sumber?: "dari_rpm" | "manual" | "ai_generated";
 }): Promise<{ savedCount: number; existingCount: number }> {
   await ensureTpBankTableExists();
 
-  if (!params.tps || params.tps.length === 0) {
+  if (!params.tujuanPembelajaran || params.tujuanPembelajaran.length === 0) {
     return { savedCount: 0, existingCount: 0 };
   }
 
-  const fase = params.fase?.trim() || "Fase C";
-  const mataPelajaranId = params.mata_pelajaran_id || null;
-  const mataPelajaranName = params.mata_pelajaran_name?.trim() || null;
-  const globalCpId = params.cp_id || null;
-  const now = new Date();
-
-  // If cp_id is provided, validate that CP exists and matches fase
-  if (globalCpId) {
-    const hasCpTable = await db.schema.hasTable("cp_bank");
-    if (hasCpTable) {
-      const parentCP = await db("cp_bank").where("id", globalCpId).first();
-      if (parentCP && parentCP.fase && parentCP.fase !== fase) {
-        throw new AppError(
-          `Fase TP (${fase}) tidak cocok dengan Fase CP (${parentCP.fase}).`,
-          "ERR_PHASE_MISMATCH",
-          400
-        );
-      }
+  // Derive phase authoritatively: direct phase string > class_level > class_name > fallback
+  let fase = params.fase;
+  if (!fase || !fase.startsWith("Fase")) {
+    if (params.class_level !== undefined && params.class_level !== null) {
+      fase = resolvePhaseByClassLevel(params.class_level);
+    } else if (params.class_name) {
+      fase = resolvePhaseByClassName(params.class_name);
+    } else {
+      fase = "Fase C";
     }
   }
 
+  const sumber = params.sumber || "dari_rpm";
   let savedCount = 0;
   let existingCount = 0;
 
-  for (const tp of params.tps) {
-    const rawTeks = tp.teks ? String(tp.teks).trim() : "";
-    if (!rawTeks || rawTeks.length < 3) continue;
+  for (const rawTeks of params.tujuanPembelajaran) {
+    const teks = rawTeks?.trim();
+    if (!teks || teks.length < 3) continue;
 
-    const targetCpId = tp.cp_id || globalCpId;
-
-    // Check for exact duplicate in tp_bank
-    const query = db("tp_bank").whereRaw("LOWER(TRIM(teks)) = ?", [rawTeks.toLowerCase()]);
-    
-    if (fase) {
-      query.where("fase", fase);
-    }
-
-    if (mataPelajaranId) {
-      query.andWhere((b: any) => {
-        b.where("mata_pelajaran_id", mataPelajaranId)
-          .orWhere("mata_pelajaran_name", mataPelajaranName || "");
-      });
-    } else if (mataPelajaranName) {
-      query.whereRaw("LOWER(TRIM(mata_pelajaran_name)) = ?", [mataPelajaranName.toLowerCase()]);
-    }
-
-    const existing = await query.first();
+    // Check if TP already exists in this phase (case-insensitive)
+    const existing = await db("tp_bank")
+      .whereRaw("LOWER(TRIM(teks)) = ?", [teks.toLowerCase()])
+      .andWhere("fase", fase)
+      .first();
 
     if (existing) {
-      // If existing doesn't have cp_id and targetCpId is provided, link it
-      if (!existing.cp_id && targetCpId) {
-        await db("tp_bank").where("id", existing.id).update({
-          cp_id: targetCpId,
-          updated_at: now,
-        });
-      }
       existingCount++;
+      // Backfill missing mata_pelajaran_id or name if previously null
+      const updates: any = {};
+      if (!existing.mata_pelajaran_id && params.mata_pelajaran_id) {
+        updates.mata_pelajaran_id = params.mata_pelajaran_id;
+      }
+      if (!existing.mata_pelajaran_name && params.mata_pelajaran_name) {
+        updates.mata_pelajaran_name = params.mata_pelajaran_name.trim();
+      }
+      if (Object.keys(updates).length > 0) {
+        updates.updated_at = new Date();
+        await db("tp_bank").where("id", existing.id).update(updates);
+      }
       continue;
     }
 
-    const sumber: "dari_rpm" | "manual" | "ai_generated" =
-      tp.sourceType === "LINKED_RPM"
-        ? "dari_rpm"
-        : tp.sourceType === "AI_GENERATED"
-        ? "ai_generated"
-        : "manual";
+    // Insert new TP into Bank
+    const id = uuidv4();
+    const now = new Date();
 
     await db("tp_bank").insert({
-      id: uuidv4(),
-      cp_id: targetCpId,
-      teks: rawTeks,
-      mata_pelajaran_id: mataPelajaranId,
-      mata_pelajaran_name: mataPelajaranName,
-      fase: fase,
-      sumber: sumber,
+      id,
+      teks,
+      mata_pelajaran_id: params.mata_pelajaran_id || null,
+      mata_pelajaran_name: params.mata_pelajaran_name?.trim() || null,
+      fase,
+      sumber,
       created_by: params.userId,
       created_at: now,
       updated_at: now,
@@ -252,6 +291,7 @@ export async function autoSaveTPsToBank(params: {
  */
 export async function createManualBankTP(params: {
   teks: string;
+  kode?: string | null;
   cp_id?: string | null;
   mata_pelajaran_id?: string | null;
   mata_pelajaran_name?: string | null;
@@ -300,6 +340,7 @@ export async function createManualBankTP(params: {
   await db("tp_bank").insert({
     id,
     cp_id: cpId,
+    kode: params.kode?.trim() || null,
     teks: rawTeks,
     mata_pelajaran_id: params.mata_pelajaran_id || null,
     mata_pelajaran_name: params.mata_pelajaran_name?.trim() || null,
@@ -315,6 +356,7 @@ export async function createManualBankTP(params: {
     cp_id: cpId,
     cp_kode: cpKode,
     cp_teks: cpTeks,
+    kode: params.kode?.trim() || null,
     teks: rawTeks,
     mata_pelajaran_id: params.mata_pelajaran_id || null,
     mata_pelajaran_name: params.mata_pelajaran_name?.trim() || null,
@@ -327,8 +369,91 @@ export async function createManualBankTP(params: {
 }
 
 /**
+ * Update an existing TP in Bank TP.
+ * Administrators can edit all TPs including BLC master TPs.
+ * Regular teachers can only edit their own custom/manual TPs.
+ */
+export async function updateBankTP(
+  id: string,
+  input: UpdateTPInput,
+  user: { id: string; role: string }
+): Promise<BankTPItem> {
+  await ensureTpBankTableExists();
+
+  const existing = await db("tp_bank")
+    .leftJoin("cp_bank", "tp_bank.cp_id", "cp_bank.id")
+    .select("tp_bank.*", "cp_bank.domain_trisula as cp_domain_trisula", "cp_bank.sumber as cp_sumber")
+    .where("tp_bank.id", id)
+    .first();
+
+  if (!existing) {
+    throw new AppError("Tujuan Pembelajaran di bank tidak ditemukan.", "ERR_NOT_FOUND", 404);
+  }
+
+  const isAdmin = ["administrator", "admin"].includes(user.role);
+  const isMasterBLC = Boolean(
+    (existing.kode && existing.kode.startsWith("TP-")) ||
+    existing.cp_domain_trisula ||
+    existing.cp_sumber === "INTERNAL_BLC"
+  );
+
+  if (isMasterBLC && !isAdmin) {
+    throw new AppError("Hanya administrator yang dapat mengubah Tujuan Pembelajaran standar BLC.", "ERR_FORBIDDEN", 403);
+  }
+
+  const isOwner = existing.created_by === user.id;
+  if (!isAdmin && !isOwner) {
+    throw new AppError("Anda hanya dapat mengubah Tujuan Pembelajaran yang Anda buat sendiri.", "ERR_FORBIDDEN", 403);
+  }
+
+  const patch: any = { updated_at: new Date() };
+
+  if (input.teks !== undefined) {
+    const trimmed = input.teks.trim();
+    if (!trimmed || trimmed.length < 3) {
+      throw new AppError("Teks Tujuan Pembelajaran minimal 3 karakter.", "ERR_VALIDATION", 400);
+    }
+    patch.teks = trimmed;
+  }
+
+  if (input.cp_id !== undefined) {
+    patch.cp_id = input.cp_id || null;
+  }
+
+  if (input.mata_pelajaran_id !== undefined) {
+    patch.mata_pelajaran_id = input.mata_pelajaran_id || null;
+  }
+
+  if (input.mata_pelajaran_name !== undefined) {
+    patch.mata_pelajaran_name = input.mata_pelajaran_name?.trim() || null;
+  }
+
+  if (input.fase !== undefined) {
+    patch.fase = input.fase;
+  }
+
+  await db("tp_bank").where("id", id).update(patch);
+
+  const updated = await db("tp_bank")
+    .leftJoin("users", "tp_bank.created_by", "users.id")
+    .leftJoin("cp_bank", "tp_bank.cp_id", "cp_bank.id")
+    .select(
+      "tp_bank.*",
+      "users.name as creator_name",
+      "cp_bank.kode as cp_kode",
+      "cp_bank.teks as cp_teks",
+      "cp_bank.domain_trisula as cp_domain_trisula"
+    )
+    .where("tp_bank.id", id)
+    .first();
+
+  return updated;
+}
+
+/**
  * Delete a TP from the Bank.
- * Only the original creator or an administrator can delete an entry.
+ * Administrators can delete any TP.
+ * Teachers can only delete their own non-master TP.
  */
 export async function deleteBankTP(
   id: string,
@@ -336,14 +461,28 @@ export async function deleteBankTP(
 ): Promise<void> {
   await ensureTpBankTableExists();
 
-  const item = await db("tp_bank").where("id", id).first();
-  if (!item) {
+  const existing = await db("tp_bank")
+    .leftJoin("cp_bank", "tp_bank.cp_id", "cp_bank.id")
+    .select("tp_bank.*", "cp_bank.domain_trisula as cp_domain_trisula", "cp_bank.sumber as cp_sumber")
+    .where("tp_bank.id", id)
+    .first();
+
+  if (!existing) {
     throw new AppError("Tujuan Pembelajaran di bank tidak ditemukan.", "ERR_NOT_FOUND", 404);
   }
 
   const isAdmin = ["administrator", "admin"].includes(user.role);
-  const isOwner = item.created_by === user.id;
+  const isMasterBLC = Boolean(
+    (existing.kode && existing.kode.startsWith("TP-")) ||
+    existing.cp_domain_trisula ||
+    existing.cp_sumber === "INTERNAL_BLC"
+  );
 
+  if (isMasterBLC && !isAdmin) {
+    throw new AppError("Hanya administrator yang dapat menghapus Tujuan Pembelajaran standar BLC.", "ERR_FORBIDDEN", 403);
+  }
+
+  const isOwner = existing.created_by === user.id;
   if (!isAdmin && !isOwner) {
     throw new AppError(
       "Anda hanya dapat menghapus Tujuan Pembelajaran yang Anda buat sendiri.",
@@ -369,102 +508,67 @@ export interface LegacyRepairReport {
  */
 export async function repairLegacyCorruptedPhases(): Promise<LegacyRepairReport> {
   await ensureTpBankTableExists();
-  const hasDocs = await db.schema.hasTable("documents");
-  if (!hasDocs) {
-    return { scanned: 0, proven_correct: 0, repaired: 0, unchanged: 0, unresolved: 0 };
-  }
 
-  const allTps: BankTPItem[] = await db("tp_bank").select("id", "teks", "fase", "cp_id");
-  const documents: any[] = await db("documents")
-    .leftJoin("classes", "documents.class_id", "classes.id")
-    .whereIn("documents.type", ["KKTP", "RPM"])
-    .select(
-      "documents.id",
-      "documents.type",
-      "documents.content",
-      "documents.class_id",
-      "classes.level as class_level",
-      "classes.name as class_name"
-    );
+  const report: LegacyRepairReport = {
+    scanned: 0,
+    proven_correct: 0,
+    repaired: 0,
+    unchanged: 0,
+    unresolved: 0,
+  };
 
-  // Build TP text to originating phases mapping
-  const tpToPhasesMap = new Map<string, Set<string>>();
-  for (const doc of documents) {
-    let derivedPhase: string | null = null;
-    if (doc.class_level) {
-      derivedPhase = resolvePhaseByClassLevel(doc.class_level);
-    } else if (doc.class_name) {
-      derivedPhase = resolvePhaseByClassName(doc.class_name);
-    }
-    if (!derivedPhase) continue;
+  const corruptCandidates = await db("tp_bank")
+    .where("fase", "Fase C")
+    .select("id", "teks", "mata_pelajaran_id", "mata_pelajaran_name", "created_by");
 
-    let contentObj: any = {};
-    try {
-      contentObj = typeof doc.content === "string" ? JSON.parse(doc.content) : (doc.content || {});
-    } catch {
+  report.scanned = corruptCandidates.length;
+
+  for (const tp of corruptCandidates) {
+    const matchingDoc = await db("documents")
+      .leftJoin("classes", "documents.class_id", "classes.id")
+      .whereRaw("JSON_SEARCH(documents.content, 'one', ?) IS NOT NULL", [tp.teks])
+      .select(
+        "documents.id as doc_id",
+        "documents.type as doc_type",
+        "documents.class_id",
+        "classes.name as class_name",
+        "classes.level as class_level"
+      )
+      .first();
+
+    if (!matchingDoc) {
+      report.unresolved++;
       continue;
     }
 
-    const tpsInDoc: string[] = [];
-    if (doc.type === "KKTP" && Array.isArray(contentObj.tpItems)) {
-      for (const item of contentObj.tpItems) {
-        if (item.teks) tpsInDoc.push(String(item.teks).trim().toLowerCase());
-      }
-    } else if (doc.type === "RPM" && Array.isArray(contentObj?.desainPembelajaran?.tujuanPembelajaran)) {
-      for (const t of contentObj.desainPembelajaran.tujuanPembelajaran) {
-        if (t) tpsInDoc.push(String(t).trim().toLowerCase());
-      }
+    let authoritativeFase: string | null = null;
+
+    if (matchingDoc.class_level !== null && matchingDoc.class_level !== undefined) {
+      authoritativeFase = resolvePhaseByClassLevel(matchingDoc.class_level);
+    } else if (matchingDoc.class_name) {
+      authoritativeFase = resolvePhaseByClassName(matchingDoc.class_name);
     }
 
-    for (const text of tpsInDoc) {
-      const set = tpToPhasesMap.get(text) || new Set<string>();
-      set.add(derivedPhase);
-      tpToPhasesMap.set(text, set);
+    if (!authoritativeFase) {
+      report.unresolved++;
+      continue;
     }
+
+    if (authoritativeFase === "Fase C") {
+      report.proven_correct++;
+      report.unchanged++;
+      continue;
+    }
+
+    await db("tp_bank")
+      .where("id", tp.id)
+      .update({
+        fase: authoritativeFase,
+        updated_at: new Date(),
+      });
+
+    report.repaired++;
   }
 
-  let scanned = 0;
-  let provenCorrect = 0;
-  let repaired = 0;
-  let unchanged = 0;
-  let unresolved = 0;
-
-  for (const tp of allTps) {
-    scanned++;
-    const normText = (tp.teks || "").trim().toLowerCase();
-    const originatingPhases = tpToPhasesMap.get(normText);
-
-    if (originatingPhases && originatingPhases.size === 1) {
-      const unambiguousPhase = Array.from(originatingPhases)[0];
-      if (tp.fase !== unambiguousPhase) {
-        await db("tp_bank").where("id", tp.id).update({
-          fase: unambiguousPhase,
-          updated_at: new Date(),
-        });
-        repaired++;
-      } else {
-        provenCorrect++;
-      }
-    } else if (originatingPhases && originatingPhases.size > 1) {
-      // Ambiguous: TP text used across multiple phases
-      unresolved++;
-      unchanged++;
-    } else {
-      // No document link found; leave unchanged without guessing
-      if (tp.fase === "Fase A" || tp.fase === "Fase B") {
-        provenCorrect++;
-      } else {
-        unresolved++;
-      }
-      unchanged++;
-    }
-  }
-
-  return {
-    scanned,
-    proven_correct: provenCorrect,
-    repaired,
-    unchanged,
-    unresolved,
-  };
+  return report;
 }

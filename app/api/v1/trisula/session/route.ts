@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/withAuth";
 import { withRole } from "@/lib/middleware/withRole";
+import { db } from "@/lib/db";
 import {
   getOrCreateAssessmentSession,
   saveAssessmentCurriculum,
@@ -11,10 +12,34 @@ import { AppError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * SERVER-SIDE AUTHORIZATION HELPER
+ * Verifies that a teacher is assigned to the given class.
+ * Admin/Administrator bypass this check.
+ */
+async function verifyTeacherClassAccess(
+  userId: string,
+  role: string,
+  classId: string
+): Promise<boolean> {
+  const isAdmin = role === "administrator" || role === "admin";
+  if (isAdmin) return true;
+
+  const assignment = await db("class_teacher_assignments")
+    .where("teacher_user_id", userId)
+    .where("class_id", classId)
+    .where("status", "active")
+    .whereNot("lifecycle_status", "soft_deleted")
+    .first();
+
+  return !!assignment;
+}
+
 export async function GET(req: NextRequest) {
   return withAuth(req, async () => {
     return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
+        const user = (req as any).user as { id: string; role: string };
         const { searchParams } = new URL(req.url);
         const class_id = searchParams.get("class_id");
         const academic_year_id = searchParams.get("academic_year_id") || undefined;
@@ -30,11 +55,21 @@ export async function GET(req: NextRequest) {
           return errorResponse("Parameter class_id wajib diisi.", "ERR_VALIDATION", 400);
         }
 
+        // ── SERVER-SIDE AUTHORIZATION ────────────────────────────────────
+        const hasAccess = await verifyTeacherClassAccess(user.id, user.role, class_id);
+        if (!hasAccess) {
+          return errorResponse(
+            "Anda tidak memiliki akses ke kelas ini.",
+            "ERR_FORBIDDEN",
+            403
+          );
+        }
+
         const session = await getOrCreateAssessmentSession({
           class_id,
           academic_year_id,
           semester_id,
-          userId: (req as any).user?.id,
+          userId: user.id,
         });
 
         const detail = await getAssessmentDetail(session.id);
