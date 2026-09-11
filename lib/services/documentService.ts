@@ -466,19 +466,26 @@ export async function createDocument(data: CreateDocumentDTO, author_id: string)
 
     if (data.type === "KKTP" && Array.isArray(content?.tpItems)) {
       await autoSaveTPsToBank({
-        tps: content.tpItems.map((t: any) => ({ teks: t.teks, sourceType: t.sourceType })),
+        // P1-D: canonical contract — tujuanPembelajaran: string[] (not tps: object[])
+        tujuanPembelajaran: content.tpItems
+          .map((t: any) => (typeof t === 'string' ? t : t?.teks))
+          .filter((s: any) => typeof s === 'string' && s.trim().length > 0),
         mata_pelajaran_id: data.subject_id || content.identitas?.subjectId || null,
         mata_pelajaran_name: content.identitas?.mataPelajaran || null,
         fase: canonicalFase,
         userId: author_id,
+        sumber: 'manual',
       });
     } else if (data.type === "RPM" && Array.isArray(content?.desainPembelajaran?.tujuanPembelajaran)) {
       await autoSaveTPsToBank({
-        tps: content.desainPembelajaran.tujuanPembelajaran.map((t: string) => ({ teks: t, sourceType: "LINKED_RPM" })),
+        // P1-D: plain string array — TP text only, no sourceType wrapper
+        tujuanPembelajaran: content.desainPembelajaran.tujuanPembelajaran
+          .filter((t: any) => typeof t === 'string' && t.trim().length > 0),
         mata_pelajaran_id: data.subject_id || null,
         mata_pelajaran_name: content.identitas?.mataPelajaran || null,
         fase: canonicalFase,
         userId: author_id,
+        sumber: 'dari_rpm',
       });
     }
   } catch (err) {
@@ -558,19 +565,26 @@ export async function updateDocument(
 
     if (doc.type === "KKTP" && Array.isArray(content?.tpItems)) {
       await autoSaveTPsToBank({
-        tps: content.tpItems.map((t: any) => ({ teks: t.teks, sourceType: t.sourceType })),
+        // P1-D: canonical contract — tujuanPembelajaran: string[]
+        tujuanPembelajaran: content.tpItems
+          .map((t: any) => (typeof t === 'string' ? t : t?.teks))
+          .filter((s: any) => typeof s === 'string' && s.trim().length > 0),
         mata_pelajaran_id: data.subject_id || doc.subject_id || content.identitas?.subjectId || null,
         mata_pelajaran_name: content.identitas?.mataPelajaran || null,
         fase: canonicalFase,
         userId: user.id,
+        sumber: 'manual',
       });
     } else if (doc.type === "RPM" && Array.isArray(content?.desainPembelajaran?.tujuanPembelajaran)) {
       await autoSaveTPsToBank({
-        tps: content.desainPembelajaran.tujuanPembelajaran.map((t: string) => ({ teks: t, sourceType: "LINKED_RPM" })),
+        // P1-D: plain string array
+        tujuanPembelajaran: content.desainPembelajaran.tujuanPembelajaran
+          .filter((t: any) => typeof t === 'string' && t.trim().length > 0),
         mata_pelajaran_id: data.subject_id || doc.subject_id || null,
         mata_pelajaran_name: content.identitas?.mataPelajaran || null,
         fase: canonicalFase,
         userId: user.id,
+        sumber: 'dari_rpm',
       });
     }
   } catch (err) {

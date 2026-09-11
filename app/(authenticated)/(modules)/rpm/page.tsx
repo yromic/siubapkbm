@@ -25,7 +25,7 @@ import {
   formatActivityItemWithTags
 } from "@/lib/utils/rpmUtils";
 import { resolvePhaseByClassName } from "@/lib/utils/academicUtils";
-import { CurriculumBankModal } from "@/components/curriculum/CurriculumBankModal";
+import { CurriculumBankModal, SelectedTPPayload } from "@/components/curriculum/CurriculumBankModal";
 
 interface RPMItem {
   id: string;
@@ -406,6 +406,8 @@ export default function RPMPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // P1-C: TP-specific AI loading state for Step 2
+  const [rpmTpAiLoading, setRpmTpAiLoading] = useState(false);
 
   // Auto-Save State
   type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -418,6 +420,11 @@ export default function RPMPage() {
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   const [pendingAiContent, setPendingAiContent] = useState<any>(null);
   const [lastAiPayload, setLastAiPayload] = useState<any>(null);
+
+  // Trisula Paragraph AI State
+  const [trisulaAiLoading, setTrisulaAiLoading] = useState(false);
+  const [showTrisulaOverwriteModal, setShowTrisulaOverwriteModal] = useState(false);
+  const [pendingTrisulaContent, setPendingTrisulaContent] = useState<{ literasi: string; numerasi: string; diniyyah: string } | null>(null);
 
   const fetchRPMDocuments = useCallback(async () => {
     setLoading(true);
@@ -626,6 +633,186 @@ export default function RPMPage() {
       toast.error("Terjadi kendala jaringan saat menghubungi AI.");
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  /**
+   * P1-C: Generate TP suggestions for the current RPM context using AI.
+   * Reuses the shared /api/v1/kktp/generate-tp-ai endpoint (canonical contract).
+   * Appends AI-generated TPs to tujuanPembelajaran without overwriting existing ones.
+   */
+  const handleGenerateRPMTPWithAI = async () => {
+    if (!modulTopik.trim()) {
+      toast.error('Isi topik/modul terlebih dahulu di Langkah 1.');
+      return;
+    }
+    setRpmTpAiLoading(true);
+    try {
+      const res = await fetch('/api/v1/kktp/generate-tp-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topikMateri: modulTopik.trim(),
+          mataPelajaran,
+          tingkatFase,
+        }),
+      });
+      let json: any;
+      try { json = await res.json(); } catch {
+        toast.error('Respons server tidak valid.');
+        return;
+      }
+      if (!res.ok || !json.success) {
+        toast.error(json?.message || 'Gagal menghasilkan saran TP.');
+        return;
+      }
+      const saranTP: string[] = json.data?.saranTP || [];
+      if (saranTP.length === 0) {
+        toast.warning('AI tidak menghasilkan saran TP. Coba topik yang lebih spesifik.');
+        return;
+      }
+      // Append to existing list; remove trailing empty placeholder if only 1 empty entry
+      setTujuanPembelajaran((prev) => {
+        const filtered = prev.filter((t) => t.trim().length > 0);
+        return [...filtered, ...saranTP];
+      });
+      const source = json.data?.source;
+      if (source === 'FALLBACK') {
+        toast.warning(getAIErrorMessageByReason(json.data?.fallbackReason, 'Menggunakan TP kurikulum nasional standar.'));
+      } else {
+        toast.success(`${saranTP.length} saran TP berhasil dibuat oleh AI.`);
+      }
+    } catch {
+      toast.error('Terjadi kendala jaringan saat menghubungi AI.');
+    } finally {
+      setRpmTpAiLoading(false);
+    }
+  };
+
+  /**
+   * P1-A: Apply selected TPs from CurriculumBankModal into tujuanPembelajaran.
+   * Deduplicates using normalized text comparison, appends without replacing existing entries,
+   * and preserves full editability.
+   */
+  const handleApplyBankTPs = (selectedList: SelectedTPPayload[]) => {
+    if (!selectedList || selectedList.length === 0) return;
+
+    // Set CP jika capaianPembelajaran saat ini masih kosong dan ada CP teks di salah satu TP
+    const firstWithCP = selectedList.find((s) => s.cpTeks && s.cpTeks.trim().length > 0);
+    if (firstWithCP?.cpTeks && !capaianPembelajaran.trim()) {
+      setCapaianPembelajaran(firstWithCP.cpTeks);
+    }
+
+    const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+
+    // TP yang valid saat ini
+    const currentValid = tujuanPembelajaran.filter((t) => t.trim().length > 0);
+    const existingNormalized = new Set(currentValid.map(normalize));
+
+    const toAdd: string[] = [];
+    let duplicateCount = 0;
+
+    for (const item of selectedList) {
+      const rawTeks = (item.teks || "").trim();
+      if (!rawTeks) continue;
+      const norm = normalize(rawTeks);
+      if (existingNormalized.has(norm)) {
+        duplicateCount++;
+      } else {
+        existingNormalized.add(norm);
+        toAdd.push(rawTeks);
+      }
+    }
+
+    if (toAdd.length === 0) {
+      toast.info(duplicateCount > 0 ? "Semua TP terpilih sudah ada dalam daftar." : "Tidak ada TP yang dipilih.");
+      return;
+    }
+
+    setTujuanPembelajaran([...currentValid, ...toAdd]);
+
+    if (duplicateCount > 0) {
+      toast.success(`${toAdd.length} TP dari Bank berhasil ditambahkan (${duplicateCount} duplikat diabaikan).`);
+    } else {
+      toast.success(`${toAdd.length} TP dari Bank berhasil ditambahkan.`);
+    }
+  };
+
+  /**
+   * P1-B: Generate 1-paragraph descriptions for Trisula (Literasi, Numerasi, Diniyyah & Adab)
+   * based on the current RPM context. Protects manual work if existing paragraphs are present.
+   */
+  const handleGenerateTrisulaAI = async () => {
+    if (!modulTopik.trim()) {
+      toast.error("Isi topik/modul terlebih dahulu di Langkah 1.");
+      return;
+    }
+
+    setTrisulaAiLoading(true);
+    try {
+      const res = await fetch("/api/v1/rpm/generate-trisula-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mataPelajaran,
+          tingkatFase,
+          kelasRombel,
+          modulTopik: modulTopik.trim(),
+          tujuanPembelajaran: tujuanPembelajaran.filter((t) => t.trim().length > 0),
+          kegiatanPembelajaran: {
+            awal: kegiatanAwal,
+            inti: kegiatanInti,
+            akhir: kegiatanAkhir,
+          },
+          alokasiWaktu,
+        }),
+      });
+
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        toast.error("Respons server tidak valid.");
+        return;
+      }
+
+      if (!res.ok || !json.success) {
+        toast.error(json?.message || "Gagal menghasilkan rincian Trisula.");
+        return;
+      }
+
+      const resultData = json.data?.data || json.data;
+      if (!resultData?.literasi || !resultData?.numerasi || !resultData?.diniyyah) {
+        toast.error("Format rincian Trisula dari AI tidak lengkap.");
+        return;
+      }
+
+      const newTrisula = {
+        literasi: resultData.literasi,
+        numerasi: resultData.numerasi,
+        diniyyah: resultData.diniyyah,
+      };
+
+      const hasExistingTrisula =
+        deskripsiTrisula.literasi.trim().length > 0 ||
+        deskripsiTrisula.numerasi.trim().length > 0 ||
+        deskripsiTrisula.diniyyah.trim().length > 0;
+
+      if (hasExistingTrisula) {
+        setPendingTrisulaContent(newTrisula);
+        setShowTrisulaOverwriteModal(true);
+      } else {
+        setDeskripsiTrisula(newTrisula);
+        if (json.data?.source === "FALLBACK" || resultData?.source === "FALLBACK") {
+          toast.warning(getAIErrorMessageByReason(json.data?.fallbackReason || resultData?.fallbackReason, "Menggunakan draft standar kontekstual."));
+        } else {
+          toast.success("Rincian paragraf Trisula berhasil dibuat oleh AI.");
+        }
+      }
+    } catch {
+      toast.error("Terjadi kendala jaringan saat menghubungi AI.");
+    } finally {
+      setTrisulaAiLoading(false);
     }
   };
 
@@ -1181,7 +1368,7 @@ export default function RPMPage() {
             {/* ── Main Form Column (8 cols) ── */}
             <div className="lg:col-span-8 space-y-6">
               <Card className="bg-white shadow-xs">
-                <div className="flex items-center justify-between border-b px-5 py-4">
+                <div className="border-b px-5 py-4">
                   <div>
                     <h2 className="text-base font-bold text-gray-900 font-plus-jakarta">
                       Langkah 2: Tinjau & Edit Desain Pembelajaran
@@ -1190,15 +1377,6 @@ export default function RPMPage() {
                       Rincian Capaian Pembelajaran, Trisula, Tag Karakter, dan Skenario Aktivitas.
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setBankModalOpen(true)}
-                    className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 h-8 font-semibold"
-                  >
-                    <Database className="w-3.5 h-3.5 mr-1.5" /> Sisip dari Bank
-                  </Button>
                 </div>
 
                 <div className="p-5 space-y-5">
@@ -1217,40 +1395,84 @@ export default function RPMPage() {
                   {/* Tujuan Pembelajaran */}
                   <div className="space-y-2">
                     <label className="block text-xs font-bold text-gray-700">Tujuan Pembelajaran (TP)</label>
-                    {tujuanPembelajaran.map((tp, idx) => (
-                      <div key={idx} className="flex gap-2 items-start">
-                        <span className="text-xs font-bold text-gray-400 mt-2">{idx + 1}.</span>
-                        <Input
-                          value={tp}
-                          onChange={(e) => {
-                            const updated = [...tujuanPembelajaran];
-                            updated[idx] = e.target.value;
-                            setTujuanPembelajaran(updated);
-                          }}
-                          placeholder={`Tujuan pembelajaran butir ${idx + 1}...`}
-                          className="text-xs bg-white flex-1"
-                        />
-                        {tujuanPembelajaran.length > 1 && (
+
+                    {/* Empty State */}
+                    {tujuanPembelajaran.length === 0 || (tujuanPembelajaran.length === 1 && !tujuanPembelajaran[0].trim()) ? (
+                      <div className="p-4 rounded-xl border border-dashed border-gray-300 bg-gray-50/70 text-center space-y-1">
+                        <p className="text-xs font-semibold text-gray-700">Belum ada Tujuan Pembelajaran.</p>
+                        <p className="text-[11px] text-gray-500">
+                          Pilih dari Bank, Generate dengan AI, atau Tambahkan secara manual.
+                        </p>
+                      </div>
+                    ) : (
+                      tujuanPembelajaran.map((tp, idx) => (
+                        <div key={idx} className="flex gap-2 items-start">
+                          <span className="text-xs font-bold text-gray-400 mt-2">{idx + 1}.</span>
+                          <Input
+                            value={tp}
+                            onChange={(e) => {
+                              const updated = [...tujuanPembelajaran];
+                              updated[idx] = e.target.value;
+                              setTujuanPembelajaran(updated);
+                            }}
+                            placeholder={`Tujuan pembelajaran butir ${idx + 1}...`}
+                            className="text-xs bg-white flex-1"
+                          />
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setTujuanPembelajaran(tujuanPembelajaran.filter((_, i) => i !== idx))}
+                            onClick={() => {
+                              const updated = tujuanPembelajaran.filter((_, i) => i !== idx);
+                              setTujuanPembelajaran(updated.length > 0 ? updated : [""]);
+                            }}
                             className="h-9 w-9 p-0 text-red-500 hover:bg-red-50"
+                            title="Hapus butir TP ini"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
-                        )}
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setTujuanPembelajaran([...tujuanPembelajaran, ""])}
-                      className="text-xs h-8"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1" /> Tambah Butir TP
-                    </Button>
+                        </div>
+                      ))
+                    )}
+
+                    {/* Clustered Action Buttons: [Pilih dari Bank TP] [Generate TP dengan AI] [Tambah TP Manual] */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setBankModalOpen(true)}
+                        className="text-xs h-8 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-semibold"
+                      >
+                        <Database className="w-3.5 h-3.5 mr-1.5" /> Pilih dari Bank TP
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleGenerateRPMTPWithAI}
+                        disabled={rpmTpAiLoading || !modulTopik.trim()}
+                        className="text-xs h-8 border-violet-300 text-violet-700 hover:bg-violet-50 font-semibold"
+                      >
+                        {rpmTpAiLoading
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                          : <Sparkles className="w-3.5 h-3.5 mr-1" />}
+                        Generate TP dengan AI
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          const filtered = tujuanPembelajaran.filter((t) => t.trim().length > 0);
+                          setTujuanPembelajaran([...filtered, ""]);
+                        }}
+                        className="text-xs h-8 text-gray-700 hover:bg-gray-100"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Tambah TP Manual
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Pemahaman Bermakna */}
@@ -1351,9 +1573,31 @@ export default function RPMPage() {
 
                   {/* Rincian Paragraf Trisula (1 Paragraf Per Pilar) */}
                   <div className="p-4 border rounded-xl bg-slate-50 space-y-3">
-                    <label className="block text-xs font-bold text-slate-800 uppercase">
-                      Rincian Paragraf Trisula Kompetensi (1 Paragraf Per Pilar)
-                    </label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-800 uppercase">
+                          Rincian Paragraf Trisula Kompetensi (1 Paragraf Per Pilar)
+                        </label>
+                        <p className="text-[11px] text-gray-500">
+                          Uraian aktivitas terintegrasi untuk pilar Literasi, Numerasi, serta Diniyyah & Adab.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleGenerateTrisulaAI}
+                        disabled={trisulaAiLoading || !modulTopik.trim()}
+                        className="text-xs h-8 border-violet-300 text-violet-700 hover:bg-violet-50 font-semibold shrink-0"
+                      >
+                        {trisulaAiLoading ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        Buat Rincian Trisula dengan AI
+                      </Button>
+                    </div>
                     <div className="space-y-3 text-xs">
                       <div>
                         <span className="font-bold text-blue-900 mb-1 flex items-center gap-1.5">
@@ -1506,9 +1750,9 @@ export default function RPMPage() {
                   onClick={() => setBankModalOpen(true)}
                   variant="secondary"
                   size="sm"
-                  className="w-full text-xs h-9 border-purple-200 text-purple-700 hover:bg-purple-50"
+                  className="w-full text-xs h-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                 >
-                  <Database className="w-3.5 h-3.5 mr-1.5" /> Buka Bank Modul BLC
+                  <Database className="w-3.5 h-3.5 mr-1.5" /> Pilih dari Bank TP
                 </Button>
                 <Button
                   onClick={() => setStep(3)}
@@ -1610,6 +1854,41 @@ export default function RPMPage() {
                   }}
                 >
                   Batal
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Overwrite Trisula AI */}
+        {showTrisulaOverwriteModal && pendingTrisulaContent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-gray-200">
+              <h3 className="text-sm font-bold text-gray-900">Perbarui Rincian Trisula?</h3>
+              <p className="text-xs text-gray-600">
+                Kolom rincian Trisula sudah memiliki isian. Apakah Anda ingin menimpa dengan draf baru yang dirumuskan AI?
+              </p>
+              <div className="space-y-2">
+                <Button
+                  className="w-full min-h-[40px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold"
+                  onClick={() => {
+                    setDeskripsiTrisula(pendingTrisulaContent);
+                    setShowTrisulaOverwriteModal(false);
+                    setPendingTrisulaContent(null);
+                    toast.success("Rincian paragraf Trisula berhasil diperbarui.");
+                  }}
+                >
+                  Timpa dengan Draf AI
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full min-h-[36px] text-gray-500 text-xs"
+                  onClick={() => {
+                    setShowTrisulaOverwriteModal(false);
+                    setPendingTrisulaContent(null);
+                  }}
+                >
+                  Batal (Pertahankan Isian Saat Ini)
                 </Button>
               </div>
             </div>
@@ -2064,16 +2343,12 @@ export default function RPMPage() {
         initialClassName={kelasRombel}
         initialSubjectName={mataPelajaran}
         initialFase={tingkatFase}
+        title="Pilih Tujuan Pembelajaran dari Bank Kurikulum"
         onSelectTP={(selected) => {
-          if (selected.cpTeks && !capaianPembelajaran) {
-            setCapaianPembelajaran(selected.cpTeks);
-          }
-          if (tujuanPembelajaran.length === 1 && !tujuanPembelajaran[0]) {
-            setTujuanPembelajaran([selected.teks]);
-          } else {
-            setTujuanPembelajaran([...tujuanPembelajaran, selected.teks]);
-          }
-          toast.success("TP berhasil disisipkan dari Bank.");
+          handleApplyBankTPs([selected]);
+        }}
+        onSelectTPs={(selectedList) => {
+          handleApplyBankTPs(selectedList);
         }}
       />
     </PageContainer>

@@ -582,7 +582,7 @@ export default function KKTPPage() {
       teks: b.teks,
       sourceType: b.sumber === 'dari_rpm' ? 'LINKED_RPM' : 'INDEPENDENT_MANUAL',
       fromBank: true,
-      nilai: 75,
+      nilai: null,   // P0: unassessed — no fake default score
       deskripsi: '',
     }));
     setTpItems((prev) => [...prev, ...newItems]);
@@ -599,27 +599,40 @@ export default function KKTPPage() {
     setTpAiLoading(true);
     setTpAiError(null);
     try {
+      // P1-A1: Use canonical backend contract — topikMateri, fase (not topik/kelasRombel)
+      const fase = resolvePhaseByClassName(selectedClassName);
       const res = await fetch('/api/v1/kktp/generate-tp-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          topikMateri: tpAiTopik.trim(),
           mataPelajaran: selectedSubjectName,
-          kelasRombel: selectedClassName,
-          topik: tpAiTopik.trim(),
+          tingkatFase: fase,
         }),
       });
-      const json = await res.json();
-      if (!json.success) {
-        const msg = json.message || 'Gagal menghasilkan saran TP.';
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        const msg = 'Respons server tidak valid. Coba lagi.';
         setTpAiError(msg);
         toast.error(msg);
         return;
       }
-      const suggestions: string[] = json.data.suggestions || [];
+      if (!res.ok || !json.success) {
+        const msg = json?.message || 'Gagal menghasilkan saran TP.';
+        setTpAiError(msg);
+        toast.error(msg);
+        return;
+      }
+      // P1-A1: Backend returns saranTP (not suggestions)
+      const suggestions: string[] = json.data.saranTP || [];
       const source: 'GEMINI' | 'FALLBACK' = json.data.source || 'GEMINI';
       setTpAiSource(source);
       setTpAiSuggestions(suggestions.map((s) => ({ teks: s, checked: true })));
-      if (source === 'FALLBACK') {
+      if (suggestions.length === 0) {
+        toast.warning('AI tidak menghasilkan saran TP. Coba topik yang lebih spesifik.');
+      } else if (source === 'FALLBACK') {
         toast.warning(getAIErrorMessageByReason(json.data?.fallbackReason, "Menggunakan rekomendasi TP kurikulum nasional."));
       } else {
         toast.success(`${suggestions.length} saran TP berhasil dibuat oleh AI.`);
@@ -644,7 +657,7 @@ export default function KKTPPage() {
       id: crypto.randomUUID(),
       teks: t.teks.trim(),
       sourceType: isAi ? 'AI_GENERATED' : 'INDEPENDENT_MANUAL',
-      nilai: 75,
+      nilai: null,   // P0: curriculum suggestion ≠ assessment result
       deskripsi: '',
     }));
     setTpItems((prev) => [...prev, ...newItems]);
@@ -658,23 +671,34 @@ export default function KKTPPage() {
       toast.error('Tambahkan minimal 1 Tujuan Pembelajaran terlebih dahulu.');
       return;
     }
+    if (!catatanPengamatan.trim()) {
+      toast.error('Isi catatan pengamatan terlebih dahulu.');
+      return;
+    }
     setAiLoading(true);
     setAiError(null);
     try {
+      // P1-A2: Use canonical backend contract — tpItems (not tujuanPembelajaran)
       const res = await fetch('/api/v1/kktp/generate-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tujuanPembelajaran: tpItems.map((t, idx) => ({ index: idx, id: t.id, teks: t.teks })),
+          tpItems: tpItems.map((t, idx) => ({ index: idx, id: t.id, teks: t.teks })),
           catatanPengamatan: catatanPengamatan.trim(),
           mataPelajaran: selectedSubjectName,
           kelasRombel: selectedClassName,
           namaMurid: selectedStudentName,
         }),
       });
-      const json = await res.json();
-      if (!json.success) {
-        setAiError(json.message || 'Gagal menganalisis catatan observasi.');
+      let json: any;
+      try {
+        json = await res.json();
+      } catch {
+        setAiError('Respons server tidak valid. Coba lagi.');
+        return;
+      }
+      if (!res.ok || !json.success) {
+        setAiError(json?.message || 'Gagal menganalisis catatan observasi.');
         return;
       }
 
@@ -728,7 +752,7 @@ export default function KKTPPage() {
         id: crypto.randomUUID(),
         teks: '',
         sourceType: 'INDEPENDENT_MANUAL',
-        nilai: 75,
+        nilai: null,   // P0: new TP starts unassessed
         deskripsi: '',
       },
     ]);
@@ -2267,28 +2291,58 @@ export default function KKTPPage() {
                             </button>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">Nilai (0-100)</label>
-                              <Input
-                                type="number"
-                                min={0}
-                                max={100}
-                                value={tp.nilai !== null && tp.nilai !== undefined ? tp.nilai : ''}
-                                onChange={(e) => {
-                                  const val = e.target.value === '' ? null : Number(e.target.value);
-                                  handleUpdateTP(tp.id, 'nilai', val);
-                                }}
-                                className="text-xs bg-white font-bold"
-                                placeholder="Belum dinilai"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">Kategori KKTP</label>
-                              <div className={`text-xs px-3 py-2 rounded-lg border font-bold ${kat.color}`}>
+                          {/* Score section: slider + number input + deskripsi (P0/B restored) */}
+                          <div className="space-y-3 pt-1">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[11px] font-bold text-gray-600">Nilai (0–100)</label>
+                              <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-bold ${kat.color}`}>
                                 {kat.label}
-                              </div>
+                              </span>
                             </div>
+                            {tp.nilai === null ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 rounded-full bg-gray-200 opacity-50" />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateTP(tp.id, 'nilai', 60)}
+                                  className="shrink-0 text-[11px] px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold transition-colors"
+                                >
+                                  Mulai Nilai
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  step={1}
+                                  value={tp.nilai}
+                                  onChange={(e) => handleUpdateTP(tp.id, 'nilai', Number(e.target.value))}
+                                  className="flex-1 accent-emerald-600 h-2 cursor-pointer"
+                                />
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={tp.nilai}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw === '') return;
+                                    handleUpdateTP(tp.id, 'nilai', Math.min(100, Math.max(0, Number(raw))));
+                                  }}
+                                  className="w-16 text-xs text-center border border-gray-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateTP(tp.id, 'nilai', null)}
+                                  title="Reset ke belum dinilai"
+                                  className="shrink-0 text-[11px] text-gray-400 hover:text-red-500 transition-colors px-1"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            )}
                             <div>
                               <label className="block text-[11px] font-bold text-gray-600 mb-1">Deskripsi Ketercapaian</label>
                               <Input

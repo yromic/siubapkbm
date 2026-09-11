@@ -60,7 +60,8 @@ export interface SelectedTPPayload {
 interface CurriculumBankModalProps {
   open: boolean;
   onClose: () => void;
-  onSelectTP: (item: SelectedTPPayload) => void;
+  onSelectTP?: (item: SelectedTPPayload) => void;
+  onSelectTPs?: (items: SelectedTPPayload[]) => void;
   initialClassLevel?: number | string;
   initialClassName?: string;
   initialSubjectName?: string;
@@ -73,6 +74,7 @@ export function CurriculumBankModal({
   open,
   onClose,
   onSelectTP,
+  onSelectTPs,
   initialClassLevel,
   initialClassName,
   initialSubjectName,
@@ -85,6 +87,13 @@ export function CurriculumBankModal({
   const currentUserId = user?.id;
 
   const [activeTab, setActiveTab] = useState<"BROWSE" | "TRISULA" | "CREATE_CP" | "CREATE_TP">("BROWSE");
+  const [selectedMultiTPs, setSelectedMultiTPs] = useState<SelectedTPPayload[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      setSelectedMultiTPs([]);
+    }
+  }, [open]);
 
   // Selection & Filter States
   const [classList, setClassList] = useState<Array<{ id: string; name: string; level?: number }>>([]);
@@ -778,13 +787,43 @@ export function CurriculumBankModal({
                   {displayedSharedTPs.map((tp) => {
                     const isMaster = Boolean(tp.kode?.startsWith("TP-") || tp.cp_domain_trisula);
                     const canEdit = isAdmin || tp.created_by === currentUserId;
+                    const isSelected = selectedMultiTPs.some((item) => (tp.id ? item.tpId === tp.id : item.teks === tp.teks));
+
+                    const toggleSelect = () => {
+                      const payload: SelectedTPPayload = {
+                        tpId: tp.id,
+                        teks: tp.teks,
+                        cpId: tp.cp_id,
+                        cpTeks: tp.cp_teks,
+                        fase: tp.fase,
+                        mataPelajaran: tp.mata_pelajaran_name,
+                      };
+                      setSelectedMultiTPs((prev) =>
+                        prev.some((p) => (tp.id ? p.tpId === tp.id : p.teks === tp.teks))
+                          ? prev.filter((p) => (tp.id ? p.tpId !== tp.id : p.teks !== tp.teks))
+                          : [...prev, payload]
+                      );
+                    };
 
                     return (
                       <div
                         key={tp.id}
-                        className="p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-emerald-400 dark:hover:border-emerald-600 transition-all flex items-start justify-between gap-3 group"
+                        className={`p-3.5 rounded-xl border transition-all flex items-start justify-between gap-3 group ${
+                          isSelected
+                            ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-xs"
+                            : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-emerald-400 dark:hover:border-emerald-600"
+                        }`}
                       >
-                        <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="pt-0.5 shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={toggleSelect}
+                            className="w-4 h-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            title="Pilih TP ini"
+                          />
+                        </div>
+                        <div className="space-y-1.5 min-w-0 flex-1 cursor-pointer" onClick={toggleSelect}>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
                               {tp.fase}
@@ -837,14 +876,16 @@ export function CurriculumBankModal({
                           <Button
                             size="sm"
                             onClick={() => {
-                              onSelectTP({
+                              const payload: SelectedTPPayload = {
                                 tpId: tp.id,
                                 teks: tp.teks,
                                 cpId: tp.cp_id,
                                 cpTeks: tp.cp_teks,
                                 fase: tp.fase,
                                 mataPelajaran: tp.mata_pelajaran_name,
-                              });
+                              };
+                              onSelectTP?.(payload);
+                              onSelectTPs?.([payload]);
                               onClose();
                             }}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[34px] text-xs font-semibold shadow-xs"
@@ -960,65 +1001,99 @@ export function CurriculumBankModal({
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {trisulaDomainTPs.map((tp) => (
-                      <div
-                        key={tp.id}
-                        className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex items-center justify-between gap-3"
-                      >
-                        <div className="space-y-1 min-w-0 flex-1">
-                          {tp.kode && (
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 mr-2">
-                              {tp.kode}
+                    {trisulaDomainTPs.map((tp) => {
+                      const isSelected = selectedMultiTPs.some((item) => (tp.id ? item.tpId === tp.id : item.teks === tp.teks));
+                      const toggleSelect = () => {
+                        const payload: SelectedTPPayload = {
+                          tpId: tp.id,
+                          teks: tp.teks,
+                          cpId: tp.cp_id,
+                          cpTeks: tp.cp_teks,
+                          fase: tp.fase,
+                          mataPelajaran: tp.mata_pelajaran_name || trisulaDomain,
+                        };
+                        setSelectedMultiTPs((prev) =>
+                          prev.some((p) => (tp.id ? p.tpId === tp.id : p.teks === tp.teks))
+                            ? prev.filter((p) => (tp.id ? p.tpId !== tp.id : p.teks !== tp.teks))
+                            : [...prev, payload]
+                        );
+                      };
+
+                      return (
+                        <div
+                          key={tp.id}
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? "border-purple-500 bg-purple-50/40 dark:bg-purple-950/20 shadow-xs"
+                              : "border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+                          }`}
+                        >
+                          <div className="shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={toggleSelect}
+                              className="w-4 h-4 rounded border-zinc-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+                              title="Pilih TP Standar ini"
+                            />
+                          </div>
+                          <div className="space-y-1 min-w-0 flex-1 cursor-pointer" onClick={toggleSelect}>
+                            {tp.kode && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 mr-2">
+                                {tp.kode}
+                              </span>
+                            )}
+                            <span className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed">
+                              {tp.teks}
                             </span>
-                          )}
-                          <span className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                            {tp.teks}
-                          </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isAdmin && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => { e.stopPropagation(); handleOpenEditTP(tp); }}
+                                  className="h-8 px-2 text-zinc-500 hover:text-purple-700 hover:bg-purple-50"
+                                  title="Edit TP Standar"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteTP(tp); }}
+                                  disabled={deletingId === tp.id}
+                                  className="h-8 px-2 text-zinc-400 hover:text-rose-600 hover:bg-rose-50"
+                                  title="Hapus TP Standar"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              </>
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={() => {
+                                const payload: SelectedTPPayload = {
+                                  tpId: tp.id,
+                                  teks: tp.teks,
+                                  cpId: tp.cp_id,
+                                  cpTeks: tp.cp_teks,
+                                  fase: tp.fase,
+                                  mataPelajaran: tp.mata_pelajaran_name || trisulaDomain,
+                                };
+                                onSelectTP?.(payload);
+                                onSelectTPs?.([payload]);
+                                onClose();
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs shrink-0 font-semibold"
+                            >
+                              <Check className="w-3.5 h-3.5 mr-1" /> Sisip TP
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {isAdmin && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleOpenEditTP(tp)}
-                                className="h-8 px-2 text-zinc-500 hover:text-purple-700 hover:bg-purple-50"
-                                title="Edit TP Standar"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteTP(tp)}
-                                disabled={deletingId === tp.id}
-                                className="h-8 px-2 text-zinc-400 hover:text-rose-600 hover:bg-rose-50"
-                                title="Hapus TP Standar"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
-                          )}
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              onSelectTP({
-                                tpId: tp.id,
-                                teks: tp.teks,
-                                cpId: tp.cp_id,
-                                cpTeks: tp.cp_teks,
-                                fase: tp.fase,
-                                mataPelajaran: tp.mata_pelajaran_name || trisulaDomain,
-                              });
-                              onClose();
-                            }}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs shrink-0 font-semibold"
-                          >
-                            <Check className="w-3.5 h-3.5 mr-1" /> Sisip TP
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1137,6 +1212,42 @@ export function CurriculumBankModal({
             </div>
           )}
         </div>
+
+        {/* Docked Action Bar when items are selected */}
+        {selectedMultiTPs.length > 0 && (
+          <div className="px-6 py-3 bg-zinc-50 dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+            <div className="text-xs text-zinc-700 dark:text-zinc-300">
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">{selectedMultiTPs.length} TP</span> terpilih dari Bank
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedMultiTPs([])}
+                className="text-xs h-8 text-zinc-500 hover:text-zinc-700"
+              >
+                Batal Pilihan
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (onSelectTPs) {
+                    onSelectTPs(selectedMultiTPs);
+                  } else if (onSelectTP) {
+                    selectedMultiTPs.forEach((item) => onSelectTP(item));
+                  }
+                  setSelectedMultiTPs([]);
+                  onClose();
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white min-h-[34px] text-xs font-semibold shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5 mr-1.5" /> Tambahkan TP Terpilih ({selectedMultiTPs.length})
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Edit TP Modal Dialog */}

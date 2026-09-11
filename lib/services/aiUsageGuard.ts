@@ -6,6 +6,7 @@ export type AIFeatureType =
   | "KKTP_ASSESSMENT"
   | "TP_GENERATOR"
   | "RPM_GENERATOR"
+  | "RPM_TRISULA"
   | "TRISULA_ASSESSMENT"
   | "TRISULA_REPORT";
 
