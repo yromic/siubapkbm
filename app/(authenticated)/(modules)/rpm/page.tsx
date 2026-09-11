@@ -21,8 +21,16 @@ import { toast } from "sonner";
 import {
   RPMActivityItem,
   RPMActivityInput,
+  RPMRubrikItem,
+  RPMKegiatanMetadata,
+  RPMAwalMetadata,
+  RPMIntiMetadata,
+  RPMAkhirMetadata,
   normalizeActivityItem,
-  formatActivityItemWithTags
+  formatActivityItemWithTags,
+  computeStructuredDuration,
+  computeLegacyDurationFromActivities,
+  VALID_KURNAS,
 } from "@/lib/utils/rpmUtils";
 import { resolvePhaseByClassName } from "@/lib/utils/academicUtils";
 import { CurriculumBankModal, SelectedTPPayload } from "@/components/curriculum/CurriculumBankModal";
@@ -57,13 +65,30 @@ interface RPMItem {
       budayaSahabat?: string[];
       dplUtsman?: string[];
       dplKurnas?: string[];
+      semesterId?: string;
+      semesterTahun?: string;
+      tahunAjaran?: string;
     };
     desainPembelajaran: {
       capaianPembelajaran: string;
       pemahamanBermakna?: string;
       tujuanPembelajaran: string[];
-      kegiatanPembelajaran: { awal: RPMActivityInput[]; inti: RPMActivityInput[]; akhir: RPMActivityInput[] };
-      asesmen: { awal: string; formatif: string; sumatif: string; pesanEdukasiOrangTua?: string };
+      pertanyaanPemantik?: string[];
+      mediaAjar?: string[];
+      sumberBelajar?: string[];
+      kegiatanPembelajaran: {
+        awal: RPMActivityInput[];
+        inti: RPMActivityInput[];
+        akhir: RPMActivityInput[];
+        metadata?: RPMKegiatanMetadata;
+      };
+      asesmen: {
+        awal: string;
+        formatif: string;
+        sumatif: string;
+        pesanEdukasiOrangTua?: string;
+        rubrikKarakterFitrah?: RPMRubrikItem[];
+      };
     };
   };
 }
@@ -234,6 +259,7 @@ export default function RPMPage() {
   const [view, setView] = useState<'LIST' | 'WIZARD' | 'PRINT'>('LIST');
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [activeDoc, setActiveDoc] = useState<RPMItem | null>(null);
+  const [schoolSettings, setSchoolSettings] = useState<any>({});
 
   // Filter documents: MY_ACTIVE prioritizes current user's active work
   const displayedDocs = useMemo(() => {
@@ -328,23 +354,42 @@ export default function RPMPage() {
   const [dplUtsmanTags, setDplUtsmanTags] = useState<string[]>(["Keberanian", "Kedermawanan", "Kejujuran"]);
   const [dplKurnasTags, setDplKurnasTags] = useState<string[]>(["Penalaran Kritis", "Kemandirian", "Kreativitas", "Kolaborasi"]);
 
+  // ── Semester / TA master data ──────────────────────────────────────────────
+  const [masterSemesters, setMasterSemesters] = useState<Array<{ id: string; name: string; academic_year_id: string; is_active: number }>>([]);
+  const [semesterId, setSemesterId] = useState<string>("");
+  const [semesterNama, setSemesterNama] = useState<string>("");
+  const [tahunAjaran, setTahunAjaran] = useState<string>("");
+
+  // ── New design fields ──────────────────────────────────────────────────────
+  const [pertanyaanPemantik, setPertanyaanPemantik] = useState<string[]>([]);
+  const [mediaAjar, setMediaAjar] = useState<string[]>([]);
+  const [sumberBelajar, setSumberBelajar] = useState<string[]>([]);
+  const [rubrikKarakterFitrah, setRubrikKarakterFitrah] = useState<RPMRubrikItem[]>([]);
+
+  // ── Activity metadata (structured duration + focus fields) ─────────────────
+  const [kegiatanMetadataAwal, setKegiatanMetadataAwal] = useState<RPMAwalMetadata>({ fokus: "", durasiMenit: 10, fokusAdab: "" });
+  const [kegiatanMetadataInti, setKegiatanMetadataInti] = useState<RPMIntiMetadata>({ fokus: "", durasiMenit: 50, pendekatanMetode: "" });
+  const [kegiatanMetadataAkhir, setKegiatanMetadataAkhir] = useState<RPMAkhirMetadata>({ fokus: "", durasiMenit: 10, fokusRefleksi: "" });
+
   // Master Data Options
   const [masterSubjects, setMasterSubjects] = useState<Array<{ id: string; name: string }>>([]);
   const [masterClasses, setMasterClasses] = useState<Array<{ id: string; name: string }>>([]);
   const [masterTeachers, setMasterTeachers] = useState<Array<{ id: string; full_name: string }>>([]);
 
   useEffect(() => {
-    // Load Master Data
+    // Load Master Data including semesters
     const loadMasterData = async () => {
       try {
-        const [subjRes, classRes, usersRes] = await Promise.all([
+        const [subjRes, classRes, usersRes, semRes] = await Promise.all([
           fetch("/api/v1/subjects"),
           fetch("/api/v1/classes"),
-          fetch("/api/v1/users?role=teacher&limit=100")
+          fetch("/api/v1/users?role=teacher&limit=100"),
+          fetch("/api/v1/semesters?limit=20"),
         ]);
         const subjJson = await subjRes.json();
         const classJson = await classRes.json();
         const usersJson = await usersRes.json();
+        const semJson = await semRes.json();
 
         const subjectsData = Array.isArray(subjJson.data?.data)
           ? subjJson.data.data
@@ -370,6 +415,14 @@ export default function RPMPage() {
           ? usersJson.data
           : [];
 
+        const semestersData = Array.isArray(semJson.data?.data)
+          ? semJson.data.data
+          : Array.isArray(semJson.data?.items)
+          ? semJson.data.items
+          : Array.isArray(semJson.data)
+          ? semJson.data
+          : [];
+
         if (subjJson.success) setMasterSubjects(subjectsData);
         if (classJson.success) setMasterClasses(classesData);
         if (usersJson.success) {
@@ -380,6 +433,20 @@ export default function RPMPage() {
             }))
           );
         }
+        if (semJson.success && semestersData.length > 0) {
+          setMasterSemesters(semestersData);
+          // Auto-select active semester
+          const activeSem = semestersData.find((s: any) => s.is_active === 1 || s.is_active === true);
+          const selectedSem = activeSem || semestersData[0];
+          if (selectedSem) {
+            setSemesterId(selectedSem.id);
+            setSemesterNama(selectedSem.name);
+            // Derive academic year label from academic_year_id e.g. "AY_2026_2027" → "2026/2027"
+            const ayRaw: string = selectedSem.academic_year_id || "";
+            const ayMatch = ayRaw.match(/(\d{4})_(\d{4})/);
+            setTahunAjaran(ayMatch ? `${ayMatch[1]}/${ayMatch[2]}` : ayRaw);
+          }
+        }
       } catch (err) {
         console.error("Gagal memuat master data RPM:", err);
       }
@@ -387,20 +454,39 @@ export default function RPMPage() {
     loadMasterData();
   }, []);
 
-  // Duration check
+  // Duration check — Structured metadata (primary) with legacy text-regex fallback
   const totalDurasi = useMemo(() => {
-    let total = 0;
-    const allActivities = [...kegiatanAwal, ...kegiatanInti, ...kegiatanAkhir];
-    for (const act of allActivities) {
-      const match = act.teks.match(/\((\d+)\s*Menit\)/i);
-      if (match && match[1]) {
-        total += parseInt(match[1], 10);
-      }
-    }
-    return total > 0 ? total : null;
-  }, [kegiatanAwal, kegiatanInti, kegiatanAkhir]);
+    // Try structured metadata first
+    const structured = computeStructuredDuration({
+      awal: kegiatanMetadataAwal,
+      inti: kegiatanMetadataInti,
+      akhir: kegiatanMetadataAkhir,
+    });
+    if (structured !== null && structured > 0) return structured;
+    // Legacy fallback: parse durations from activity text strings
+    return computeLegacyDurationFromActivities(kegiatanAwal, kegiatanInti, kegiatanAkhir);
+  }, [kegiatanAwal, kegiatanInti, kegiatanAkhir, kegiatanMetadataAwal, kegiatanMetadataInti, kegiatanMetadataAkhir]);
 
   const durasiSesuai = totalDurasi === alokasiWaktu;
+  const durasiAwal = kegiatanMetadataAwal.durasiMenit || 0;
+  const durasiInti = kegiatanMetadataInti.durasiMenit || 0;
+  const durasiAkhir = kegiatanMetadataAkhir.durasiMenit || 0;
+
+  // Reconcile rubrikKarakterFitrah with karakterTags: preserve existing, add new for selected, remove unselected
+  useEffect(() => {
+    if (karakterTags.length === 0) return;
+    setRubrikKarakterFitrah((prev) => {
+      const existingMap = new Map(prev.map((r) => [r.indikator, r]));
+      return karakterTags.map((k) => {
+        if (existingMap.has(k)) return existingMap.get(k)!;
+        return {
+          indikator: k,
+          sangatBaik: `Santri secara konsisten menunjukkan sikap ${k.toLowerCase()} yang nyata dalam setiap kegiatan pembelajaran.`,
+          perluBimbingan: `Santri belum konsisten menunjukkan sikap ${k.toLowerCase()} dan masih memerlukan bimbingan.`,
+        };
+      });
+    });
+  }, [karakterTags]);
 
   // AI & Form Submission
   const [aiLoading, setAiLoading] = useState(false);
@@ -463,21 +549,34 @@ export default function RPMPage() {
         budayaSahabat: budayaSahabatTags,
         dplUtsman: dplUtsmanTags,
         dplKurnas: dplKurnasTags,
+        // Authoritative semester/TA snapshot — sourced from master data
+        semesterId,
+        semesterTahun: semesterNama ? `Semester ${semesterNama}` : "",
+        tahunAjaran,
       },
       desainPembelajaran: {
         capaianPembelajaran,
         pemahamanBermakna,
         tujuanPembelajaran: tujuanPembelajaran.filter((t) => t.trim().length > 0),
+        pertanyaanPemantik: pertanyaanPemantik.filter((p) => p.trim().length > 0),
+        mediaAjar: mediaAjar.filter((m) => m.trim().length > 0),
+        sumberBelajar: sumberBelajar.filter((s) => s.trim().length > 0),
         kegiatanPembelajaran: {
           awal: kegiatanAwal,
           inti: kegiatanInti,
           akhir: kegiatanAkhir,
+          metadata: {
+            awal: kegiatanMetadataAwal,
+            inti: kegiatanMetadataInti,
+            akhir: kegiatanMetadataAkhir,
+          },
         },
         asesmen: {
           awal: asesmenAwal,
           formatif: asesmenFormatif,
           sumatif: asesmenSumatif,
           pesanEdukasiOrangTua,
+          rubrikKarakterFitrah: rubrikKarakterFitrah.length > 0 ? rubrikKarakterFitrah : undefined,
         },
       },
     },
@@ -487,6 +586,9 @@ export default function RPMPage() {
     budayaSahabatTags, dplUtsmanTags, dplKurnasTags, capaianPembelajaran,
     pemahamanBermakna, tujuanPembelajaran, kegiatanAwal, kegiatanInti, kegiatanAkhir,
     asesmenAwal, asesmenFormatif, asesmenSumatif, pesanEdukasiOrangTua,
+    semesterId, semesterNama, tahunAjaran,
+    pertanyaanPemantik, mediaAjar, sumberBelajar, rubrikKarakterFitrah,
+    kegiatanMetadataAwal, kegiatanMetadataInti, kegiatanMetadataAkhir,
   ]);
 
   // Auto-Save Trigger
@@ -546,6 +648,13 @@ export default function RPMPage() {
     setAsesmenFormatif("Observasi Diskusi & Rubrik Sikap");
     setAsesmenSumatif("Evaluasi Tertulis & Unjuk Kerja");
     setPesanEdukasiOrangTua("");
+    setPertanyaanPemantik([]);
+    setMediaAjar([]);
+    setSumberBelajar([]);
+    setRubrikKarakterFitrah([]);
+    setKegiatanMetadataAwal({ fokus: "", durasiMenit: 10, fokusAdab: "" });
+    setKegiatanMetadataInti({ fokus: "", durasiMenit: 50, pendekatanMetode: "" });
+    setKegiatanMetadataAkhir({ fokus: "", durasiMenit: 10, fokusRefleksi: "" });
     setStep(1);
     setView('WIZARD');
   };
@@ -555,7 +664,18 @@ export default function RPMPage() {
     setCapaianPembelajaran(aiData.desainPembelajaran?.capaianPembelajaran || "");
     setPemahamanBermakna(aiData.desainPembelajaran?.pemahamanBermakna || "");
     setTujuanPembelajaran(aiData.desainPembelajaran?.tujuanPembelajaran || [""]);
-    
+
+    // New fields
+    if (Array.isArray(aiData.desainPembelajaran?.pertanyaanPemantik)) {
+      setPertanyaanPemantik(aiData.desainPembelajaran.pertanyaanPemantik);
+    }
+    if (Array.isArray(aiData.desainPembelajaran?.mediaAjar)) {
+      setMediaAjar(aiData.desainPembelajaran.mediaAjar);
+    }
+    if (Array.isArray(aiData.desainPembelajaran?.sumberBelajar)) {
+      setSumberBelajar(aiData.desainPembelajaran.sumberBelajar);
+    }
+
     if (aiData.identitas?.trisulaKompetensi) setTrisulaTags(aiData.identitas.trisulaKompetensi);
     if (aiData.identitas?.deskripsiTrisula) {
       setDeskripsiTrisula({
@@ -573,6 +693,11 @@ export default function RPMPage() {
       setKegiatanAwal((aiData.desainPembelajaran.kegiatanPembelajaran.awal || []).map(normalizeActivityItem));
       setKegiatanInti((aiData.desainPembelajaran.kegiatanPembelajaran.inti || []).map(normalizeActivityItem));
       setKegiatanAkhir((aiData.desainPembelajaran.kegiatanPembelajaran.akhir || []).map(normalizeActivityItem));
+      // Activity metadata
+      const meta = aiData.desainPembelajaran.kegiatanPembelajaran.metadata;
+      if (meta?.awal) setKegiatanMetadataAwal({ fokus: meta.awal.fokus || "", durasiMenit: meta.awal.durasiMenit || 10, fokusAdab: meta.awal.fokusAdab || "" });
+      if (meta?.inti) setKegiatanMetadataInti({ fokus: meta.inti.fokus || "", durasiMenit: meta.inti.durasiMenit || 50, pendekatanMetode: meta.inti.pendekatanMetode || "" });
+      if (meta?.akhir) setKegiatanMetadataAkhir({ fokus: meta.akhir.fokus || "", durasiMenit: meta.akhir.durasiMenit || 10, fokusRefleksi: meta.akhir.fokusRefleksi || "" });
     }
 
     if (aiData.desainPembelajaran?.asesmen) {
@@ -580,6 +705,9 @@ export default function RPMPage() {
       setAsesmenFormatif(aiData.desainPembelajaran.asesmen.formatif || "Observasi Diskusi");
       setAsesmenSumatif(aiData.desainPembelajaran.asesmen.sumatif || "Evaluasi Tertulis");
       setPesanEdukasiOrangTua(aiData.desainPembelajaran.asesmen.pesanEdukasiOrangTua || "");
+      if (Array.isArray(aiData.desainPembelajaran.asesmen.rubrikKarakterFitrah)) {
+        setRubrikKarakterFitrah(aiData.desainPembelajaran.asesmen.rubrikKarakterFitrah);
+      }
     }
   };
 
@@ -598,6 +726,12 @@ export default function RPMPage() {
       tingkatFase,
       alokasiWaktu,
       modulTopik,
+      // Pass authoritative context so AI doesn't override them
+      semester: semesterNama || undefined,
+      academicYear: tahunAjaran || undefined,
+      capaianPembelajaran: capaianPembelajaran.trim() || undefined,
+      tujuanPembelajaran: tujuanPembelajaran.filter(t => t.trim()).length > 0 ? tujuanPembelajaran.filter(t => t.trim()) : undefined,
+      karakterFitrah: karakterTags.length > 0 ? karakterTags : undefined,
     };
     setLastAiPayload(payload);
 
@@ -620,7 +754,10 @@ export default function RPMPage() {
         toast.success("Rancangan RPM berhasil dirumuskan oleh AI.");
       }
 
-      const hasExistingContent = capaianPembelajaran.trim().length > 0 || (tujuanPembelajaran.length > 0 && tujuanPembelajaran[0].trim().length > 0);
+      const hasExistingContent = capaianPembelajaran.trim().length > 0
+        || (tujuanPembelajaran.length > 0 && tujuanPembelajaran[0].trim().length > 0)
+        || pertanyaanPemantik.length > 0
+        || mediaAjar.length > 0;
       if (hasExistingContent) {
         setPendingAiContent(json.data);
         setShowOverwriteModal(true);
@@ -697,10 +834,30 @@ export default function RPMPage() {
   const handleApplyBankTPs = (selectedList: SelectedTPPayload[]) => {
     if (!selectedList || selectedList.length === 0) return;
 
-    // Set CP jika capaianPembelajaran saat ini masih kosong dan ada CP teks di salah satu TP
+    // Curriculum integrity check: verify subject & phase compatibility before applying
+    const mismatchedItem = selectedList.find((s) => {
+      const subjMismatch = s.mataPelajaran && s.mataPelajaran.trim().toLowerCase() !== mataPelajaran.trim().toLowerCase();
+      const phaseMismatch = s.fase && s.fase.trim().toLowerCase() !== tingkatFase.trim().toLowerCase();
+      return subjMismatch || phaseMismatch;
+    });
+
+    if (mismatchedItem) {
+      toast.warning(
+        `TP terpilih berasal dari ${mismatchedItem.mataPelajaran || "Mapel lain"} (${mismatchedItem.fase || "Fase lain"}), berbeda dengan konteks aktif (${mataPelajaran} - ${tingkatFase}). Pastikan keselarasan kurikulum.`
+      );
+    }
+
+    // Set CP hanya jika capaianPembelajaran saat ini masih kosong DAN mapel/fase sesuai
     const firstWithCP = selectedList.find((s) => s.cpTeks && s.cpTeks.trim().length > 0);
     if (firstWithCP?.cpTeks && !capaianPembelajaran.trim()) {
-      setCapaianPembelajaran(firstWithCP.cpTeks);
+      const subjectMatches = !firstWithCP.mataPelajaran || firstWithCP.mataPelajaran.trim().toLowerCase() === mataPelajaran.trim().toLowerCase();
+      const phaseMatches = !firstWithCP.fase || firstWithCP.fase.trim().toLowerCase() === tingkatFase.trim().toLowerCase();
+
+      if (subjectMatches && phaseMatches) {
+        setCapaianPembelajaran(firstWithCP.cpTeks);
+      } else {
+        toast.warning("CP dari bank tidak diinjeksi otomatis karena berasal dari mata pelajaran/fase yang berbeda.");
+      }
     }
 
     const normalize = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
@@ -817,6 +974,11 @@ export default function RPMPage() {
   };
 
   const handleSaveRPM = async (createNewDraftVersion = false) => {
+    if (totalDurasi !== null && totalDurasi !== alokasiWaktu) {
+      toast.warning(
+        `Perhatian: Total durasi aktivitas (${totalDurasi} menit) berselisih ${Math.abs(totalDurasi - alokasiWaktu)} menit dari alokasi waktu (${alokasiWaktu} menit). Dokumen tetap disimpan.`
+      );
+    }
     setSubmitting(true);
     try {
       const payload = buildPayload();
@@ -902,8 +1064,17 @@ export default function RPMPage() {
     }
   };
 
-  const handleOpenPrint = (doc: RPMItem) => {
+  const handleOpenPrint = async (doc: RPMItem) => {
     setActiveDoc(doc);
+    try {
+      const res = await fetch('/api/v1/app-settings');
+      const json = await res.json();
+      if (json.success && json.data) {
+        setSchoolSettings(json.data);
+      }
+    } catch {
+      // Fallback in OfficialSchoolLetterhead will handle missing settings
+    }
     setView('PRINT');
   };
 
@@ -916,6 +1087,14 @@ export default function RPMPage() {
   // RENDER: PRINT VIEW
   // ═══════════════════════════════════════════════════════════════════════════
   if (view === 'PRINT' && activeDoc) {
+    const identitas = activeDoc.content?.identitas;
+    const dp = activeDoc.content?.desainPembelajaran;
+    const kp = dp?.kegiatanPembelajaran;
+    const metaAwal = kp?.metadata?.awal;
+    const metaInti = kp?.metadata?.inti;
+    const metaAkhir = kp?.metadata?.akhir;
+    const asesmen = dp?.asesmen;
+
     return (
       <div className="space-y-4 max-w-4xl mx-auto p-4 print:p-0">
         <div className="flex justify-between items-center print:hidden border-b pb-4">
@@ -927,36 +1106,100 @@ export default function RPMPage() {
           </Button>
         </div>
 
-        <PrintRenderer document={activeDoc}>
+        <PrintRenderer document={activeDoc} schoolSettings={schoolSettings}>
           <div className="space-y-6">
 
-            {/* HALAMAN 1: Identitas & Rancangan Dasar */}
-            <div className="print:min-h-[850px] space-y-4">
-              <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2">
-                <h3 className="font-bold text-sm text-gray-700 uppercase border-b pb-1">Halaman 1 — Identitas & Rancangan Dasar</h3>
+            {/* BAGIAN 1: Identitas & Desain Pembelajaran */}
+            <div className="space-y-4">
+              <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 print:border-gray-300 print:p-3 print:break-inside-avoid">
+                <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Identitas & Desain Pembelajaran</h3>
                 <div className="grid grid-cols-2 text-xs gap-2 pt-1">
-                  <p><span className="font-semibold">Topik / Modul:</span> {activeDoc.content?.identitas?.modulTopik || "-"}</p>
-                  <p><span className="font-semibold">Mata Pelajaran:</span> {activeDoc.content?.identitas?.mataPelajaran || "-"}</p>
-                  <p><span className="font-semibold">Fase / Kelas:</span> {activeDoc.content?.identitas?.tingkatFase || "-"} ({activeDoc.content?.identitas?.kelasRombel || "-"})</p>
-                  <p><span className="font-semibold">Tutor Pengampu:</span> {activeDoc.content?.identitas?.namaTutorPengampu || activeDoc.author_name || "-"}</p>
-                  <p><span className="font-semibold">Alokasi Waktu:</span> {activeDoc.content?.identitas?.alokasiWaktu || 0} Menit</p>
+                  <p><span className="font-semibold">Topik / Modul:</span> {identitas?.modulTopik || "-"}</p>
+                  <p><span className="font-semibold">Mata Pelajaran:</span> {identitas?.mataPelajaran || "-"}</p>
+                  <p><span className="font-semibold">Fase / Kelas:</span> {identitas?.tingkatFase || "-"} ({identitas?.kelasRombel || "-"})</p>
+                  <p><span className="font-semibold">Tutor Pengampu:</span> {identitas?.namaTutorPengampu || activeDoc.author_name || "-"}</p>
+                  <p><span className="font-semibold">Alokasi Waktu:</span> {identitas?.alokasiWaktu || 0} Menit</p>
+                  {(identitas?.semesterTahun || identitas?.tahunAjaran) && (
+                    <p><span className="font-semibold">Semester / TA:</span> {identitas?.semesterTahun || "-"} &bull; TA {identitas?.tahunAjaran || "-"}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="border p-4 rounded-xl bg-gray-50/50">
-                <h3 className="font-bold text-sm text-gray-700 uppercase mb-1">Capaian Pembelajaran (CP)</h3>
-                <p className="text-xs leading-relaxed">{activeDoc.content?.desainPembelajaran?.capaianPembelajaran || "-"}</p>
+              {/* Capaian Pembelajaran */}
+              <div className="border p-4 rounded-xl bg-gray-50/50 print:border-gray-300 print:p-3 print:break-inside-avoid">
+                <h3 className="font-bold text-sm text-gray-800 uppercase mb-1 border-b pb-1">Capaian Pembelajaran (CP)</h3>
+                <p className="text-xs leading-relaxed text-gray-900 mt-1">{dp?.capaianPembelajaran || "-"}</p>
               </div>
 
-              {activeDoc.content?.desainPembelajaran?.pemahamanBermakna && (
-                <div className="border p-4 rounded-xl bg-emerald-50/30">
-                  <h3 className="font-bold text-sm text-emerald-900 uppercase mb-1">Pemahaman Bermakna (Deep Insight)</h3>
-                  <p className="text-xs leading-relaxed">{activeDoc.content.desainPembelajaran.pemahamanBermakna}</p>
+              {/* Tujuan Pembelajaran (TP) - P0 RESTORATION */}
+              {dp?.tujuanPembelajaran &&
+                dp.tujuanPembelajaran.filter((t: string) => t && t.trim().length > 0).length > 0 && (
+                <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 print:border-gray-300 print:p-3 print:break-inside-avoid">
+                  <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Tujuan Pembelajaran (TP)</h3>
+                  <ol className="space-y-1.5 text-xs list-decimal list-inside text-gray-900 leading-relaxed pt-1">
+                    {dp.tujuanPembelajaran
+                      .filter((t: string) => t && t.trim().length > 0)
+                      .map((tp: string, i: number) => (
+                        <li key={i} className="pl-1 font-medium text-black">
+                          {tp.trim()}
+                        </li>
+                      ))}
+                  </ol>
                 </div>
               )}
 
-              {/* Integrasi Tag & Karakter */}
-              <div className="border p-4 rounded-xl bg-slate-50 space-y-3 text-xs">
+              {/* Pemahaman Bermakna */}
+              {dp?.pemahamanBermakna?.trim() && (
+                <div className="border p-4 rounded-xl bg-emerald-50/30 print:border-gray-300 print:p-3 print:break-inside-avoid">
+                  <h3 className="font-bold text-sm text-emerald-900 uppercase mb-1 border-b pb-1">Pemahaman Bermakna (Deep Insight)</h3>
+                  <p className="text-xs leading-relaxed text-gray-900 mt-1">{dp.pemahamanBermakna.trim()}</p>
+                </div>
+              )}
+
+              {/* Pertanyaan Pemantik */}
+              {dp?.pertanyaanPemantik &&
+                dp.pertanyaanPemantik.filter((p: string) => p && p.trim()).length > 0 && (
+                <div className="border p-4 rounded-xl bg-amber-50/40 border-amber-200 print:border-gray-300 print:p-3 print:break-inside-avoid">
+                  <h3 className="font-bold text-sm text-amber-900 uppercase mb-2 border-b pb-1">Pertanyaan Pemantik</h3>
+                  <ol className="space-y-1.5 text-xs list-decimal list-inside text-gray-900 leading-relaxed">
+                    {dp.pertanyaanPemantik
+                      .filter((p: string) => p && p.trim())
+                      .map((p: string, i: number) => (
+                        <li key={i} className="pl-1 italic">"{p.trim()}"</li>
+                      ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Media Ajar & Sumber Belajar — 2-column on print */}
+              {(((dp?.mediaAjar?.filter((m: string) => m?.trim()).length || 0) > 0) ||
+                ((dp?.sumberBelajar?.filter((s: string) => s?.trim()).length || 0) > 0)) && (
+                <div className="grid grid-cols-2 gap-3 print:break-inside-avoid">
+                  {((dp?.mediaAjar?.filter((m: string) => m?.trim()).length || 0) > 0) && (
+                    <div className="border p-3 rounded-xl bg-blue-50/40 border-blue-200 print:border-gray-300 text-xs">
+                      <h4 className="font-bold text-blue-900 uppercase mb-1.5 border-b pb-1">Media Ajar</h4>
+                      <ul className="space-y-1 list-disc list-inside text-gray-900">
+                        {dp?.mediaAjar?.filter((m: string) => m?.trim()).map((m: string, i: number) => (
+                          <li key={i}>{m.trim()}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {((dp?.sumberBelajar?.filter((s: string) => s?.trim()).length || 0) > 0) && (
+                    <div className="border p-3 rounded-xl bg-green-50/40 border-green-200 print:border-gray-300 text-xs">
+                      <h4 className="font-bold text-green-900 uppercase mb-1.5 border-b pb-1">Sumber Belajar</h4>
+                      <ul className="space-y-1 list-disc list-inside text-gray-900">
+                        {dp?.sumberBelajar?.filter((s: string) => s?.trim()).map((s: string, i: number) => (
+                          <li key={i}>{s.trim()}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Integrasi Tag & Karakter (Trisula badges, FITRAH, SAHABAT, DPL Utsman, DPL Kurnas) */}
+              <div className="border p-4 rounded-xl bg-slate-50 space-y-3 text-xs print:border-gray-300 print:p-3 print:break-inside-avoid">
                 <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide border-b pb-1">
                   Integrasi Tag & Karakter
                 </h3>
@@ -964,10 +1207,10 @@ export default function RPMPage() {
                   <div>
                     <span className="font-bold text-emerald-900 block mb-0.5">Trisula Kompetensi:</span>
                     <div className="flex flex-wrap gap-1">
-                      {(activeDoc.content?.identitas?.trisulaKompetensi && activeDoc.content.identitas.trisulaKompetensi.length > 0
-                        ? activeDoc.content.identitas.trisulaKompetensi
+                      {(identitas?.trisulaKompetensi && identitas.trisulaKompetensi.length > 0
+                        ? identitas.trisulaKompetensi
                         : ["Literasi", "Numerasi", "Diniyyah"]
-                      ).map((t) => (
+                      ).map((t: string) => (
                         <span key={t} className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[11px] font-semibold">
                           {t}
                         </span>
@@ -978,8 +1221,8 @@ export default function RPMPage() {
                   <div>
                     <span className="font-bold text-blue-900 block mb-0.5">Karakter FITRAH:</span>
                     <div className="flex flex-wrap gap-1">
-                      {(activeDoc.content?.identitas?.karakterFitrah && activeDoc.content.identitas.karakterFitrah.length > 0) ? (
-                        activeDoc.content.identitas.karakterFitrah.map((t) => (
+                      {(identitas?.karakterFitrah && identitas.karakterFitrah.length > 0) ? (
+                        identitas.karakterFitrah.map((t: string) => (
                           <span key={t} className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded text-[11px]">
                             {t}
                           </span>
@@ -993,8 +1236,8 @@ export default function RPMPage() {
                   <div>
                     <span className="font-bold text-purple-900 block mb-0.5">Budaya SAHABAT:</span>
                     <div className="flex flex-wrap gap-1">
-                      {(activeDoc.content?.identitas?.budayaSahabat && activeDoc.content.identitas.budayaSahabat.length > 0) ? (
-                        activeDoc.content.identitas.budayaSahabat.map((t) => (
+                      {(identitas?.budayaSahabat && identitas.budayaSahabat.length > 0) ? (
+                        identitas.budayaSahabat.map((t: string) => (
                           <span key={t} className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded text-[11px]">
                             {t}
                           </span>
@@ -1004,22 +1247,105 @@ export default function RPMPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* DPL Utsman - P0 RESTORATION */}
+                  {identitas?.dplUtsman && identitas.dplUtsman.length > 0 && (
+                    <div>
+                      <span className="font-bold text-teal-900 block mb-0.5">DPL Utsman (Dimensi Profil Lulusan):</span>
+                      <div className="flex flex-wrap gap-1">
+                        {identitas.dplUtsman.map((t: string) => (
+                          <span key={t} className="px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 rounded text-[11px]">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DPL Kurnas - P0 RESTORATION */}
+                  {identitas?.dplKurnas && identitas.dplKurnas.length > 0 && (
+                    <div>
+                      <span className="font-bold text-indigo-900 block mb-0.5">DPL Kurikulum Nasional:</span>
+                      <div className="flex flex-wrap gap-1">
+                        {identitas.dplKurnas.map((t: string) => (
+                          <span key={t} className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded text-[11px]">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Rincian Paragraf Trisula Kompetensi (Literasi, Numerasi, Diniyyah) - P0 RESTORATION */}
+              {identitas?.deskripsiTrisula &&
+                (identitas.deskripsiTrisula.literasi?.trim() ||
+                 identitas.deskripsiTrisula.numerasi?.trim() ||
+                 identitas.deskripsiTrisula.diniyyah?.trim()) && (
+                <div className="border p-4 rounded-xl bg-slate-50/70 space-y-3 print:border-gray-300 print:p-3 print:break-inside-avoid">
+                  <h3 className="font-bold text-sm text-slate-800 uppercase border-b pb-1">
+                    Rincian Trisula Kompetensi
+                  </h3>
+                  <div className="space-y-3 text-xs">
+                    {identitas.deskripsiTrisula.literasi?.trim() && (
+                      <div className="border-l-2 border-blue-500 pl-3">
+                        <span className="font-bold text-blue-900 block mb-0.5">1. Kegiatan Literasi:</span>
+                        <p className="text-gray-800 leading-relaxed text-justify">
+                          {identitas.deskripsiTrisula.literasi.trim()}
+                        </p>
+                      </div>
+                    )}
+                    {identitas.deskripsiTrisula.numerasi?.trim() && (
+                      <div className="border-l-2 border-emerald-500 pl-3">
+                        <span className="font-bold text-emerald-900 block mb-0.5">2. Kegiatan Numerasi:</span>
+                        <p className="text-gray-800 leading-relaxed text-justify">
+                          {identitas.deskripsiTrisula.numerasi.trim()}
+                        </p>
+                      </div>
+                    )}
+                    {identitas.deskripsiTrisula.diniyyah?.trim() && (
+                      <div className="border-l-2 border-amber-500 pl-3">
+                        <span className="font-bold text-amber-900 block mb-0.5">3. Diniyyah & Adab:</span>
+                        <p className="text-gray-800 leading-relaxed text-justify">
+                          {identitas.deskripsiTrisula.diniyyah.trim()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Page break untuk cetak / PDF */}
+            {/* Strategic Page break for Skenario Aktivitas */}
             <div className="hidden print:block print:break-before-page" />
 
-            {/* HALAMAN 2: Rincian Kegiatan Pembelajaran */}
-            <div className="print:min-h-[850px] space-y-4 pt-4 print:pt-0">
-              <h3 className="font-bold text-sm text-gray-700 uppercase border-b pb-1">Halaman 2 — Skenario Aktivitas Pembelajaran</h3>
+            {/* BAGIAN 2: Skenario Aktivitas Pembelajaran */}
+            <div className="space-y-4 pt-4 print:pt-0">
+              <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Skenario Aktivitas Pembelajaran</h3>
 
               <div className="space-y-4 text-xs">
-                <div className="p-3 border rounded-xl bg-white space-y-2">
-                  <h4 className="font-bold text-emerald-800 border-b pb-1">1. Kegiatan Awal (Pendahuluan)</h4>
+                <div className="p-3 border rounded-xl bg-white space-y-2 print:border-gray-300 print:break-inside-avoid">
+                  <div className="border-b pb-1 flex flex-wrap justify-between items-baseline gap-1">
+                    <h4 className="font-bold text-emerald-800">1. Kegiatan Awal (Pendahuluan)</h4>
+                    {metaAwal?.durasiMenit && (
+                      <span className="text-[11px] font-semibold text-emerald-700">
+                        {metaAwal.durasiMenit} Menit
+                      </span>
+                    )}
+                  </div>
+                  {metaAwal && (metaAwal.fokus || metaAwal.fokusAdab) && (
+                    <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 space-y-0.5 print:bg-white print:border-gray-200">
+                      {metaAwal.fokus && (
+                        <p><span className="font-semibold text-gray-700">Fokus:</span> {metaAwal.fokus}</p>
+                      )}
+                      {metaAwal.fokusAdab && (
+                        <p><span className="font-semibold text-gray-700">Fokus Adab:</span> {metaAwal.fokusAdab}</p>
+                      )}
+                    </div>
+                  )}
                   <ul className="space-y-2">
-                    {(activeDoc.content?.desainPembelajaran?.kegiatanPembelajaran?.awal || []).map((act, i) => {
+                    {(kp?.awal || []).map((act: RPMActivityInput, i: number) => {
                       const norm = normalizeActivityItem(act);
                       return (
                         <li key={i} className="leading-relaxed flex items-start gap-2">
@@ -1047,10 +1373,27 @@ export default function RPMPage() {
                   </ul>
                 </div>
 
-                <div className="p-3 border rounded-xl bg-white space-y-2">
-                  <h4 className="font-bold text-emerald-800 border-b pb-1">2. Kegiatan Inti (Eksplorasi & Kolaborasi)</h4>
+                <div className="p-3 border rounded-xl bg-white space-y-2 print:border-gray-300 print:break-inside-avoid">
+                  <div className="border-b pb-1 flex flex-wrap justify-between items-baseline gap-1">
+                    <h4 className="font-bold text-emerald-800">2. Kegiatan Inti (Eksplorasi & Kolaborasi)</h4>
+                    {metaInti?.durasiMenit && (
+                      <span className="text-[11px] font-semibold text-emerald-700">
+                        {metaInti.durasiMenit} Menit
+                      </span>
+                    )}
+                  </div>
+                  {metaInti && (metaInti.fokus || metaInti.pendekatanMetode) && (
+                    <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 space-y-0.5 print:bg-white print:border-gray-200">
+                      {metaInti.fokus && (
+                        <p><span className="font-semibold text-gray-700">Fokus:</span> {metaInti.fokus}</p>
+                      )}
+                      {metaInti.pendekatanMetode && (
+                        <p><span className="font-semibold text-gray-700">Pendekatan / Metode:</span> {metaInti.pendekatanMetode}</p>
+                      )}
+                    </div>
+                  )}
                   <ul className="space-y-2">
-                    {(activeDoc.content?.desainPembelajaran?.kegiatanPembelajaran?.inti || []).map((act, i) => {
+                    {(kp?.inti || []).map((act: RPMActivityInput, i: number) => {
                       const norm = normalizeActivityItem(act);
                       return (
                         <li key={i} className="leading-relaxed flex items-start gap-2">
@@ -1078,10 +1421,27 @@ export default function RPMPage() {
                   </ul>
                 </div>
 
-                <div className="p-3 border rounded-xl bg-white space-y-2">
-                  <h4 className="font-bold text-emerald-800 border-b pb-1">3. Kegiatan Penutup (Refleksi & Doa)</h4>
+                <div className="p-3 border rounded-xl bg-white space-y-2 print:border-gray-300 print:break-inside-avoid">
+                  <div className="border-b pb-1 flex flex-wrap justify-between items-baseline gap-1">
+                    <h4 className="font-bold text-emerald-800">3. Kegiatan Penutup (Refleksi & Doa)</h4>
+                    {metaAkhir?.durasiMenit && (
+                      <span className="text-[11px] font-semibold text-emerald-700">
+                        {metaAkhir.durasiMenit} Menit
+                      </span>
+                    )}
+                  </div>
+                  {metaAkhir && (metaAkhir.fokus || metaAkhir.fokusRefleksi) && (
+                    <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 space-y-0.5 print:bg-white print:border-gray-200">
+                      {metaAkhir.fokus && (
+                        <p><span className="font-semibold text-gray-700">Fokus:</span> {metaAkhir.fokus}</p>
+                      )}
+                      {metaAkhir.fokusRefleksi && (
+                        <p><span className="font-semibold text-gray-700">Fokus Refleksi:</span> {metaAkhir.fokusRefleksi}</p>
+                      )}
+                    </div>
+                  )}
                   <ul className="space-y-2">
-                    {(activeDoc.content?.desainPembelajaran?.kegiatanPembelajaran?.akhir || []).map((act, i) => {
+                    {(kp?.akhir || []).map((act: RPMActivityInput, i: number) => {
                       const norm = normalizeActivityItem(act);
                       return (
                         <li key={i} className="leading-relaxed flex items-start gap-2">
@@ -1111,25 +1471,47 @@ export default function RPMPage() {
               </div>
             </div>
 
-            {/* Page break untuk cetak / PDF */}
-            <div className="hidden print:block print:break-before-page" />
-
-            {/* HALAMAN 3: Asesmen & Madrasatul Ula */}
-            <div className="print:min-h-[600px] space-y-4 pt-4 print:pt-0">
-              <h3 className="font-bold text-sm text-gray-700 uppercase border-b pb-1">Halaman 3 — Asesmen & Edukasi Orang Tua (Madrasatul Ula)</h3>
-              <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 text-xs">
+            {/* BAGIAN 3: Asesmen & Edukasi Orang Tua (Madrasatul Ula) */}
+            <div className="space-y-4 pt-4 print:pt-0 print:break-inside-avoid">
+              <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Asesmen & Edukasi Orang Tua (Madrasatul Ula)</h3>
+              <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 text-xs print:border-gray-300 print:p-3">
                 <h4 className="font-bold text-emerald-900 uppercase">Rencana Evaluasi & Asesmen Spesifik Topik</h4>
-                <p><span className="font-semibold">Asesmen Awal (Diagnostik):</span> {activeDoc.content?.desainPembelajaran?.asesmen?.awal || "-"}</p>
-                <p><span className="font-semibold">Asesmen Proses (Formatif - Rubrik Karakter):</span> {activeDoc.content?.desainPembelajaran?.asesmen?.formatif || "-"}</p>
-                <p><span className="font-semibold">Asesmen Akhir (Sumatif Karya):</span> {activeDoc.content?.desainPembelajaran?.asesmen?.sumatif || "-"}</p>
+                <p><span className="font-semibold">Asesmen Awal (Diagnostik):</span> {asesmen?.awal || "-"}</p>
+                <p><span className="font-semibold">Asesmen Proses (Formatif - Rubrik Karakter):</span> {asesmen?.formatif || "-"}</p>
+                <p><span className="font-semibold">Asesmen Akhir (Sumatif Karya):</span> {asesmen?.sumatif || "-"}</p>
               </div>
 
-              {activeDoc.content?.desainPembelajaran?.asesmen?.pesanEdukasiOrangTua && (
-                <div className="border p-4 rounded-xl bg-amber-50/40 border-amber-200">
+              {asesmen?.pesanEdukasiOrangTua?.trim() && (
+                <div className="border p-4 rounded-xl bg-amber-50/40 border-amber-200 print:border-gray-300 print:p-3">
                   <h4 className="font-bold text-xs text-amber-900 uppercase mb-1">Pesan Edukasi Orang Tua (Madrasatul Ula)</h4>
                   <p className="text-xs italic leading-relaxed text-amber-950">
-                    "{activeDoc.content.desainPembelajaran.asesmen.pesanEdukasiOrangTua}"
+                    "{asesmen.pesanEdukasiOrangTua.trim()}"
                   </p>
+                </div>
+              )}
+
+              {/* Rubrik Karakter FITRAH */}
+              {asesmen?.rubrikKarakterFitrah && asesmen.rubrikKarakterFitrah.length > 0 && (
+                <div className="border p-4 rounded-xl bg-slate-50/50 print:border-gray-300 print:p-3 print:break-inside-avoid overflow-auto">
+                  <h4 className="font-bold text-xs text-slate-800 uppercase mb-2 border-b pb-1">Rubrik Karakter FITRAH (Observasi Perilaku Formatif)</h4>
+                  <table className="w-full text-[11px] border-collapse">
+                    <thead>
+                      <tr className="bg-slate-100 print:bg-gray-100">
+                        <th className="border border-gray-300 p-2 text-left font-bold w-1/4">Indikator Karakter</th>
+                        <th className="border border-gray-300 p-2 text-left font-bold">Sangat Baik (SB)</th>
+                        <th className="border border-gray-300 p-2 text-left font-bold">Perlu Bimbingan (PB)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {asesmen.rubrikKarakterFitrah.map((row: { indikator: string; sangatBaik: string; perluBimbingan: string }, i: number) => (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                          <td className="border border-gray-300 p-2 font-semibold text-slate-800">{row.indikator}</td>
+                          <td className="border border-gray-300 p-2 text-gray-900 leading-relaxed">{row.sangatBaik}</td>
+                          <td className="border border-gray-300 p-2 text-gray-900 leading-relaxed">{row.perluBimbingan}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -1217,7 +1599,13 @@ export default function RPMPage() {
                       {masterSubjects.length > 0 ? (
                         <select
                           value={mataPelajaran}
-                          onChange={(e) => setMataPelajaran(e.target.value)}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (next !== mataPelajaran && (capaianPembelajaran.trim() || tujuanPembelajaran.some(t => t.trim()))) {
+                              toast.warning("Mata pelajaran diubah. Harap periksa kembali CP dan TP di Langkah 2 agar tetap selaras.");
+                            }
+                            setMataPelajaran(next);
+                          }}
                           className="w-full min-h-[40px] px-3 py-2 text-xs border rounded-xl bg-white border-gray-200"
                         >
                           {masterSubjects.map((s) => (
@@ -1225,7 +1613,17 @@ export default function RPMPage() {
                           ))}
                         </select>
                       ) : (
-                        <Input value={mataPelajaran} onChange={(e) => setMataPelajaran(e.target.value)} className="text-xs" />
+                        <Input
+                          value={mataPelajaran}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            if (next !== mataPelajaran && (capaianPembelajaran.trim() || tujuanPembelajaran.some(t => t.trim()))) {
+                              toast.warning("Mata pelajaran diubah. Harap periksa kembali CP dan TP di Langkah 2 agar tetap selaras.");
+                            }
+                            setMataPelajaran(next);
+                          }}
+                          className="text-xs"
+                        />
                       )}
                     </div>
                     <div>
@@ -1235,8 +1633,12 @@ export default function RPMPage() {
                           value={kelasRombel}
                           onChange={(e) => {
                             const val = e.target.value;
+                            const nextFase = resolvePhaseByClassName(val);
+                            if (nextFase !== tingkatFase && (capaianPembelajaran.trim() || tujuanPembelajaran.some(t => t.trim()))) {
+                              toast.warning("Kelas/fase diubah. Harap tinjau kembali keselarasan CP & TP di Langkah 2.");
+                            }
                             setKelasRombel(val);
-                            setTingkatFase(resolvePhaseByClassName(val));
+                            setTingkatFase(nextFase);
                           }}
                           className="w-full min-h-[40px] px-3 py-2 text-xs border rounded-xl bg-white border-gray-200"
                         >
@@ -1249,8 +1651,12 @@ export default function RPMPage() {
                           value={kelasRombel}
                           onChange={(e) => {
                             const val = e.target.value;
+                            const nextFase = resolvePhaseByClassName(val);
+                            if (nextFase !== tingkatFase && (capaianPembelajaran.trim() || tujuanPembelajaran.some(t => t.trim()))) {
+                              toast.warning("Kelas/fase diubah. Harap tinjau kembali keselarasan CP & TP di Langkah 2.");
+                            }
                             setKelasRombel(val);
-                            setTingkatFase(resolvePhaseByClassName(val));
+                            setTingkatFase(nextFase);
                           }}
                           className="text-xs"
                         />
@@ -1283,6 +1689,51 @@ export default function RPMPage() {
                         value={alokasiWaktu}
                         onChange={(e) => setAlokasiWaktu(Number(e.target.value))}
                         className="text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Semester & Tahun Ajaran */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Semester (Master Data)</label>
+                      {masterSemesters.length > 0 ? (
+                        <select
+                          value={semesterId}
+                          onChange={(e) => {
+                            const sel = masterSemesters.find(s => s.id === e.target.value);
+                            if (sel) {
+                              setSemesterId(sel.id);
+                              setSemesterNama(sel.name);
+                              const ayRaw = sel.academic_year_id || "";
+                              const ayMatch = ayRaw.match(/(\d{4})_(\d{4})/);
+                              setTahunAjaran(ayMatch ? `${ayMatch[1]}/${ayMatch[2]}` : ayRaw);
+                            }
+                          }}
+                          className="w-full min-h-[40px] px-3 py-2 text-xs border rounded-xl bg-white border-gray-200"
+                        >
+                          <option value="">Pilih Semester...</option>
+                          {masterSemesters.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}{s.is_active ? " (Aktif)" : ""}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <Input
+                          placeholder="Semester Ganjil / Genap"
+                          value={semesterNama}
+                          onChange={(e) => setSemesterNama(e.target.value)}
+                          className="text-xs"
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Tahun Ajaran</label>
+                      <Input
+                        placeholder="Contoh: 2025/2026"
+                        value={tahunAjaran}
+                        onChange={(e) => setTahunAjaran(e.target.value)}
+                        className="text-xs"
+                        readOnly={masterSemesters.length > 0 && !!semesterId}
                       />
                     </div>
                   </div>
@@ -1487,6 +1938,166 @@ export default function RPMPage() {
                     />
                   </div>
 
+                  {/* Pertanyaan Pemantik */}
+                  <div className="p-4 border rounded-xl bg-amber-50/30 border-amber-200/70 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase">
+                          Pertanyaan Pemantik (Curiosity Triggers)
+                        </label>
+                        <p className="text-[11px] text-amber-700/80">
+                          2–3 pertanyaan terbuka untuk memantik rasa ingin tahu santri secara kontekstual.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setPertanyaanPemantik([...pertanyaanPemantik, ""])}
+                        className="text-xs h-7 border-amber-300 text-amber-800 hover:bg-amber-100"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                      </Button>
+                    </div>
+                    {pertanyaanPemantik.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">Belum ada pertanyaan pemantik. Klik Tambah atau gunakan AI.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {pertanyaanPemantik.map((p, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <span className="text-xs font-bold text-amber-700 w-5">{idx + 1}.</span>
+                            <Input
+                              value={p}
+                              onChange={(e) => {
+                                const next = [...pertanyaanPemantik];
+                                next[idx] = e.target.value;
+                                setPertanyaanPemantik(next);
+                              }}
+                              placeholder="Contoh: Mengapa kita perlu menghitung secara cermat dalam kehidupan sehari-hari?"
+                              className="text-xs bg-white flex-1"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setPertanyaanPemantik(pertanyaanPemantik.filter((_, i) => i !== idx))}
+                              className="h-8 w-8 p-0 text-red-500 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Media Ajar & Sumber Belajar (2-column layout) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Media Ajar */}
+                    <div className="p-4 border rounded-xl bg-blue-50/30 border-blue-200/70 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-xs font-bold text-blue-900 uppercase">
+                            Media Ajar / Sarana
+                          </label>
+                          <p className="text-[11px] text-blue-700/80">
+                            3–5 media konkret & praktis.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setMediaAjar([...mediaAjar, ""])}
+                          className="text-xs h-7 border-blue-300 text-blue-800 hover:bg-blue-100"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                        </Button>
+                      </div>
+                      {mediaAjar.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">Belum ada media ajar.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {mediaAjar.map((m, idx) => (
+                            <div key={idx} className="flex gap-1.5 items-center">
+                              <Input
+                                value={m}
+                                onChange={(e) => {
+                                  const next = [...mediaAjar];
+                                  next[idx] = e.target.value;
+                                  setMediaAjar(next);
+                                }}
+                                placeholder="Contoh: Modul/LKPD, Papan Tulis, Flashcard..."
+                                className="text-xs bg-white flex-1"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setMediaAjar(mediaAjar.filter((_, i) => i !== idx))}
+                                className="h-8 w-8 p-0 text-red-500 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Sumber Belajar */}
+                    <div className="p-4 border rounded-xl bg-green-50/30 border-green-200/70 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="block text-xs font-bold text-green-900 uppercase">
+                            Sumber Belajar / Rujukan
+                          </label>
+                          <p className="text-[11px] text-green-700/80">
+                            3–5 sumber belajar realistis.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setSumberBelajar([...sumberBelajar, ""])}
+                          className="text-xs h-7 border-green-300 text-green-800 hover:bg-green-100"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                        </Button>
+                      </div>
+                      {sumberBelajar.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">Belum ada sumber belajar.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {sumberBelajar.map((s, idx) => (
+                            <div key={idx} className="flex gap-1.5 items-center">
+                              <Input
+                                value={s}
+                                onChange={(e) => {
+                                  const next = [...sumberBelajar];
+                                  next[idx] = e.target.value;
+                                  setSumberBelajar(next);
+                                }}
+                                placeholder="Contoh: Buku Paket Siswa, Modul SIUBA..."
+                                className="text-xs bg-white flex-1"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setSumberBelajar(sumberBelajar.filter((_, i) => i !== idx))}
+                                className="h-8 w-8 p-0 text-red-500 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Tag Rekomendasi 5 Kategori Baku */}
                   <div className="p-4 border rounded-xl bg-emerald-50/30 space-y-3">
                     <label className="block text-xs font-bold text-emerald-900 uppercase">
@@ -1568,6 +2179,25 @@ export default function RPMPage() {
                           ))}
                         </div>
                       </div>
+
+                      <div>
+                        <span className="font-bold text-gray-700 block mb-1">DPL Kurikulum Nasional:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {VALID_KURNAS.map((tag) => (
+                            <label key={tag} className="flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-lg border text-xs">
+                              <input
+                                type="checkbox"
+                                checked={dplKurnasTags.includes(tag)}
+                                onChange={(e) => {
+                                  if (e.target.checked) setDplKurnasTags([...dplKurnasTags, tag]);
+                                  else setDplKurnasTags(dplKurnasTags.filter((t) => t !== tag));
+                                }}
+                              />
+                              {tag}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1641,30 +2271,140 @@ export default function RPMPage() {
                     </div>
                   </div>
 
-                  {/* Activity Editors */}
-                  <ActivityListEditor
-                    label="1. Kegiatan Pembelajaran (Awal / Pendahuluan)"
-                    items={kegiatanAwal}
-                    onChange={setKegiatanAwal}
-                    availableBudayaTags={budayaSahabatTags}
-                    availableKarakterTags={combinedKarakterOptions}
-                  />
+                  {/* Activity Phase 1: Awal */}
+                  <div className="space-y-2">
+                    <div className="p-3 border rounded-xl bg-emerald-50/20 border-emerald-200/60 space-y-2">
+                      <span className="text-[11px] font-bold text-emerald-900 uppercase block">
+                        Metadata Skenario: Kegiatan Awal
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Durasi (Menit)</label>
+                          <Input
+                            type="number"
+                            value={kegiatanMetadataAwal.durasiMenit || 0}
+                            onChange={(e) => setKegiatanMetadataAwal({ ...kegiatanMetadataAwal, durasiMenit: Number(e.target.value) })}
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Fokus Tahap</label>
+                          <Input
+                            value={kegiatanMetadataAwal.fokus || ""}
+                            onChange={(e) => setKegiatanMetadataAwal({ ...kegiatanMetadataAwal, fokus: e.target.value })}
+                            placeholder="Pembukaan & apersepsi..."
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Fokus Adab</label>
+                          <Input
+                            value={kegiatanMetadataAwal.fokusAdab || ""}
+                            onChange={(e) => setKegiatanMetadataAwal({ ...kegiatanMetadataAwal, fokusAdab: e.target.value })}
+                            placeholder="Adab berdoa & menghormati guru..."
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <ActivityListEditor
+                      label="1. Butir Aktivitas: Kegiatan Awal (Pendahuluan)"
+                      items={kegiatanAwal}
+                      onChange={setKegiatanAwal}
+                      availableBudayaTags={budayaSahabatTags}
+                      availableKarakterTags={combinedKarakterOptions}
+                    />
+                  </div>
 
-                  <ActivityListEditor
-                    label="2. Kegiatan Pembelajaran (Inti / Eksplorasi)"
-                    items={kegiatanInti}
-                    onChange={setKegiatanInti}
-                    availableBudayaTags={budayaSahabatTags}
-                    availableKarakterTags={combinedKarakterOptions}
-                  />
+                  {/* Activity Phase 2: Inti */}
+                  <div className="space-y-2">
+                    <div className="p-3 border rounded-xl bg-blue-50/20 border-blue-200/60 space-y-2">
+                      <span className="text-[11px] font-bold text-blue-900 uppercase block">
+                        Metadata Skenario: Kegiatan Inti
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Durasi (Menit)</label>
+                          <Input
+                            type="number"
+                            value={kegiatanMetadataInti.durasiMenit || 0}
+                            onChange={(e) => setKegiatanMetadataInti({ ...kegiatanMetadataInti, durasiMenit: Number(e.target.value) })}
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Fokus Tahap</label>
+                          <Input
+                            value={kegiatanMetadataInti.fokus || ""}
+                            onChange={(e) => setKegiatanMetadataInti({ ...kegiatanMetadataInti, fokus: e.target.value })}
+                            placeholder="Eksplorasi & kolaborasi..."
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Pendekatan / Metode</label>
+                          <Input
+                            value={kegiatanMetadataInti.pendekatanMetode || ""}
+                            onChange={(e) => setKegiatanMetadataInti({ ...kegiatanMetadataInti, pendekatanMetode: e.target.value })}
+                            placeholder="Pembelajaran kooperatif kontekstual..."
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <ActivityListEditor
+                      label="2. Butir Aktivitas: Kegiatan Inti (Eksplorasi & Kolaborasi)"
+                      items={kegiatanInti}
+                      onChange={setKegiatanInti}
+                      availableBudayaTags={budayaSahabatTags}
+                      availableKarakterTags={combinedKarakterOptions}
+                    />
+                  </div>
 
-                  <ActivityListEditor
-                    label="3. Kegiatan Pembelajaran (Penutup / Refleksi)"
-                    items={kegiatanAkhir}
-                    onChange={setKegiatanAkhir}
-                    availableBudayaTags={budayaSahabatTags}
-                    availableKarakterTags={combinedKarakterOptions}
-                  />
+                  {/* Activity Phase 3: Penutup */}
+                  <div className="space-y-2">
+                    <div className="p-3 border rounded-xl bg-amber-50/20 border-amber-200/60 space-y-2">
+                      <span className="text-[11px] font-bold text-amber-900 uppercase block">
+                        Metadata Skenario: Kegiatan Penutup
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Durasi (Menit)</label>
+                          <Input
+                            type="number"
+                            value={kegiatanMetadataAkhir.durasiMenit || 0}
+                            onChange={(e) => setKegiatanMetadataAkhir({ ...kegiatanMetadataAkhir, durasiMenit: Number(e.target.value) })}
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Fokus Tahap</label>
+                          <Input
+                            value={kegiatanMetadataAkhir.fokus || ""}
+                            onChange={(e) => setKegiatanMetadataAkhir({ ...kegiatanMetadataAkhir, fokus: e.target.value })}
+                            placeholder="Refleksi pembelajaran..."
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-gray-700 mb-0.5">Fokus Refleksi / Adab</label>
+                          <Input
+                            value={kegiatanMetadataAkhir.fokusRefleksi || ""}
+                            onChange={(e) => setKegiatanMetadataAkhir({ ...kegiatanMetadataAkhir, fokusRefleksi: e.target.value })}
+                            placeholder="Hikmah pembelajaran & doa penutup..."
+                            className="text-xs h-8 bg-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <ActivityListEditor
+                      label="3. Butir Aktivitas: Kegiatan Penutup (Refleksi & Doa)"
+                      items={kegiatanAkhir}
+                      onChange={setKegiatanAkhir}
+                      availableBudayaTags={budayaSahabatTags}
+                      availableKarakterTags={combinedKarakterOptions}
+                    />
+                  </div>
 
                   {/* Asesmen */}
                   <div className="p-4 border rounded-xl bg-gray-50/50 space-y-3 text-xs">
@@ -1676,13 +2416,113 @@ export default function RPMPage() {
                       <Textarea value={asesmenAwal} onChange={(e) => setAsesmenAwal(e.target.value)} rows={2} className="text-xs bg-white" />
                     </div>
                     <div>
-                      <label className="block font-bold mb-1 text-gray-700">Asesmen Proses (Formatif - Rubrik Karakter Fitrah)</label>
+                      <label className="block font-bold mb-1 text-gray-700">Asesmen Proses (Formatif - Observasi Guru)</label>
                       <Textarea value={asesmenFormatif} onChange={(e) => setAsesmenFormatif(e.target.value)} rows={2} className="text-xs bg-white" />
                     </div>
                     <div>
                       <label className="block font-bold mb-1 text-gray-700">Asesmen Akhir (Sumatif Karya)</label>
                       <Textarea value={asesmenSumatif} onChange={(e) => setAsesmenSumatif(e.target.value)} rows={2} className="text-xs bg-white" />
                     </div>
+                  </div>
+
+                  {/* Rubrik Karakter FITRAH (Perencanaan Observasi Guru) */}
+                  <div className="p-4 border rounded-xl bg-slate-50/70 border-slate-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-900 uppercase">
+                          Rubrik Karakter FITRAH (Deskriptor Observasi Guru)
+                        </label>
+                        <p className="text-[11px] text-gray-500">
+                          Deskriptor observasi perilaku konkret untuk karakter: {karakterTags.join(", ") || "(pilih di bagian Karakter FITRAH)"}.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setRubrikKarakterFitrah([
+                            ...rubrikKarakterFitrah,
+                            { indikator: "Indikator Baru", sangatBaik: "", perluBimbingan: "" },
+                          ]);
+                        }}
+                        className="text-xs h-7 border-slate-300 text-slate-700 hover:bg-slate-100"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Tambah Baris
+                      </Button>
+                    </div>
+
+                    {rubrikKarakterFitrah.length === 0 ? (
+                      <p className="text-xs text-gray-400 italic">Pilih Karakter FITRAH di atas untuk mengisi rubrik otomatis atau klik Tambah Baris.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse bg-white rounded-lg overflow-hidden border border-gray-200">
+                          <thead>
+                            <tr className="bg-slate-100 text-slate-700 border-b border-gray-200 text-[11px]">
+                              <th className="p-2 text-left font-bold w-1/4">Indikator</th>
+                              <th className="p-2 text-left font-bold">Kriteria Sangat Baik (SB)</th>
+                              <th className="p-2 text-left font-bold">Kriteria Perlu Bimbingan (PB)</th>
+                              <th className="p-2 text-center w-10">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {rubrikKarakterFitrah.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50/50">
+                                <td className="p-2 align-top font-semibold text-slate-800">
+                                  <Input
+                                    value={row.indikator}
+                                    onChange={(e) => {
+                                      const next = [...rubrikKarakterFitrah];
+                                      next[idx] = { ...next[idx], indikator: e.target.value };
+                                      setRubrikKarakterFitrah(next);
+                                    }}
+                                    className="text-xs h-8 font-semibold bg-white"
+                                  />
+                                </td>
+                                <td className="p-2 align-top">
+                                  <Textarea
+                                    value={row.sangatBaik}
+                                    onChange={(e) => {
+                                      const next = [...rubrikKarakterFitrah];
+                                      next[idx] = { ...next[idx], sangatBaik: e.target.value };
+                                      setRubrikKarakterFitrah(next);
+                                    }}
+                                    rows={2}
+                                    placeholder="Deskriptor perilaku sangat baik..."
+                                    className="text-xs bg-white"
+                                  />
+                                </td>
+                                <td className="p-2 align-top">
+                                  <Textarea
+                                    value={row.perluBimbingan}
+                                    onChange={(e) => {
+                                      const next = [...rubrikKarakterFitrah];
+                                      next[idx] = { ...next[idx], perluBimbingan: e.target.value };
+                                      setRubrikKarakterFitrah(next);
+                                    }}
+                                    rows={2}
+                                    placeholder="Deskriptor perilaku perlu bimbingan..."
+                                    className="text-xs bg-white"
+                                  />
+                                </td>
+                                <td className="p-2 align-top text-center">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setRubrikKarakterFitrah(rubrikKarakterFitrah.filter((_, i) => i !== idx))}
+                                    className="h-8 w-8 p-0 text-red-500 hover:bg-red-50"
+                                    title="Hapus baris rubrik ini"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1727,12 +2567,16 @@ export default function RPMPage() {
                       <span>Total Durasi:</span>
                       <span className="font-bold">{totalDurasi} Menit</span>
                     </p>
+                    <p className="flex items-center justify-between text-[11px] opacity-80 mt-0.5">
+                      <span>Rincian:</span>
+                      <span>Awal: {durasiAwal}m &bull; Inti: {durasiInti}m &bull; Akhir: {durasiAkhir}m</span>
+                    </p>
                     <p className="flex items-center justify-between mt-1 text-[11px] opacity-80">
                       <span>Target Alokasi:</span>
                       <span>{alokasiWaktu} Menit</span>
                     </p>
                     <p className="mt-2 pt-2 border-t text-[11px]">
-                      {durasiSesuai ? '✓ Durasi tepat sesuai target' : `Selisih ${Math.abs(totalDurasi - alokasiWaktu)} menit dari target`}
+                      {durasiSesuai ? '✓ Durasi tepat sesuai target alokasi' : `Selisih ${Math.abs(totalDurasi - alokasiWaktu)} menit dari target (${totalDurasi > alokasiWaktu ? '+' : '-'}${Math.abs(totalDurasi - alokasiWaktu)}m)`}
                     </p>
                   </div>
                 )}
@@ -2171,12 +3015,26 @@ export default function RPMPage() {
                                   setBudayaSahabatTags(doc.content?.identitas?.budayaSahabat || []);
                                   setDplUtsmanTags(doc.content?.identitas?.dplUtsman || []);
                                   setDplKurnasTags(doc.content?.identitas?.dplKurnas || []);
+                                  // Semester/TA
+                                  setSemesterId(doc.content?.identitas?.semesterId || "");
+                                  setSemesterNama(doc.content?.identitas?.semesterTahun?.replace(/^Semester\s*/i, "") || "");
+                                  setTahunAjaran(doc.content?.identitas?.tahunAjaran || "");
                                   setCapaianPembelajaran(doc.content?.desainPembelajaran?.capaianPembelajaran || "");
                                   setPemahamanBermakna(doc.content?.desainPembelajaran?.pemahamanBermakna || "");
                                   setTujuanPembelajaran(doc.content?.desainPembelajaran?.tujuanPembelajaran || [""]);
+                                  // New fields
+                                  setPertanyaanPemantik(doc.content?.desainPembelajaran?.pertanyaanPemantik || []);
+                                  setMediaAjar(doc.content?.desainPembelajaran?.mediaAjar || []);
+                                  setSumberBelajar(doc.content?.desainPembelajaran?.sumberBelajar || []);
+                                  setRubrikKarakterFitrah(doc.content?.desainPembelajaran?.asesmen?.rubrikKarakterFitrah || []);
                                   setKegiatanAwal((doc.content?.desainPembelajaran?.kegiatanPembelajaran?.awal || []).map(normalizeActivityItem));
                                   setKegiatanInti((doc.content?.desainPembelajaran?.kegiatanPembelajaran?.inti || []).map(normalizeActivityItem));
                                   setKegiatanAkhir((doc.content?.desainPembelajaran?.kegiatanPembelajaran?.akhir || []).map(normalizeActivityItem));
+                                  // Activity metadata
+                                  const meta = doc.content?.desainPembelajaran?.kegiatanPembelajaran?.metadata;
+                                  setKegiatanMetadataAwal({ fokus: meta?.awal?.fokus || "", durasiMenit: meta?.awal?.durasiMenit || 10, fokusAdab: meta?.awal?.fokusAdab || "" });
+                                  setKegiatanMetadataInti({ fokus: meta?.inti?.fokus || "", durasiMenit: meta?.inti?.durasiMenit || 50, pendekatanMetode: meta?.inti?.pendekatanMetode || "" });
+                                  setKegiatanMetadataAkhir({ fokus: meta?.akhir?.fokus || "", durasiMenit: meta?.akhir?.durasiMenit || 10, fokusRefleksi: meta?.akhir?.fokusRefleksi || "" });
                                   setAsesmenAwal(doc.content?.desainPembelajaran?.asesmen?.awal || "");
                                   setAsesmenFormatif(doc.content?.desainPembelajaran?.asesmen?.formatif || "");
                                   setAsesmenSumatif(doc.content?.desainPembelajaran?.asesmen?.sumatif || "");
@@ -2288,12 +3146,26 @@ export default function RPMPage() {
                           setBudayaSahabatTags(doc.content?.identitas?.budayaSahabat || []);
                           setDplUtsmanTags(doc.content?.identitas?.dplUtsman || []);
                           setDplKurnasTags(doc.content?.identitas?.dplKurnas || []);
+                          // Semester/TA
+                          setSemesterId(doc.content?.identitas?.semesterId || "");
+                          setSemesterNama(doc.content?.identitas?.semesterTahun?.replace(/^Semester\s*/i, "") || "");
+                          setTahunAjaran(doc.content?.identitas?.tahunAjaran || "");
                           setCapaianPembelajaran(doc.content?.desainPembelajaran?.capaianPembelajaran || "");
                           setPemahamanBermakna(doc.content?.desainPembelajaran?.pemahamanBermakna || "");
                           setTujuanPembelajaran(doc.content?.desainPembelajaran?.tujuanPembelajaran || [""]);
+                          // New fields
+                          setPertanyaanPemantik(doc.content?.desainPembelajaran?.pertanyaanPemantik || []);
+                          setMediaAjar(doc.content?.desainPembelajaran?.mediaAjar || []);
+                          setSumberBelajar(doc.content?.desainPembelajaran?.sumberBelajar || []);
+                          setRubrikKarakterFitrah(doc.content?.desainPembelajaran?.asesmen?.rubrikKarakterFitrah || []);
                           setKegiatanAwal((doc.content?.desainPembelajaran?.kegiatanPembelajaran?.awal || []).map(normalizeActivityItem));
                           setKegiatanInti((doc.content?.desainPembelajaran?.kegiatanPembelajaran?.inti || []).map(normalizeActivityItem));
                           setKegiatanAkhir((doc.content?.desainPembelajaran?.kegiatanPembelajaran?.akhir || []).map(normalizeActivityItem));
+                          // Activity metadata
+                          const metaMob = doc.content?.desainPembelajaran?.kegiatanPembelajaran?.metadata;
+                          setKegiatanMetadataAwal({ fokus: metaMob?.awal?.fokus || "", durasiMenit: metaMob?.awal?.durasiMenit || 10, fokusAdab: metaMob?.awal?.fokusAdab || "" });
+                          setKegiatanMetadataInti({ fokus: metaMob?.inti?.fokus || "", durasiMenit: metaMob?.inti?.durasiMenit || 50, pendekatanMetode: metaMob?.inti?.pendekatanMetode || "" });
+                          setKegiatanMetadataAkhir({ fokus: metaMob?.akhir?.fokus || "", durasiMenit: metaMob?.akhir?.durasiMenit || 10, fokusRefleksi: metaMob?.akhir?.fokusRefleksi || "" });
                           setAsesmenAwal(doc.content?.desainPembelajaran?.asesmen?.awal || "");
                           setAsesmenFormatif(doc.content?.desainPembelajaran?.asesmen?.formatif || "");
                           setAsesmenSumatif(doc.content?.desainPembelajaran?.asesmen?.sumatif || "");

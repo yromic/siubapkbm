@@ -348,6 +348,12 @@ export async function getDocumentById(id: string, user: { id: string; role: stri
  * Format durasi diambil dari pola teks "(N Menit)" atau "(N menit)" di akhir string kegiatan.
  * Kalau format teks tidak ditemukan, maka durasi per-kegiatan dianggap 0 (tidak divalidasi menit).
  */
+function extractActivityText(item: any): string {
+  if (typeof item === "string") return item;
+  if (typeof item === "object" && item !== null && typeof item.teks === "string") return item.teks;
+  return "";
+}
+
 function extractMinutesFromActivity(text: string): number {
   const match = text.match(/(\d+)\s*[Mm]enit/i);
   return match ? parseInt(match[1], 10) : 0;
@@ -364,17 +370,39 @@ function validateRPMDuration(content: Record<string, any>): void {
   const kp = desain.kegiatanPembelajaran;
   if (!kp) return;
 
+  // 1. Target Contract: Structured numeric metadata validation (Primary)
+  const meta = kp.metadata;
+  if (meta && (meta.awal?.durasiMenit !== undefined || meta.inti?.durasiMenit !== undefined || meta.akhir?.durasiMenit !== undefined)) {
+    const structuredTotal = (Number(meta.awal?.durasiMenit) || 0) +
+                            (Number(meta.inti?.durasiMenit) || 0) +
+                            (Number(meta.akhir?.durasiMenit) || 0);
+
+    if (structuredTotal > 0 && structuredTotal !== alokasiWaktu) {
+      const selisih = structuredTotal - alokasiWaktu;
+      const keterangan = selisih > 0
+        ? `lebih ${selisih} menit dari target`
+        : `kurang ${Math.abs(selisih)} menit dari target`;
+      throw new AppError(
+        `Total durasi kegiatan terstruktur (${structuredTotal} menit) tidak sesuai alokasi waktu (${alokasiWaktu} menit) — ${keterangan}. Sesuaikan durasi tiap tahap terlebih dahulu.`,
+        "ERR_RPM_DURATION_MISMATCH",
+        400
+      );
+    }
+    return; // Structured validation completed
+  }
+
+  // 2. Safe Legacy Fallback: parse durations from activity item texts (safely handling both string & object items)
   const allActivities = [
     ...(Array.isArray(kp.awal) ? kp.awal : []),
     ...(Array.isArray(kp.inti) ? kp.inti : []),
     ...(Array.isArray(kp.akhir) ? kp.akhir : []),
   ];
 
-  // Hanya validasi kalau SEMUA kegiatan punya pola menit (format "(N Menit)")
-  const hasAllDurations = allActivities.length > 0 && allActivities.every(a => /(\d+)\s*[Mm]enit/i.test(a));
+  const allTexts = allActivities.map(extractActivityText).filter(Boolean);
+  const hasAllDurations = allTexts.length > 0 && allTexts.every(t => /(\d+)\s*[Mm]enit/i.test(t));
   if (!hasAllDurations) return; // format tidak standard, lewati validasi menit
 
-  const totalMenit = allActivities.reduce((sum, a) => sum + extractMinutesFromActivity(a), 0);
+  const totalMenit = allTexts.reduce((sum, t) => sum + extractMinutesFromActivity(t), 0);
 
   if (totalMenit !== alokasiWaktu) {
     const selisih = totalMenit - alokasiWaktu;

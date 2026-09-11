@@ -23,6 +23,8 @@ import { fetchBankTPs as fetchBankTPsClient } from "@/lib/api/curriculumBankClie
 import { BankTPItem } from "@/lib/utils/curriculumFilterUtils";
 import { deriveKKTPStatusFromDoc, getKKTPStatusBadge, type KKTPDocStatus } from "@/lib/utils/kktpStatusUtils";
 
+import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type WizardStep = 'SELECT_CLASS' | 'SELECT_SUBJECT' | 'SELECT_STUDENT' | 'FORM_KKTP';
@@ -118,6 +120,8 @@ interface KKTPItem {
       subjectId?: string;
       namaMurid: string;
       studentId?: string;
+      nisn?: string | null;
+      tingkatFase?: string;
     };
     tpItems: TPItem[];
     catatanTutor: string;
@@ -205,6 +209,7 @@ export default function KKTPPage() {
   const [selectedSubjectName, setSelectedSubjectName] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [selectedStudentName, setSelectedStudentName] = useState('');
+  const [selectedStudentNisn, setSelectedStudentNisn] = useState<string | null>(null);
 
   // ── Form state ───────────────────────────────────────────────────────────
   const [title, setTitle] = useState('');
@@ -447,6 +452,7 @@ export default function KKTPPage() {
     setSelectedSubjectName(activeSubject.name);
     setSelectedStudentId(student.student_id);
     setSelectedStudentName(student.student_name);
+    setSelectedStudentNisn(student.nisn || null);
     setTitle(`KKTP ${activeSubject.name} — ${student.student_name}`);
 
     setTpItems([]);
@@ -496,6 +502,7 @@ export default function KKTPPage() {
     setSelectedSubjectName(subjectName);
     setSelectedStudentId(studentId);
     setSelectedStudentName(studentName);
+    setSelectedStudentNisn(doc.content?.identitas?.nisn || null);
 
     setTpItems(doc.content?.tpItems || []);
     setCatatanTutor(doc.content?.catatanTutor || '');
@@ -520,6 +527,7 @@ export default function KKTPPage() {
     setSelectedSubjectName('');
     setSelectedStudentId('');
     setSelectedStudentName('');
+    setSelectedStudentNisn(null);
     setTpItems([]);
     setCatatanTutor('');
     setPesanKemitraan('');
@@ -783,13 +791,14 @@ export default function KKTPPage() {
         tingkatFase: resolvePhaseByClassName(selectedClassName),
         namaMurid: selectedStudentName,
         studentId: selectedStudentId,
+        nisn: selectedStudentNisn || undefined,
       },
       tpItems,
       catatanTutor,
       pesanKemitraan,
     },
   }), [title, selectedClassId, selectedClassName, selectedSubjectId, selectedSubjectName,
-      selectedStudentId, selectedStudentName, tpItems, catatanTutor, pesanKemitraan]);
+      selectedStudentId, selectedStudentName, selectedStudentNisn, tpItems, catatanTutor, pesanKemitraan]);
 
   const triggerAutoSave = useCallback(() => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
@@ -1769,24 +1778,26 @@ export default function KKTPPage() {
                   docIdx < docsToPrint.length - 1 ? 'print:break-after-page' : ''
                 }`}
               >
-                {/* KOP SURAT */}
-                <div className="border-b-2 border-black pb-4 mb-4 text-center">
-                  <h1 className="text-xl font-bold uppercase tracking-wide">{schoolName}</h1>
-                  <p className="text-sm text-gray-700">{schoolSub}</p>
+                {/* KOP SURAT RESMI */}
+                <div className="mb-4">
+                  <OfficialSchoolLetterhead schoolSettings={schoolSettings} />
                 </div>
+
                 <div className="text-center mb-4">
                   <h2 className="text-base font-bold uppercase underline">LEMBAR PENILAIAN KKTP</h2>
                   <p className="text-xs text-gray-500">Kriteria Ketercapaian Tujuan Pembelajaran</p>
                 </div>
 
                 {/* INFO DOKUMEN */}
-                <div className="grid grid-cols-2 gap-2 text-xs mb-4 border border-gray-300 p-3 rounded">
+                <div className="grid grid-cols-2 gap-2 text-xs mb-4 border border-gray-300 p-3 rounded print:break-inside-avoid">
                   <div className="space-y-1">
                     <p><span className="font-semibold">No. Dokumen:</span> {docNumber}</p>
                     <p><span className="font-semibold">Nama Murid:</span> {identitas.namaMurid || '-'}</p>
+                    <p><span className="font-semibold">NISN:</span> {identitas.nisn || (studentSummaries.find(s => s.student_id === identitas.studentId)?.nisn) || '-'}</p>
                     <p><span className="font-semibold">Kelas:</span> {identitas.kelasRombel || '-'}</p>
                   </div>
                   <div className="space-y-1 text-right">
+                    <p><span className="font-semibold">Fase:</span> {identitas.tingkatFase || resolvePhaseByClassName(identitas.kelasRombel) || '-'}</p>
                     <p><span className="font-semibold">Mata Pelajaran:</span> {identitas.mataPelajaran || '-'}</p>
                     <p><span className="font-semibold">Tutor:</span> {tutorName}</p>
                     <p><span className="font-semibold">Tanggal Cetak:</span> {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
@@ -2140,6 +2151,7 @@ export default function KKTPPage() {
                       onClick={() => {
                         setSelectedStudentId(stu.id);
                         setSelectedStudentName(stu.full_name);
+                        setSelectedStudentNisn(stu.nisn || null);
                         setTitle(`KKTP ${selectedSubjectName} — ${stu.full_name}`);
                         setWizardStep('FORM_KKTP');
                       }}

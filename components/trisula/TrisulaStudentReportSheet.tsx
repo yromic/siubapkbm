@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ScoreCategory, getScoreCategory } from "@/lib/utils/academicUtils";
+import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
 
 export interface TrisulaStudentReportData {
   assessment: {
@@ -92,18 +93,10 @@ export function TrisulaStudentReportSheet({
     >
       {/* Top Header / KOP PKBM BLC */}
       <div>
-        <div className="border-b-2 border-zinc-900 pb-3 text-center">
-          <h1 className="text-base sm:text-lg font-black tracking-wider uppercase text-zinc-900 leading-snug">
-            PKBM BAITUSYUKUR LEARNING CENTER (BLC)
-          </h1>
-          <p className="text-xs font-semibold text-zinc-700 mt-0.5">
-            Pendidikan Kesetaraan Paket A / B / C • Kurikulum Merdeka Terintegrasi BLC
-          </p>
-          <p className="text-[11px] text-zinc-500">
-            Pusat Kegiatan Belajar Mengajar & Pengembangan Karakter Generasi Qurani
-          </p>
+        <div className="pb-2 text-center">
+          <OfficialSchoolLetterhead />
           
-          <div className="mt-2.5 pt-2 border-t border-zinc-300 flex flex-col items-center">
+          <div className="mt-2 pt-1 border-t border-zinc-300 flex flex-col items-center">
             <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-zinc-900 underline decoration-1 underline-offset-2">
               RAPORT TRISULA AKADEMIK BLC
             </h2>

@@ -23,6 +23,46 @@ export const VALID_KURNAS = [
 
 export type DplKurnasValue = typeof VALID_KURNAS[number];
 
+// ─── Extended RPM types for new planning fields ───────────────────────────────
+
+/**
+ * Rubrik Karakter FITRAH: 1 row per selected karakterFitrah indicator.
+ * Teacher planning rubric (observable behaviors), NOT student score intervals.
+ */
+export interface RPMRubrikItem {
+  indikator: string;
+  sangatBaik: string;
+  perluBimbingan: string;
+}
+
+/**
+ * Per-phase activity metadata (structured duration, focus, and method).
+ * Optional extension that preserves backward compatibility with old documents
+ * that only have the activity arrays.
+ */
+export interface RPMActivityPhaseMetadata {
+  fokus?: string;
+  durasiMenit?: number;
+}
+
+export interface RPMAwalMetadata extends RPMActivityPhaseMetadata {
+  fokusAdab?: string;
+}
+
+export interface RPMIntiMetadata extends RPMActivityPhaseMetadata {
+  pendekatanMetode?: string;
+}
+
+export interface RPMAkhirMetadata extends RPMActivityPhaseMetadata {
+  fokusRefleksi?: string;
+}
+
+export interface RPMKegiatanMetadata {
+  awal?: RPMAwalMetadata;
+  inti?: RPMIntiMetadata;
+  akhir?: RPMAkhirMetadata;
+}
+
 /**
  * Normalisasi item aktivitas (string atau object) menjadi object RPMActivityItem baku.
  * Mendukung ekstraksi anotasi bracket lama seperti [Budaya: X | Karakter: Y] jika ada.
@@ -71,4 +111,39 @@ export function formatActivityItemWithTags(item: RPMActivityInput): string {
   }
   if (tagParts.length === 0) return norm.teks;
   return `${norm.teks} [${tagParts.join(" | ")}]`;
+}
+
+/**
+ * Compute total structured duration from activity metadata.
+ * Returns numeric total if all three phases have structured data,
+ * otherwise returns null to indicate legacy text-parsing should be used.
+ */
+export function computeStructuredDuration(metadata: RPMKegiatanMetadata | undefined): number | null {
+  if (!metadata) return null;
+  const a = metadata.awal?.durasiMenit;
+  const i = metadata.inti?.durasiMenit;
+  const k = metadata.akhir?.durasiMenit;
+  if (a === undefined && i === undefined && k === undefined) return null;
+  return (a || 0) + (i || 0) + (k || 0);
+}
+
+/**
+ * Legacy fallback: extract total duration from activity item text strings.
+ * Used for old documents that don't have structured metadata durations.
+ */
+export function computeLegacyDurationFromActivities(
+  awal: RPMActivityItem[],
+  inti: RPMActivityItem[],
+  akhir: RPMActivityItem[]
+): number | null {
+  let total = 0;
+  let found = false;
+  for (const act of [...awal, ...inti, ...akhir]) {
+    const match = act.teks.match(/\((\d+)\s*Menit\)/i);
+    if (match && match[1]) {
+      total += parseInt(match[1], 10);
+      found = true;
+    }
+  }
+  return found ? total : null;
 }
