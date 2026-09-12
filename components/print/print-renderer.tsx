@@ -6,7 +6,8 @@ import { DocumentStatus } from "@/lib/permissions/documents";
 import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
 import { resolveAcademicPeriodDisplay } from "@/lib/utils/academicUtils";
 import { RPMAttachment } from "@/types/rpmAttachment";
-import { RPMAttachmentPrintList } from "@/components/rpm/RPMAttachmentPrintList";
+import { RPMAttachmentDocumentPages } from "@/components/rpm/RPMAttachmentDocumentPages";
+import type { AttachmentRenderSummary } from "@/lib/utils/rpmAttachmentRendering";
 
 export interface DocumentPrintHeaderProps {
   institutionName?: string;
@@ -59,7 +60,7 @@ export interface PrintRendererProps {
     signer_name?: string | null;
     signer_nip?: string | null;
     signer_nuptk?: string | null;
-    content?: any;
+    content?: Record<string, unknown> | null;
   };
   children: ReactNode;
   headerProps?: DocumentPrintHeaderProps;
@@ -72,6 +73,8 @@ export interface PrintRendererProps {
   academicYears?: Array<{ id: string; name: string }>;
   /** Lampiran resmi terdaftar untuk dokumen RPM */
   attachments?: RPMAttachment[];
+  /** Callback perubahan status kesiapan render lampiran tersemat */
+  onAttachmentReadinessChange?: (summary: AttachmentRenderSummary) => void;
 }
 
 /**
@@ -117,6 +120,7 @@ export function PrintRenderer({
   semesters,
   academicYears,
   attachments,
+  onAttachmentReadinessChange,
 }: PrintRendererProps) {
   const watermarkText = resolveWatermark(document);
   const documentTitle  = resolveDocumentTitle(document, headerProps);
@@ -265,9 +269,6 @@ export function PrintRenderer({
       {/* Main Document Content */}
       <div className="document-body space-y-4">
         {children}
-        {isRPM && Array.isArray(attachments) && attachments.length > 0 && (
-          <RPMAttachmentPrintList attachments={attachments} />
-        )}
       </div>
 
       {/* Footer & Tanda Tangan Basah */}
@@ -308,6 +309,16 @@ export function PrintRenderer({
           Dicetak secara otomatis melalui Sistem SIUBA &bull; {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
         </div>
       </div>
+
+      {/* Formal Lampiran Dokumen - Embedded Content (Always after main RPM signatures & footer) */}
+      {isRPM && Array.isArray(attachments) && attachments.length > 0 && (
+        <div className="mt-8 pt-6 border-t-2 border-emerald-800 print:border-emerald-800 print:mt-6">
+          <RPMAttachmentDocumentPages
+            attachments={attachments}
+            onReadinessChange={onAttachmentReadinessChange}
+          />
+        </div>
+      )}
     </div>
   );
 }

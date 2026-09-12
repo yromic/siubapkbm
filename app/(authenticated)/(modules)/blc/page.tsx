@@ -13,7 +13,12 @@ import { toast } from "sonner";
 import { RPMAttachment } from "@/types/rpmAttachment";
 import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
 import { RPMAttachmentPreviewNotice } from "@/components/rpm/RPMAttachmentPreviewNotice";
-import { AttachmentLoadStatus, shouldConfirmAttachmentPrint } from "@/lib/utils/attachmentPreview";
+import {
+  AttachmentLoadStatus,
+  shouldConfirmAttachmentPrint,
+  getAttachmentPrintDecision,
+} from "@/lib/utils/attachmentPreview";
+import type { AttachmentRenderSummary } from "@/lib/utils/rpmAttachmentRendering";
 
 interface BLCItem {
   id: string;
@@ -44,6 +49,13 @@ export default function BankModulBLCPage() {
   const [activeDoc, setActiveDoc] = useState<BLCItem | null>(null);
   const [activeDocAttachments, setActiveDocAttachments] = useState<RPMAttachment[]>([]);
   const [attachmentLoadStatus, setAttachmentLoadStatus] = useState<AttachmentLoadStatus>('idle');
+  const [attachmentRenderSummary, setAttachmentRenderSummary] = useState<AttachmentRenderSummary>({
+    status: 'ready',
+    embeddableCount: 0,
+    readyCount: 0,
+    loadingCount: 0,
+    errorCount: 0,
+  });
   const [lineageInfo, setLineageInfo] = useState<Record<string, { title: string; authorName: string }>>({});
   const [view, setView] = useState<'CATALOG' | 'PRINT'>('CATALOG');
 
@@ -69,12 +81,25 @@ export default function BankModulBLCPage() {
   const handlePrint = useCallback(() => {
     if (
       shouldConfirmAttachmentPrint(attachmentLoadStatus) &&
-      !window.confirm("Lampiran gagal dimuat. Cetak dokumen tanpa memastikan lampiran termuat?")
+      !window.confirm("Daftar lampiran gagal dimuat. Cetak dokumen tanpa memastikan lampiran termuat?")
     ) {
       return;
     }
+
+    const decision = getAttachmentPrintDecision(attachmentRenderSummary.status);
+    if (decision === "wait") {
+      toast.info("Lampiran masih dimuat. Harap tunggu hingga semua berkas selesai dimuat.");
+      return;
+    }
+    if (
+      decision === "confirm" &&
+      !window.confirm("1 atau lebih lampiran gagal dimuat dan tidak akan muncul lengkap pada hasil cetak. Lanjutkan cetak dokumen?")
+    ) {
+      return;
+    }
+
     window.print();
-  }, [attachmentLoadStatus]);
+  }, [attachmentLoadStatus, attachmentRenderSummary.status]);
 
   const jumpToAttachments = useCallback(() => {
     document.getElementById('rpm-lampiran')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -220,7 +245,11 @@ export default function BankModulBLCPage() {
           />
         )}
 
-        <PrintRenderer document={activeDoc} attachments={activeDocAttachments}>
+        <PrintRenderer
+          document={activeDoc}
+          attachments={activeDocAttachments}
+          onAttachmentReadinessChange={setAttachmentRenderSummary}
+        >
           <div className="space-y-4 text-xs">
             {activeDoc.forked_from_id && (
               <div className="p-2 border rounded bg-slate-50 text-slate-700 italic text-xs">
@@ -353,6 +382,13 @@ export default function BankModulBLCPage() {
                       setActiveDoc(doc);
                       setActiveDocAttachments([]);
                       setAttachmentLoadStatus('idle');
+                      setAttachmentRenderSummary({
+                        status: 'ready',
+                        embeddableCount: 0,
+                        readyCount: 0,
+                        loadingCount: 0,
+                        errorCount: 0,
+                      });
                       if (String(doc.type || '').toUpperCase() === 'RPM' && doc.id) {
                         await loadRpmAttachments(doc.id);
                       } else {

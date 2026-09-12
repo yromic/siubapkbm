@@ -1,7 +1,8 @@
 "use client";
 
-import * as pdfjs from "pdfjs-dist";
+import * as pdfjsModule from "pdfjs-dist";
 
+const pdfjs = { ...pdfjsModule };
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url,

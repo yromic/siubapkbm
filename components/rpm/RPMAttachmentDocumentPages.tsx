@@ -216,6 +216,7 @@ function ImageAttachmentContent({
   if (!previewUrl) return null;
 
   return (
+    /* eslint-disable-next-line @next/next/no-img-element */
     <img
       src={previewUrl}
       alt={attachment.title || safeFilename(attachment)}

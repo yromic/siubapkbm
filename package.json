@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "test": "node --test --experimental-strip-types lib/utils/attachmentPreview.test.mjs lib/utils/buildInfo.test.mjs lib/utils/rpmAttachmentRendering.test.mjs lib/utils/rpmAttachmentRendererLifecycle.test.mjs",
+    "test": "node --test --experimental-strip-types lib/utils/attachmentPreview.test.mjs lib/utils/buildInfo.test.mjs lib/utils/rpmAttachmentRendering.test.mjs lib/utils/rpmAttachmentRendererLifecycle.test.mjs && tsx --test components/rpm/RPMAttachmentDocumentPages.test.tsx",
     "start": "next start",
     "lint": "eslint",
     "seed": "knex seed:run",
@@ -40,6 +40,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/pdfmake": "^0.3.3",
@@ -49,8 +50,10 @@
     "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

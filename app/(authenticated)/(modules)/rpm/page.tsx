@@ -41,8 +41,12 @@ import { RPMAttachmentSection } from "@/components/rpm/RPMAttachmentSection";
 import { RPMAttachmentPreviewNotice } from "@/components/rpm/RPMAttachmentPreviewNotice";
 import { RPMAttachment } from "@/types/rpmAttachment";
 import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
-import { formatAttachmentType, formatFileSize } from "@/lib/utils/rpmAttachmentUtils";
-import { AttachmentLoadStatus, shouldConfirmAttachmentPrint } from "@/lib/utils/attachmentPreview";
+import {
+  AttachmentLoadStatus,
+  shouldConfirmAttachmentPrint,
+  getAttachmentPrintDecision,
+} from "@/lib/utils/attachmentPreview";
+import type { AttachmentRenderSummary } from "@/lib/utils/rpmAttachmentRendering";
 
 interface RPMItem {
   id: string;
@@ -281,6 +285,13 @@ export default function RPMPage() {
   const [activeDoc, setActiveDoc] = useState<RPMItem | null>(null);
   const [activeDocAttachments, setActiveDocAttachments] = useState<RPMAttachment[]>([]);
   const [attachmentLoadStatus, setAttachmentLoadStatus] = useState<AttachmentLoadStatus>('idle');
+  const [attachmentRenderSummary, setAttachmentRenderSummary] = useState<AttachmentRenderSummary>({
+    status: 'ready',
+    embeddableCount: 0,
+    readyCount: 0,
+    loadingCount: 0,
+    errorCount: 0,
+  });
   const attachmentRequestIdRef = useRef(0);
   const [schoolSettings, setSchoolSettings] = useState<any>({});
 
@@ -311,12 +322,25 @@ export default function RPMPage() {
   const handlePrint = useCallback(() => {
     if (
       shouldConfirmAttachmentPrint(attachmentLoadStatus) &&
-      !window.confirm("Lampiran gagal dimuat. Cetak dokumen tanpa memastikan lampiran termuat?")
+      !window.confirm("Daftar lampiran gagal dimuat. Cetak dokumen tanpa memastikan lampiran termuat?")
     ) {
       return;
     }
+
+    const decision = getAttachmentPrintDecision(attachmentRenderSummary.status);
+    if (decision === "wait") {
+      toast.info("Lampiran masih dimuat. Harap tunggu hingga semua berkas selesai dimuat.");
+      return;
+    }
+    if (
+      decision === "confirm" &&
+      !window.confirm("1 atau lebih lampiran gagal dimuat dan tidak akan muncul lengkap pada hasil cetak. Lanjutkan cetak dokumen?")
+    ) {
+      return;
+    }
+
     window.print();
-  }, [attachmentLoadStatus]);
+  }, [attachmentLoadStatus, attachmentRenderSummary.status]);
 
   const jumpToAttachments = useCallback(() => {
     document.getElementById('rpm-lampiran')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1354,6 +1378,13 @@ export default function RPMPage() {
     setActiveDoc(doc);
     setActiveDocAttachments([]);
     setAttachmentLoadStatus('idle');
+    setAttachmentRenderSummary({
+      status: 'ready',
+      embeddableCount: 0,
+      readyCount: 0,
+      loadingCount: 0,
+      errorCount: 0,
+    });
     setReturnView('LIST');
     try {
       const [settingsRes] = await Promise.allSettled([
@@ -1425,6 +1456,7 @@ export default function RPMPage() {
         <PrintRenderer
           document={activeDoc}
           attachments={activeDocAttachments}
+          onAttachmentReadinessChange={setAttachmentRenderSummary}
           schoolSettings={schoolSettings}
           semesters={masterSemesters}
           academicYears={masterAcademicYears}
