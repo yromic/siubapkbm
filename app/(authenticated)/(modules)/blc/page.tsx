@@ -12,6 +12,8 @@ import { Loader2, Copy, Search, Printer, BookOpen, Layers, UserCheck, Link2 } fr
 import { toast } from "sonner";
 import { RPMAttachment } from "@/types/rpmAttachment";
 import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
+import { RPMAttachmentPreviewNotice } from "@/components/rpm/RPMAttachmentPreviewNotice";
+import { AttachmentLoadStatus, shouldConfirmAttachmentPrint } from "@/lib/utils/attachmentPreview";
 
 interface BLCItem {
   id: string;
@@ -41,25 +43,42 @@ export default function BankModulBLCPage() {
   const [smartFilterLabel, setSmartFilterLabel] = useState<string>("");
   const [activeDoc, setActiveDoc] = useState<BLCItem | null>(null);
   const [activeDocAttachments, setActiveDocAttachments] = useState<RPMAttachment[]>([]);
+  const [attachmentLoadStatus, setAttachmentLoadStatus] = useState<AttachmentLoadStatus>('idle');
   const [lineageInfo, setLineageInfo] = useState<Record<string, { title: string; authorName: string }>>({});
   const [view, setView] = useState<'CATALOG' | 'PRINT'>('CATALOG');
 
-  // Fallback reactive: pastikan attachments termuat saat berada dalam tampilan PRINT untuk dokumen RPM
-  useEffect(() => {
-    if (view === 'PRINT' && activeDoc?.id && String(activeDoc.type || '').toUpperCase() === 'RPM') {
-      let isMounted = true;
-      fetchRpmAttachments(activeDoc.id)
-        .then((atts) => {
-          if (isMounted && Array.isArray(atts)) {
-            setActiveDocAttachments(atts);
-          }
-        })
-        .catch(() => {});
-      return () => {
-        isMounted = false;
-      };
+  const loadRpmAttachments = useCallback(async (documentId: string): Promise<boolean> => {
+    setAttachmentLoadStatus('loading');
+    try {
+      const attachments = await fetchRpmAttachments(documentId);
+      setActiveDocAttachments(attachments);
+      setAttachmentLoadStatus('success');
+      return true;
+    } catch (error) {
+      setAttachmentLoadStatus('error');
+      console.error("BLC RPM attachment fetch failed", {
+        module: "BLC",
+        documentId,
+        operation: "fetch attachments",
+        error,
+      });
+      return false;
     }
-  }, [view, activeDoc?.id, activeDoc?.type]);
+  }, []);
+
+  const handlePrint = useCallback(() => {
+    if (
+      shouldConfirmAttachmentPrint(attachmentLoadStatus) &&
+      !window.confirm("Lampiran gagal dimuat. Cetak dokumen tanpa memastikan lampiran termuat?")
+    ) {
+      return;
+    }
+    window.print();
+  }, [attachmentLoadStatus]);
+
+  const jumpToAttachments = useCallback(() => {
+    document.getElementById('rpm-lampiran')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   // BR-BLC-04: Inisialisasi smart filter dari penugasan aktif guru (Fix 3.1)
   useEffect(() => {
@@ -185,12 +204,21 @@ export default function BankModulBLCPage() {
           <Button variant="secondary" onClick={() => setView('CATALOG')} className="min-h-[44px]">
             &larr; Kembali ke Katalog
           </Button>
-          <Button onClick={() => window.print()} className="min-h-[44px] bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={handlePrint} className="min-h-[44px] bg-emerald-600 hover:bg-emerald-700">
             <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen
           </Button>
         </div>
 
         <PrintBrowserHint />
+
+        {String(activeDoc.type || '').toUpperCase() === 'RPM' && (
+          <RPMAttachmentPreviewNotice
+            count={activeDocAttachments.length}
+            status={attachmentLoadStatus}
+            onJump={jumpToAttachments}
+            onRetry={() => void loadRpmAttachments(activeDoc.id)}
+          />
+        )}
 
         <PrintRenderer document={activeDoc} attachments={activeDocAttachments}>
           <div className="space-y-4 text-xs">
@@ -323,19 +351,13 @@ export default function BankModulBLCPage() {
                     size="sm"
                     onClick={async () => {
                       setActiveDoc(doc);
+                      setActiveDocAttachments([]);
+                      setAttachmentLoadStatus('idle');
                       if (String(doc.type || '').toUpperCase() === 'RPM' && doc.id) {
-                        try {
-                          const atts = await fetchRpmAttachments(doc.id);
-                          if (Array.isArray(atts)) {
-                            setActiveDocAttachments(atts);
-                          } else {
-                            setActiveDocAttachments([]);
-                          }
-                        } catch {
-                          setActiveDocAttachments([]);
-                        }
+                        await loadRpmAttachments(doc.id);
                       } else {
                         setActiveDocAttachments([]);
+                        setAttachmentLoadStatus('success');
                       }
                       setView('PRINT');
                     }}

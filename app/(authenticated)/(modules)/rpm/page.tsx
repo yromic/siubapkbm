@@ -38,9 +38,11 @@ import {
 import { resolvePhaseByClassName, resolveAcademicPeriodDisplay, isUuid } from "@/lib/utils/academicUtils";
 import { CurriculumBankModal, SelectedTPPayload } from "@/components/curriculum/CurriculumBankModal";
 import { RPMAttachmentSection } from "@/components/rpm/RPMAttachmentSection";
+import { RPMAttachmentPreviewNotice } from "@/components/rpm/RPMAttachmentPreviewNotice";
 import { RPMAttachment } from "@/types/rpmAttachment";
 import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
 import { formatAttachmentType, formatFileSize } from "@/lib/utils/rpmAttachmentUtils";
+import { AttachmentLoadStatus, shouldConfirmAttachmentPrint } from "@/lib/utils/attachmentPreview";
 
 interface RPMItem {
   id: string;
@@ -278,7 +280,47 @@ export default function RPMPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [activeDoc, setActiveDoc] = useState<RPMItem | null>(null);
   const [activeDocAttachments, setActiveDocAttachments] = useState<RPMAttachment[]>([]);
+  const [attachmentLoadStatus, setAttachmentLoadStatus] = useState<AttachmentLoadStatus>('idle');
+  const attachmentRequestIdRef = useRef(0);
   const [schoolSettings, setSchoolSettings] = useState<any>({});
+
+  const loadRpmAttachments = useCallback(async (documentId: string): Promise<boolean> => {
+    const requestId = ++attachmentRequestIdRef.current;
+    setAttachmentLoadStatus('loading');
+    try {
+      const attachments = await fetchRpmAttachments(documentId);
+      if (requestId === attachmentRequestIdRef.current) {
+        setActiveDocAttachments(attachments);
+        setAttachmentLoadStatus('success');
+      }
+      return true;
+    } catch (error) {
+      if (requestId === attachmentRequestIdRef.current) {
+        setAttachmentLoadStatus('error');
+      }
+      console.error("RPM attachment fetch failed", {
+        module: "RPM",
+        documentId,
+        operation: "fetch attachments",
+        error,
+      });
+      return false;
+    }
+  }, []);
+
+  const handlePrint = useCallback(() => {
+    if (
+      shouldConfirmAttachmentPrint(attachmentLoadStatus) &&
+      !window.confirm("Lampiran gagal dimuat. Cetak dokumen tanpa memastikan lampiran termuat?")
+    ) {
+      return;
+    }
+    window.print();
+  }, [attachmentLoadStatus]);
+
+  const jumpToAttachments = useCallback(() => {
+    document.getElementById('rpm-lampiran')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   // Filter documents: MY_ACTIVE prioritizes current user's active work
   const displayedDocs = useMemo(() => {
@@ -708,26 +750,10 @@ export default function RPMPage() {
     };
   }, [view, triggerAutoSave, title, modulTopik, capaianPembelajaran, pemahamanBermakna, tujuanPembelajaran, kegiatanAwal, kegiatanInti, kegiatanAkhir, deskripsiTrisula]);
 
-  // Fallback reactive: pastikan attachments termuat saat berada dalam tampilan PRINT
-  useEffect(() => {
-    if (view === 'PRINT' && activeDoc?.id && activeDoc.id !== 'preview-temp') {
-      let isMounted = true;
-      fetchRpmAttachments(activeDoc.id)
-        .then((atts) => {
-          if (isMounted && Array.isArray(atts)) {
-            setActiveDocAttachments(atts);
-          }
-        })
-        .catch(() => {});
-      return () => {
-        isMounted = false;
-      };
-    }
-  }, [view, activeDoc?.id]);
-
   const handleCreateNew = () => {
     setActiveDoc(null);
     setActiveDocAttachments([]);
+    setAttachmentLoadStatus('idle');
     autoSaveDraftIdRef.current = undefined;
     setAutoSaveStatus('idle');
     setAutoSaveLastTime(null);
@@ -1326,22 +1352,25 @@ export default function RPMPage() {
 
   const handleOpenPrint = async (doc: RPMItem) => {
     setActiveDoc(doc);
+    setActiveDocAttachments([]);
+    setAttachmentLoadStatus('idle');
     setReturnView('LIST');
     try {
-      const [settingsRes, attsRes] = await Promise.allSettled([
+      const [settingsRes] = await Promise.allSettled([
         fetch('/api/v1/app-settings').then((r) => r.json()),
-        fetchRpmAttachments(doc.id),
+        loadRpmAttachments(doc.id),
       ]);
       if (settingsRes.status === 'fulfilled' && settingsRes.value?.success && settingsRes.value.data) {
         setSchoolSettings(settingsRes.value.data);
       }
-      if (attsRes.status === 'fulfilled' && Array.isArray(attsRes.value)) {
-        setActiveDocAttachments(attsRes.value);
-      } else {
-        setActiveDocAttachments([]);
-      }
-    } catch {
-      setActiveDocAttachments([]);
+    } catch (error) {
+      setAttachmentLoadStatus('error');
+      console.error("RPM print preview preparation failed", {
+        module: "RPM",
+        documentId: doc.id,
+        operation: "prepare print preview",
+        error,
+      });
     }
     setView('PRINT');
   };
@@ -1379,12 +1408,19 @@ export default function RPMPage() {
           <Button variant="secondary" onClick={() => setView(returnView)} className="min-h-[38px] text-xs">
             <ArrowLeft className="w-4 h-4 mr-2" /> {returnView === 'WIZARD' ? 'Kembali ke Editor' : 'Kembali ke Daftar'}
           </Button>
-          <Button onClick={() => window.print()} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
+          <Button onClick={handlePrint} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
             <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen
           </Button>
         </div>
 
         <PrintBrowserHint />
+
+        <RPMAttachmentPreviewNotice
+          count={activeDocAttachments.length}
+          status={attachmentLoadStatus}
+          onJump={jumpToAttachments}
+          onRetry={() => void loadRpmAttachments(activeDoc.id)}
+        />
 
         <PrintRenderer
           document={activeDoc}
@@ -3109,14 +3145,7 @@ export default function RPMPage() {
                   onClick={async () => {
                     const docId = activeDoc?.id || autoSaveDraftIdRef.current;
                     if (docId && docId !== 'preview-temp') {
-                      try {
-                        const atts = await fetchRpmAttachments(docId);
-                        if (Array.isArray(atts)) {
-                          setActiveDocAttachments(atts);
-                        }
-                      } catch (err) {
-                        console.error("Failed to fetch attachments for preview:", err);
-                      }
+                      await loadRpmAttachments(docId);
                     }
                     const payload = buildPayload();
                     const previewDoc: any = {
@@ -3504,10 +3533,9 @@ export default function RPMPage() {
                                 onClick={() => {
                                   setActiveDoc(doc);
                                   setActiveDocAttachments([]);
+                                  setAttachmentLoadStatus('idle');
                                   if (doc.id) {
-                                    fetchRpmAttachments(doc.id)
-                                      .then(setActiveDocAttachments)
-                                      .catch(() => setActiveDocAttachments([]));
+                                    void loadRpmAttachments(doc.id);
                                   }
                                   setTitle(doc.title);
                                   setMataPelajaran(doc.content?.identitas?.mataPelajaran || "");
@@ -3654,10 +3682,9 @@ export default function RPMPage() {
                         onClick={() => {
                           setActiveDoc(doc);
                           setActiveDocAttachments([]);
+                          setAttachmentLoadStatus('idle');
                           if (doc.id) {
-                            fetchRpmAttachments(doc.id)
-                              .then(setActiveDocAttachments)
-                              .catch(() => setActiveDocAttachments([]));
+                            void loadRpmAttachments(doc.id);
                           }
                           setTitle(doc.title);
                           setMataPelajaran(doc.content?.identitas?.mataPelajaran || "");

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
+    "test": "node --test --experimental-strip-types lib/utils/attachmentPreview.test.mjs lib/utils/buildInfo.test.mjs",
     "start": "next start",
     "lint": "eslint",
     "seed": "knex seed:run",

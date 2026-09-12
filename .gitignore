@@ -46,6 +46,7 @@ storage/
 # Tambahan khusus untuk menghemat token AI
 .continue/
 .vscode/
+.worktrees/
 package-lock.json
 pnpm-lock.yaml
 yarn.lock

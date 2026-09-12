@@ -38,7 +38,7 @@ export function RPMAttachmentPrintList({
   }
 
   return (
-    <div className={`space-y-3 pt-3 text-gray-900 ${className}`}>
+    <section id="rpm-lampiran" className={`scroll-mt-4 space-y-3 pt-3 text-gray-900 ${className}`}>
       <PrintSectionHeader
         title="Lampiran Dokumen"
         variant="primary"
@@ -91,6 +91,6 @@ export function RPMAttachmentPrintList({
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
