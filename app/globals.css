@@ -120,6 +120,19 @@ body {
   animation: fadeIn 200ms ease-out both;
 }
 
+.rpm-attachment-pdf-page {
+  overflow: visible;
+}
+
+.rpm-attachment-pdf-page canvas,
+.rpm-attachment-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 /* ==========================================================================
    PRINT ENGINE STYLES (@media print)
    Ensure clean print output: hide all navigation, toolbars, sidebars, chrome
@@ -239,6 +252,28 @@ body {
   .print-break-after-avoid {
     break-after: avoid !important;
     page-break-after: avoid !important;
+  }
+
+  .rpm-attachment-start {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  .rpm-attachment-pdf-page {
+    overflow: visible !important;
+  }
+
+  .rpm-attachment-pdf-page-break-after {
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  .rpm-attachment-pdf-page canvas,
+  .rpm-attachment-image {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    object-fit: contain !important;
   }
 
   /* 9. Trisula report sheet natural flow (allows multi-page continuation without artificial clamping) */

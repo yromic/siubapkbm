@@ -45,3 +45,7 @@ export function summarizeAttachmentReadiness(
     errorCount,
   };
 }
+
+export function shouldBreakAfterPdfPage(pageIndex: number, pageCount: number): boolean {
+  return pageIndex < pageCount - 1;
+}
