@@ -11,6 +11,13 @@ import {
   shouldBreakAfterPdfPage,
   summarizeAttachmentReadiness,
 } from "@/lib/utils/rpmAttachmentRendering";
+import {
+  getAttachmentRenderGenerationKey,
+  getAttachmentRenderSourceKey,
+  getSafeAttachmentFileTypeLabel,
+  isCurrentAttachmentRenderGeneration,
+  resetPdfPageContainer,
+} from "@/lib/utils/rpmAttachmentRendererLifecycle";
 import { RPMAttachment } from "@/types/rpmAttachment";
 
 interface RPMAttachmentDocumentPagesProps {
@@ -21,6 +28,7 @@ interface RPMAttachmentDocumentPagesProps {
 interface AttachmentContentProps {
   attachment: RPMAttachment;
   stateKey: string;
+  renderGeneration: number;
   onStatusChange: (stateKey: string, status: AttachmentContentStatus) => void;
 }
 
@@ -28,15 +36,16 @@ function safeFilename(attachment: RPMAttachment): string {
   return attachment.originalFilename.trim() || "Berkas lampiran";
 }
 
-function attachmentStateKey(attachment: RPMAttachment): string {
-  return `${attachment.id}:${attachment.mimeType}:${attachment.previewUrl ?? ""}`;
-}
-
-function logRenderFailure(attachment: RPMAttachment, operation: string, error: unknown) {
+function logRenderFailure(
+  documentId: string,
+  attachmentId: string,
+  operation: string,
+  error: unknown,
+) {
   console.error("RPM attachment render failed", {
     module: "RPMAttachmentDocumentPages",
-    documentId: attachment.documentId,
-    attachmentId: attachment.id,
+    documentId,
+    attachmentId,
     operation,
     error: error instanceof Error ? error.name : "UNKNOWN_ERROR",
   });
@@ -64,8 +73,24 @@ function AttachmentError({
   );
 }
 
-function PdfAttachmentContent({ attachment, stateKey, onStatusChange }: AttachmentContentProps) {
+function PdfAttachmentContent({
+  attachment,
+  stateKey,
+  renderGeneration,
+  onStatusChange,
+}: AttachmentContentProps) {
   const pagesRef = useRef<HTMLDivElement>(null);
+  const activeGenerationRef = useRef<number | null>(null);
+  const { documentId, id: attachmentId, previewUrl } = attachment;
+
+  const reportStatus = useCallback(
+    (status: AttachmentContentStatus) => {
+      if (isCurrentAttachmentRenderGeneration(activeGenerationRef.current, renderGeneration)) {
+        onStatusChange(stateKey, status);
+      }
+    },
+    [onStatusChange, renderGeneration, stateKey],
+  );
 
   useEffect(() => {
     let active = true;
@@ -74,14 +99,17 @@ function PdfAttachmentContent({ attachment, stateKey, onStatusChange }: Attachme
     let loadingTask: ReturnType<typeof pdfjs.getDocument> | undefined;
     let documentProxy: Awaited<ReturnType<typeof pdfjs.getDocument>["promise"]> | undefined;
     const renderTasks: Array<{ cancel: () => void }> = [];
+    const pagesContainer = pagesRef.current;
+    activeGenerationRef.current = renderGeneration;
+    resetPdfPageContainer(pagesContainer);
 
     async function renderPdf() {
-      onStatusChange(stateKey, "loading");
+      reportStatus("loading");
 
       try {
-        if (!attachment.previewUrl) throw new Error("ATTACHMENT_PREVIEW_URL_MISSING");
+        if (!previewUrl) throw new Error("ATTACHMENT_PREVIEW_URL_MISSING");
 
-        const response = await fetch(attachment.previewUrl, {
+        const response = await fetch(previewUrl, {
           credentials: "same-origin",
           signal: abortController.signal,
         });
@@ -113,7 +141,8 @@ function PdfAttachmentContent({ attachment, stateKey, onStatusChange }: Attachme
             pageElement.classList.add("rpm-attachment-pdf-page-break-after");
           }
           pageElement.appendChild(canvas);
-          pagesRef.current?.appendChild(pageElement);
+          if (!pagesContainer) return;
+          pagesContainer.appendChild(pageElement);
 
           operation = "render-page";
           const renderTask = page.render({ canvas, viewport });
@@ -122,11 +151,11 @@ function PdfAttachmentContent({ attachment, stateKey, onStatusChange }: Attachme
           if (!active) return;
         }
 
-        if (active) onStatusChange(stateKey, "ready");
+        if (active) reportStatus("ready");
       } catch (error) {
-        if (active) {
-          logRenderFailure(attachment, operation, error);
-          onStatusChange(stateKey, "error");
+        if (active && isCurrentAttachmentRenderGeneration(activeGenerationRef.current, renderGeneration)) {
+          logRenderFailure(documentId, attachmentId, operation, error);
+          reportStatus("error");
         }
       }
     }
@@ -135,36 +164,66 @@ function PdfAttachmentContent({ attachment, stateKey, onStatusChange }: Attachme
 
     return () => {
       active = false;
+      if (isCurrentAttachmentRenderGeneration(activeGenerationRef.current, renderGeneration)) {
+        activeGenerationRef.current = null;
+      }
       abortController.abort();
       for (const task of renderTasks) task.cancel();
-      void loadingTask?.destroy();
+      resetPdfPageContainer(pagesContainer);
+      void loadingTask?.destroy().catch((error) => {
+        logRenderFailure(documentId, attachmentId, "destroy-pdf", error);
+      });
     };
-  }, [attachment, onStatusChange, stateKey]);
+  }, [attachmentId, documentId, previewUrl, renderGeneration, reportStatus]);
 
   return <div ref={pagesRef} className="rpm-attachment-pdf-pages" />;
 }
 
-function ImageAttachmentContent({ attachment, stateKey, onStatusChange }: AttachmentContentProps) {
-  useEffect(() => {
-    if (!attachment.previewUrl) {
-      logRenderFailure(attachment, "load-image", new Error("ATTACHMENT_PREVIEW_URL_MISSING"));
-      onStatusChange(stateKey, "error");
-      return;
-    }
-    onStatusChange(stateKey, "loading");
-  }, [attachment, onStatusChange, stateKey]);
+function ImageAttachmentContent({
+  attachment,
+  stateKey,
+  renderGeneration,
+  onStatusChange,
+}: AttachmentContentProps) {
+  const activeGenerationRef = useRef<number | null>(null);
+  const { documentId, id: attachmentId, previewUrl } = attachment;
 
-  if (!attachment.previewUrl) return null;
+  const reportStatus = useCallback(
+    (status: AttachmentContentStatus) => {
+      if (isCurrentAttachmentRenderGeneration(activeGenerationRef.current, renderGeneration)) {
+        onStatusChange(stateKey, status);
+      }
+    },
+    [onStatusChange, renderGeneration, stateKey],
+  );
+
+  useEffect(() => {
+    activeGenerationRef.current = renderGeneration;
+    if (!previewUrl) {
+      logRenderFailure(documentId, attachmentId, "load-image", new Error("ATTACHMENT_PREVIEW_URL_MISSING"));
+      reportStatus("error");
+    } else {
+      reportStatus("loading");
+    }
+
+    return () => {
+      if (isCurrentAttachmentRenderGeneration(activeGenerationRef.current, renderGeneration)) {
+        activeGenerationRef.current = null;
+      }
+    };
+  }, [attachmentId, documentId, previewUrl, renderGeneration, reportStatus]);
+
+  if (!previewUrl) return null;
 
   return (
     <img
-      src={attachment.previewUrl}
+      src={previewUrl}
       alt={attachment.title || safeFilename(attachment)}
       className="rpm-attachment-image"
-      onLoad={() => onStatusChange(stateKey, "ready")}
+      onLoad={() => reportStatus("ready")}
       onError={() => {
-        logRenderFailure(attachment, "load-image", new Error("ATTACHMENT_IMAGE_LOAD_FAILED"));
-        onStatusChange(stateKey, "error");
+        logRenderFailure(documentId, attachmentId, "load-image", new Error("ATTACHMENT_IMAGE_LOAD_FAILED"));
+        reportStatus("error");
       }}
     />
   );
@@ -178,6 +237,9 @@ function ExternalAttachmentFallback({ attachment }: { attachment: RPMAttachment 
         <div>
           <p className="font-semibold">{attachment.title || safeFilename(attachment)}</p>
           <p className="mt-1 text-xs text-gray-600">Berkas: {safeFilename(attachment)}</p>
+          <p className="mt-1 text-xs text-gray-600">
+            Jenis berkas: {getSafeAttachmentFileTypeLabel(attachment.mimeType, attachment.originalFilename)}
+          </p>
           <p className="mt-2 text-xs text-gray-700">
             Dokumen ini tersedia sebagai berkas terpisah dan tidak dapat ditampilkan di dalam cetakan.
           </p>
@@ -208,7 +270,7 @@ export function RPMAttachmentDocumentPages({
       summarizeAttachmentReadiness(
         sortedAttachments.map((attachment) => ({
           embeddable: classifyEmbeddableAttachment(attachment.mimeType) !== "external",
-          status: statuses[attachmentStateKey(attachment)] ?? "idle",
+          status: statuses[getAttachmentRenderSourceKey(attachment)] ?? "idle",
         })),
       ),
     [sortedAttachments, statuses],
@@ -219,11 +281,11 @@ export function RPMAttachmentDocumentPages({
   }, [onReadinessChange, readiness]);
 
   const retryAttachment = useCallback((attachment: RPMAttachment) => {
-    const stateKey = attachmentStateKey(attachment);
+    const stateKey = getAttachmentRenderSourceKey(attachment);
     setStatuses((current) => ({ ...current, [stateKey]: "idle" }));
     setRetryGenerations((current) => ({
       ...current,
-      [attachment.id]: (current[attachment.id] ?? 0) + 1,
+      [stateKey]: (current[stateKey] ?? 0) + 1,
     }));
   }, []);
 
@@ -233,10 +295,10 @@ export function RPMAttachmentDocumentPages({
     <section id="rpm-lampiran" className="rpm-attachment-document-pages space-y-4 text-gray-900">
       {sortedAttachments.map((attachment, index) => {
         const kind = classifyEmbeddableAttachment(attachment.mimeType);
-        const stateKey = attachmentStateKey(attachment);
+        const stateKey = getAttachmentRenderSourceKey(attachment);
         const status = statuses[stateKey] ?? "idle";
-        const retryGeneration = retryGenerations[attachment.id] ?? 0;
-        const contentKey = `${stateKey}:${retryGeneration}`;
+        const retryGeneration = retryGenerations[stateKey] ?? 0;
+        const contentKey = getAttachmentRenderGenerationKey(attachment, retryGeneration);
 
         return (
           <article key={attachment.id} className="rpm-attachment-start space-y-3">
@@ -258,6 +320,7 @@ export function RPMAttachmentDocumentPages({
                 key={contentKey}
                 attachment={attachment}
                 stateKey={stateKey}
+                renderGeneration={retryGeneration}
                 onStatusChange={setAttachmentStatus}
               />
             ) : (
@@ -265,6 +328,7 @@ export function RPMAttachmentDocumentPages({
                 key={contentKey}
                 attachment={attachment}
                 stateKey={stateKey}
+                renderGeneration={retryGeneration}
                 onStatusChange={setAttachmentStatus}
               />
             )}
