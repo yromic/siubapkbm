@@ -15,9 +15,18 @@ import {
   normalizeActivityItem,
   formatActivityItemWithTags,
 } from "@/lib/utils/rpmUtils";
+import { isUuid } from "@/lib/utils/academicUtils";
 
 export type { RPMActivityItem, RPMActivityInput, DplKurnasValue, RPMRubrikItem, RPMKegiatanMetadata };
 export { normalizeActivityItem, formatActivityItemWithTags, VALID_KURNAS, VALID_TRISULA, VALID_FITRAH, VALID_SAHABAT, VALID_UTSMAN };
+
+export type RPMGenerateTarget =
+  | "ALL"
+  | "PEMAHAMAN_BERMAKNA"
+  | "PERTANYAAN_PEMANTIK"
+  | "MEDIA_AJAR"
+  | "SUMBER_BELAJAR"
+  | "PESAN_ORANG_TUA";
 
 export interface RPMGenerateParams {
   mataPelajaran: string;
@@ -32,6 +41,7 @@ export interface RPMGenerateParams {
   capaianPembelajaran?: string;  // existing CP if already selected
   tujuanPembelajaran?: string[]; // existing TP list if already selected
   karakterFitrah?: string[];     // selected character values (for rubric generation)
+  target?: RPMGenerateTarget;    // default: "ALL"
 }
 
 export interface RPMContent {
@@ -86,6 +96,8 @@ export interface RPMContent {
 export interface RPMGenerationResult {
   source: AIGenerationSource;
   content: RPMContent;
+  target?: RPMGenerateTarget;
+  data?: string | string[];
   fallbackReason?: AIFallbackReason;
   usage?: AIUsageSnapshot;
 }
@@ -108,17 +120,16 @@ export function getFallbackLocalRPMTemplate(
     perluBimbingan: `Santri belum menunjukkan sikap ${k.toLowerCase()} secara konsisten dan masih memerlukan dorongan serta bimbingan dari tutor.`,
   }));
 
-  return {
-    source: 'FALLBACK',
-    fallbackReason: reason,
-    usage,
-    content: {
-      identitas: {
+  const safeSemester = params.semester && !isUuid(params.semester) ? params.semester : undefined;
+  const safeAcademicYear = params.academicYear && !isUuid(params.academicYear) ? params.academicYear : "";
+
+  const fullContent: RPMContent = {
+    identitas: {
         mataPelajaran: params.mataPelajaran,
         kelasRombel: params.kelasRombel,
         tingkatFase: params.tingkatFase,
-        semesterTahun: params.semester ? `Semester ${params.semester}` : "Semester Ganjil",
-        tahunAjaran: params.academicYear || "",
+        semesterTahun: safeSemester ? `Semester ${safeSemester}` : "Semester Ganjil",
+        tahunAjaran: safeAcademicYear,
         alokasiWaktu: params.alokasiWaktu,
         modulTopik: params.modulTopik,
         trisulaKompetensi: ["Literasi", "Numerasi", "Diniyyah"],
@@ -214,11 +225,356 @@ export function getFallbackLocalRPMTemplate(
           rubrikKarakterFitrah: rubrikRows,
         },
       },
-    },
+    };
+
+  let selectiveData: string | string[] | undefined = undefined;
+  if (params.target === 'PEMAHAMAN_BERMAKNA') {
+    selectiveData = fullContent.desainPembelajaran.pemahamanBermakna;
+  } else if (params.target === 'PERTANYAAN_PEMANTIK') {
+    selectiveData = fullContent.desainPembelajaran.pertanyaanPemantik;
+  } else if (params.target === 'MEDIA_AJAR') {
+    selectiveData = fullContent.desainPembelajaran.mediaAjar;
+  } else if (params.target === 'SUMBER_BELAJAR') {
+    selectiveData = fullContent.desainPembelajaran.sumberBelajar;
+  } else if (params.target === 'PESAN_ORANG_TUA') {
+    selectiveData = fullContent.desainPembelajaran.asesmen.pesanEdukasiOrangTua;
+  }
+
+  return {
+    source: 'FALLBACK',
+    target: params.target || 'ALL',
+    data: selectiveData,
+    content: fullContent,
+    fallbackReason: reason,
+    usage,
   };
 }
 
+export async function generateSelectiveRPMFieldWithAI(
+  params: RPMGenerateParams
+): Promise<RPMGenerationResult> {
+  const { apiKey, model, endpointUrl } = getGeminiConfig();
+
+  if (!apiKey || !endpointUrl) {
+    return getFallbackLocalRPMTemplate(params, 'NO_API_KEY');
+  }
+
+  // 1. Guard check local AI usage limits
+  const usageCheck = await checkAIUsageLimit(model);
+  if (!usageCheck.allowed && usageCheck.blockedReason) {
+    await recordAIUsageAttempt({
+      userId: params.userId,
+      feature: 'RPM_GENERATOR',
+      model,
+      source: 'FALLBACK',
+      providerErrorReason: usageCheck.blockedReason,
+      retryAttempt: 1,
+    });
+    return getFallbackLocalRPMTemplate(params, usageCheck.blockedReason, usageCheck.snapshot);
+  }
+
+  const target = params.target || 'ALL';
+  const tpContext = (params.tujuanPembelajaran || []).filter(Boolean).slice(0, 3).join('; ') || '-';
+  const cpContext = params.capaianPembelajaran ? params.capaianPembelajaran.substring(0, 200) : '-';
+  const karakterContext = (params.karakterFitrah || ["Keimanan", "Kemandirian", "Adab & Akhlak", "Kreativitas"]).join(', ');
+
+  let prompt = '';
+  if (target === 'PEMAHAMAN_BERMAKNA') {
+    prompt = `
+Anda adalah pakar kurikulum dan pedagogi Islam terpadu (SIUBA / Kurikulum Merdeka).
+Tugas Anda: Buatlah TEPAT 1 PARAGRAF RINGKAS DAN KONTEKSTUAL (±2–4 kalimat) mengenai "Pemahaman Bermakna (Deep Insight)" untuk rancangan pemelajaran berikut:
+- Mata Pelajaran: ${params.mataPelajaran}
+- Fase / Kelas: ${params.tingkatFase} (${params.kelasRombel})
+- Topik / Modul: ${params.modulTopik}
+- Capaian Pembelajaran (CP): ${cpContext}
+- Tujuan Pembelajaran (TP): ${tpContext}
+- Karakter FITRAH: ${karakterContext}
+
+PANDUAN PEDAGOGIS:
+1. Jelaskan pemahaman esensial apa yang akan melekat pada sanubari santri dalam jangka panjang setelah mempelajari topik ini.
+2. Jelaskan mengapa hal ini penting dan bagaimana korelasinya dengan kehidupan nyata serta ketaatan beribadah / akhlak.
+3. Hindari kalimat klise atau sekadar mengulang definisi materi.
+4. Format output JSON murni tanpa markdown:
+{
+  "pemahamanBermakna": "Satu paragraf utuh (2-4 kalimat) pemahaman bermakna mendalam..."
+}
+    `.trim();
+  } else if (target === 'PERTANYAAN_PEMANTIK') {
+    prompt = `
+Anda adalah pakar kurikulum dan pedagogi Islam terpadu (SIUBA / Kurikulum Merdeka).
+Tugas Anda: Buatlah TEPAT 2–3 "Pertanyaan Pemantik (Curiosity Triggers)" untuk memantik rasa ingin tahu santri pada topik berikut:
+- Mata Pelajaran: ${params.mataPelajaran}
+- Fase / Kelas: ${params.tingkatFase} (${params.kelasRombel})
+- Topik / Modul: ${params.modulTopik}
+- Tujuan Pembelajaran (TP): ${tpContext}
+
+PANDUAN PEDAGOGIS:
+1. Tepat 2–3 pertanyaan terbuka (open-ended).
+2. Sesuai usia anak fase ${params.tingkatFase}.
+3. Memantik rasa ingin tahu dan penalaran kritis.
+4. BUKAN pertanyaan tes/kuis fakta (bukan: "Apa pengertian dari...", "Sebutkan 3 jenis...").
+5. Format output JSON murni tanpa markdown:
+{
+  "pertanyaanPemantik": [
+    "Pertanyaan terbuka 1?",
+    "Pertanyaan terbuka 2?",
+    "Pertanyaan terbuka 3?"
+  ]
+}
+    `.trim();
+  } else if (target === 'MEDIA_AJAR') {
+    prompt = `
+Anda adalah pakar kurikulum dan sarana pembelajaran praktis (SIUBA / Kurikulum Merdeka).
+Tugas Anda: Buatlah 3–5 rekomendasi "Media Ajar / Sarana" yang konkret, berbiaya rendah, dan realistis di sekolah/madrasah untuk topik berikut:
+- Mata Pelajaran: ${params.mataPelajaran}
+- Fase / Kelas: ${params.tingkatFase} (${params.kelasRombel})
+- Topik / Modul: ${params.modulTopik}
+
+PANDUAN PEDAGOGIS:
+1. Rekomendasikan 3–5 media konkret & praktis (contoh: LKPD eksplorasi kontekstual, flashcard/kartu konsep, diagram/infografis visual, benda/alat peraga sederhana sekitar kelas, media digital interaktif sederhana).
+2. Jangan merekomendasikan alat mahal/mewah yang tidak realistis.
+3. Format output JSON murni tanpa markdown:
+{
+  "mediaAjar": [
+    "Media 1",
+    "Media 2",
+    "Media 3",
+    "Media 4"
+  ]
+}
+    `.trim();
+  } else if (target === 'SUMBER_BELAJAR') {
+    prompt = `
+Anda adalah pakar kurikulum dan rujukan belajar (SIUBA / Kurikulum Merdeka).
+Tugas Anda: Buatlah 3–5 "Sumber Belajar / Rujukan" yang realistis dan kredibel untuk topik berikut:
+- Mata Pelajaran: ${params.mataPelajaran}
+- Fase / Kelas: ${params.tingkatFase} (${params.kelasRombel})
+- Topik / Modul: ${params.modulTopik}
+
+PANDUAN PEDAGOGIS:
+1. Rekomendasikan 3–5 sumber belajar yang nyata (misal: Buku Teks Mata Pelajaran ${params.mataPelajaran} Fase ${params.tingkatFase}, Modul Ajar Tematik SIUBA, Lingkungan sekitar dan observasi langsung, Referensi digital terpercaya, Dalil Al-Qur'an/Hadits yang relevan jika sesuai konteks).
+2. JANGAN mengarang judul buku fiktif beserta nama pengarang atau tautan URL palsu.
+3. Format output JSON murni tanpa markdown:
+{
+  "sumberBelajar": [
+    "Sumber 1",
+    "Sumber 2",
+    "Sumber 3",
+    "Sumber 4"
+  ]
+}
+    `.trim();
+  } else if (target === 'PESAN_ORANG_TUA') {
+    prompt = `
+Anda adalah pakar parenting Islami dan kemitraan madrasatul ula (sekolah & orang tua).
+Tugas Anda: Buatlah TEPAT 1 PARAGRAF "Pesan Edukasi Orang Tua (Madrasatul Ula)" untuk mendampingi santri di rumah pada materi berikut:
+- Mata Pelajaran: ${params.mataPelajaran}
+- Fase / Kelas: ${params.tingkatFase} (${params.kelasRombel})
+- Topik / Modul: ${params.modulTopik}
+- Tujuan Pembelajaran (TP): ${tpContext}
+- Nilai Karakter FITRAH: ${karakterContext}
+
+PANDUAN PEDAGOGIS:
+1. Paragraf komunikatif, hangat, dan solutif bagi orang tua (±2–4 kalimat).
+2. Berikan aksi sederhana yang dapat dilakukan orang tua di rumah untuk memperkuat materi dan pembiasaan adab baik.
+3. Hindari bahasa yang menggurui atau terlalu teoritis.
+4. Format output JSON murni tanpa markdown:
+{
+  "pesanEdukasiOrangTua": "Satu paragraf panduan pendampingan orang tua di rumah..."
+}
+    `.trim();
+  } else {
+    return getFallbackLocalRPMTemplate(params, 'UNKNOWN');
+  }
+
+  const maxRetries = 2;
+  let attempt = 0;
+  let lastFallbackReason: AIFallbackReason = 'UNKNOWN';
+
+  while (attempt < maxRetries) {
+    attempt++;
+    const reqStartedAt = new Date();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const response = await fetch(endpointUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      clearTimeout(timeoutId);
+      const durationMs = Date.now() - reqStartedAt.getTime();
+
+      if (response.status === 429) {
+        const rawErrText = await response.text().catch(() => '');
+        const classified = classifyProvider429(response.status, rawErrText);
+        lastFallbackReason = classified;
+
+        await recordAIUsageAttempt({
+          userId: params.userId,
+          feature: 'RPM_GENERATOR',
+          model,
+          source: 'FALLBACK',
+          providerHttpStatus: 429,
+          providerErrorReason: classified,
+          durationMs,
+          retryAttempt: attempt,
+          requestStartedAt: reqStartedAt,
+        });
+
+        if (classified === 'DAILY_QUOTA') {
+          return getFallbackLocalRPMTemplate(params, 'DAILY_QUOTA', usageCheck.snapshot);
+        }
+
+        if (attempt < maxRetries) {
+          const backoffDelay = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+          continue;
+        }
+
+        return getFallbackLocalRPMTemplate(params, 'RATE_LIMIT', usageCheck.snapshot);
+      }
+
+      if (response.status >= 500 || !response.ok) {
+        lastFallbackReason = 'HTTP_ERROR';
+        await recordAIUsageAttempt({
+          userId: params.userId,
+          feature: 'RPM_GENERATOR',
+          model,
+          source: 'FALLBACK',
+          providerHttpStatus: response.status,
+          providerErrorReason: 'HTTP_ERROR',
+          durationMs,
+          retryAttempt: attempt,
+          requestStartedAt: reqStartedAt,
+        });
+
+        if (attempt < maxRetries) {
+          const backoffDelay = Math.pow(2, attempt) * 1000;
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+          continue;
+        }
+        return getFallbackLocalRPMTemplate(params, 'HTTP_ERROR', usageCheck.snapshot);
+      }
+
+      const data = await response.json();
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const cleanedText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      let parsed: any;
+
+      try {
+        parsed = JSON.parse(cleanedText);
+      } catch {
+        await recordAIUsageAttempt({
+          userId: params.userId,
+          feature: 'RPM_GENERATOR',
+          model,
+          source: 'FALLBACK',
+          providerHttpStatus: 200,
+          providerErrorReason: 'INVALID_JSON',
+          durationMs,
+          retryAttempt: attempt,
+          requestStartedAt: reqStartedAt,
+        });
+        return getFallbackLocalRPMTemplate(params, 'INVALID_JSON', usageCheck.snapshot);
+      }
+
+      let extractedData: string | string[] | undefined;
+      const fallbackResult = getFallbackLocalRPMTemplate(params, 'UNKNOWN', usageCheck.snapshot);
+      const resultingContent = fallbackResult.content;
+
+      if (target === 'PEMAHAMAN_BERMAKNA') {
+        const text = typeof parsed.pemahamanBermakna === 'string' ? parsed.pemahamanBermakna.trim() : undefined;
+        if (!text) throw new Error("Missing pemahamanBermakna");
+        extractedData = text;
+        resultingContent.desainPembelajaran.pemahamanBermakna = text;
+      } else if (target === 'PERTANYAAN_PEMANTIK') {
+        const list = Array.isArray(parsed.pertanyaanPemantik)
+          ? parsed.pertanyaanPemantik.filter((p: any) => typeof p === 'string' && p.trim().length > 0)
+          : [];
+        if (list.length === 0) throw new Error("Missing pertanyaanPemantik");
+        extractedData = list;
+        resultingContent.desainPembelajaran.pertanyaanPemantik = list;
+      } else if (target === 'MEDIA_AJAR') {
+        const list = Array.isArray(parsed.mediaAjar)
+          ? parsed.mediaAjar.filter((m: any) => typeof m === 'string' && m.trim().length > 0)
+          : [];
+        if (list.length === 0) throw new Error("Missing mediaAjar");
+        extractedData = list;
+        resultingContent.desainPembelajaran.mediaAjar = list;
+      } else if (target === 'SUMBER_BELAJAR') {
+        const list = Array.isArray(parsed.sumberBelajar)
+          ? parsed.sumberBelajar.filter((s: any) => typeof s === 'string' && s.trim().length > 0)
+          : [];
+        if (list.length === 0) throw new Error("Missing sumberBelajar");
+        extractedData = list;
+        resultingContent.desainPembelajaran.sumberBelajar = list;
+      } else if (target === 'PESAN_ORANG_TUA') {
+        const text = typeof parsed.pesanEdukasiOrangTua === 'string'
+          ? parsed.pesanEdukasiOrangTua.trim()
+          : typeof parsed.pesanOrangTua === 'string'
+          ? parsed.pesanOrangTua.trim()
+          : undefined;
+        if (!text) throw new Error("Missing pesanEdukasiOrangTua");
+        extractedData = text;
+        resultingContent.desainPembelajaran.asesmen.pesanEdukasiOrangTua = text;
+      }
+
+      await recordAIUsageAttempt({
+        userId: params.userId,
+        feature: 'RPM_GENERATOR',
+        model,
+        source: 'GEMINI',
+        providerHttpStatus: 200,
+        durationMs,
+        retryAttempt: attempt,
+        requestStartedAt: reqStartedAt,
+      });
+
+      return {
+        source: 'GEMINI',
+        target,
+        data: extractedData,
+        content: resultingContent,
+        usage: usageCheck.snapshot,
+      };
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastFallbackReason = controller.signal.aborted ? 'TIMEOUT' : 'NETWORK_ERROR';
+      const durationMs = Date.now() - reqStartedAt.getTime();
+
+      await recordAIUsageAttempt({
+        userId: params.userId,
+        feature: 'RPM_GENERATOR',
+        model,
+        source: 'FALLBACK',
+        providerErrorReason: lastFallbackReason,
+        durationMs,
+        retryAttempt: attempt,
+        requestStartedAt: reqStartedAt,
+      });
+
+      if (attempt >= maxRetries) {
+        return getFallbackLocalRPMTemplate(params, lastFallbackReason, usageCheck.snapshot);
+      }
+      const backoffDelay = Math.pow(2, attempt) * 1000;
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+    }
+  }
+
+  return getFallbackLocalRPMTemplate(params, lastFallbackReason, usageCheck.snapshot);
+}
+
 export async function generateRPMContentWithAI(params: RPMGenerateParams): Promise<RPMGenerationResult> {
+  if (params.target && params.target !== 'ALL') {
+    return generateSelectiveRPMFieldWithAI(params);
+  }
+
   const { apiKey, model, endpointUrl } = getGeminiConfig();
 
   if (!apiKey || !endpointUrl) {
@@ -248,9 +604,12 @@ export async function generateRPMContentWithAI(params: RPMGenerateParams): Promi
     ? params.karakterFitrah
     : ["Keimanan", "Kemandirian", "Adab & Akhlak", "Kreativitas"];
 
+  const safeSemester = params.semester && !isUuid(params.semester) ? params.semester : undefined;
+  const safeAcademicYear = params.academicYear && !isUuid(params.academicYear) ? params.academicYear : undefined;
+
   const contextInfo = [
-    params.semester ? `- Semester: ${params.semester}` : '',
-    params.academicYear ? `- Tahun Ajaran: ${params.academicYear}` : '',
+    safeSemester ? `- Semester: ${safeSemester}` : '',
+    safeAcademicYear ? `- Tahun Ajaran: ${safeAcademicYear}` : '',
     params.capaianPembelajaran ? `- CP yang sudah dipilih: ${params.capaianPembelajaran.substring(0, 200)}` : '',
     params.tujuanPembelajaran && params.tujuanPembelajaran.length > 0
       ? `- TP yang sudah ada: ${params.tujuanPembelajaran.slice(0, 3).join('; ')}` : '',
@@ -497,6 +856,14 @@ Kembalikan respon DALAM FORMAT JSON PRESIS DENGAN STRUKTUR BERIKUT:
       // Ensure trisulaKompetensi has all three pillars
       if (!parsed.identitas.trisulaKompetensi || parsed.identitas.trisulaKompetensi.length === 0) {
         parsed.identitas.trisulaKompetensi = ["Literasi", "Numerasi", "Diniyyah"];
+      }
+
+      // Guard: Ensure AI output does not overwrite or leak UUIDs into identity period snapshots
+      if (isUuid(parsed.identitas?.tahunAjaran)) {
+        parsed.identitas.tahunAjaran = safeAcademicYear || "";
+      }
+      if (isUuid(parsed.identitas?.semesterTahun)) {
+        parsed.identitas.semesterTahun = safeSemester ? `Semester ${safeSemester}` : "";
       }
 
       // Guard: AI must not override authoritative context fields

@@ -13,8 +13,23 @@ export async function POST(req: NextRequest) {
       try {
         const body = await req.json();
 
-        if (typeof body.score !== "number" || isNaN(body.score)) {
-          return errorResponse("Nilai numerik wajib diisi.", "ERR_VALIDATION", 400);
+        const numScore =
+          typeof body.score === "number" && !isNaN(body.score)
+            ? body.score
+            : body.score !== null && body.score !== undefined && !isNaN(Number(body.score))
+            ? Number(body.score)
+            : null;
+
+        if (numScore === null && (!body.observationText || body.observationText.trim().length < 5)) {
+          return successResponse(
+            {
+              source: "FALLBACK",
+              insufficientEvidence: true,
+              deskripsi: "Belum terdapat bukti asesmen yang cukup untuk merumuskan deskripsi ketercapaian.",
+              rekomendasi: "Lengkapi nilai pilar atau catatan pengamatan terlebih dahulu.",
+            },
+            "Bukti asesmen belum mencukupi untuk AI."
+          );
         }
 
         if (!body.studentName || !body.pillar) {
@@ -25,9 +40,10 @@ export async function POST(req: NextRequest) {
           studentName: body.studentName,
           pillar: body.pillar,
           fase: body.fase || "Fase C",
-          score: body.score,
+          score: numScore,
           cpText: body.cpText || null,
           tps: Array.isArray(body.tps) ? body.tps : [],
+          observationText: body.observationText || null,
           userId: authenticatedReq.user?.id,
         });
 

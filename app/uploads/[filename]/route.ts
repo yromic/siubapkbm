@@ -16,6 +16,11 @@ export async function GET(
   // Prevent directory traversal attacks
   const safeFilename = path.basename(filename);
 
+  // Private RPM attachments must never be served via the public unauthenticated uploads route
+  if (safeFilename.startsWith('attachment_') || safeFilename.includes('rpm_attachments')) {
+    return new NextResponse('File Not Found', { status: 404 });
+  }
+
   // Check location for the uploaded file
   for (const filePath of [
     path.join(process.env.UPLOADS_DIR || path.join(process.cwd(), 'storage', 'uploads'), safeFilename),

@@ -12,21 +12,29 @@ export async function POST(req: NextRequest) {
       try {
         const body = await req.json();
 
-        if (!body.mataPelajaran || !body.modulTopik || !body.alokasiWaktu) {
+        if (!body.mataPelajaran || !body.modulTopik) {
           return errorResponse(
-            "Mata pelajaran, topik/modul, dan alokasi waktu wajib diisi.",
+            "Mata pelajaran dan topik/modul wajib diisi.",
             "ERR_VALIDATION",
             400
           );
         }
 
+        const alokasiWaktu = Number(body.alokasiWaktu) || 70;
+
         const result = await generateRPMContentWithAI({
+          target: body.target || "ALL",
           mataPelajaran: body.mataPelajaran,
           kelasRombel: body.kelasRombel || "Kelas 5",
           tingkatFase: body.tingkatFase || "Fase C",
-          alokasiWaktu: Number(body.alokasiWaktu),
+          alokasiWaktu,
           modulTopik: body.modulTopik,
           userId: (req as any).user?.id,
+          semester: body.semester,
+          academicYear: body.academicYear,
+          capaianPembelajaran: body.capaianPembelajaran,
+          tujuanPembelajaran: Array.isArray(body.tujuanPembelajaran) ? body.tujuanPembelajaran : undefined,
+          karakterFitrah: Array.isArray(body.karakterFitrah) ? body.karakterFitrah : undefined,
         });
 
         return successResponse(result, "Rancangan RPM berhasil diproses.");

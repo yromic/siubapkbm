@@ -21,6 +21,7 @@ import { Loader2 } from "lucide-react";
 export type ButtonVariant =
   | "primary"    // bg-brand-emerald-600 — primary actions (Save, Submit)
   | "secondary"  // border + bg-white — secondary actions (Cancel, Export)
+  | "outline"    // alias for secondary / outlined action
   | "ghost"      // transparent, hover only — tertiary/nav actions
   | "destructive"; // bg-red-600 — destructive actions (Delete, Reset)
 
@@ -39,6 +40,8 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
     "bg-brand-emerald-600 text-white hover:bg-brand-emerald-700 active:bg-brand-emerald-700 shadow-sm border border-brand-emerald-700/20",
   secondary:
+    "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800",
+  outline:
     "bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800",
   ghost:
     "bg-transparent text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100",

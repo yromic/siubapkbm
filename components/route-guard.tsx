@@ -27,7 +27,7 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading, pathname, router]);
 
-  if (loading) {
+  if (loading && !checkIsPublicRoute(pathname)) {
     // Landing page gets a fun, branded loading screen instead of the generic spinner
     if (pathname === "/") {
       return <LandingLoadingScreen />;
@@ -37,4 +37,3 @@ export function RouteGuard({ children }: { children: React.ReactNode }) {
 
   return <>{children}</>;
 }
-

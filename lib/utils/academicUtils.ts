@@ -131,3 +131,194 @@ export function getScoreCategory(score: number | null | undefined): ScoreCategor
   return { label: "Perlu Bimbingan", short: "PB", colorClass: "text-rose-700 bg-rose-50 border-rose-200" };
 }
 
+/**
+ * Checks if a string conforms to standard UUID format.
+ */
+export function isUuid(val: string | null | undefined): boolean {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+}
+
+export interface AcademicPeriodResolutionContext {
+  semesters?: Array<{ id: string; name: string; academic_year_id?: string; academic_year_name?: string }>;
+  academicYears?: Array<{ id: string; name: string }>;
+}
+
+export interface ResolvedAcademicPeriod {
+  semesterId?: string;
+  semesterName: string; // e.g. "Ganjil"
+  semesterLabel: string; // e.g. "Semester Ganjil"
+  academicYearLabel: string; // e.g. "2026/2027"
+  combinedLabel: string; // e.g. "Semester Ganjil • Tahun Ajaran 2026/2027"
+}
+
+export interface AcademicPeriodResolutionParams {
+  semesterId?: string | null;
+  semesterName?: string | null;
+  semesterTahun?: string | null;
+  semesterTahunRaw?: string | null;
+  tahunAjaran?: string | null;
+  tahunAjaranRaw?: string | null;
+  masterSemesters?: Array<{ id: string; name: string; academic_year_id?: string; academic_year_name?: string }>;
+  masterAcademicYears?: Array<{ id: string; name: string }>;
+  semesters?: Array<{ id: string; name: string; academic_year_id?: string; academic_year_name?: string }>;
+  academicYears?: Array<{ id: string; name: string }>;
+}
+
+/**
+ * Resolves semester and academic year labels from IDs or legacy display values.
+ * Guarantees that raw UUIDs are never returned as user-facing labels.
+ */
+export function resolveAcademicPeriodDisplay(
+  params: AcademicPeriodResolutionParams,
+  context?: AcademicPeriodResolutionContext
+): ResolvedAcademicPeriod {
+  const semesters = context?.semesters || params.masterSemesters || params.semesters || [];
+  const academicYears = context?.academicYears || params.masterAcademicYears || params.academicYears || [];
+
+  const rawSemesterTahun = params.semesterTahun ?? params.semesterTahunRaw ?? null;
+  const rawTahunAjaran = params.tahunAjaran ?? params.tahunAjaranRaw ?? null;
+  const rawSemesterName = params.semesterName ?? null;
+
+  let resolvedSemId: string | undefined = undefined;
+  let resolvedSemName = rawSemesterName ? rawSemesterName.trim() : "";
+  let resolvedAyName = "";
+
+  // 0. If rawSemesterName is accidentally a UUID, treat it as a lookup key, not a label
+  if (isUuid(resolvedSemName)) {
+    if (!resolvedSemId) resolvedSemId = resolvedSemName;
+    resolvedSemName = "";
+  }
+
+  // 1. Resolve from semesterId if provided
+  if (params.semesterId && params.semesterId.trim().length > 0) {
+    resolvedSemId = params.semesterId.trim();
+    const semRecord = semesters.find((s) => s.id === resolvedSemId);
+    if (semRecord) {
+      if (!resolvedSemName && semRecord.name) {
+        resolvedSemName = semRecord.name;
+      }
+      if (semRecord.academic_year_name) {
+        resolvedAyName = semRecord.academic_year_name;
+      } else if (semRecord.academic_year_id) {
+        const ayRecord = academicYears.find((y) => y.id === semRecord.academic_year_id);
+        if (ayRecord?.name) {
+          resolvedAyName = ayRecord.name;
+        } else {
+          const semWithAy = semesters.find((s) => s.academic_year_id === semRecord.academic_year_id && s.academic_year_name);
+          if (semWithAy?.academic_year_name) resolvedAyName = semWithAy.academic_year_name;
+        }
+      }
+    }
+  }
+
+  // 2. Resolve or fallback for semesterTahun (uses rawSemesterTahun)
+  if (rawSemesterTahun && rawSemesterTahun.trim().length > 0) {
+    const raw = rawSemesterTahun.trim();
+    if (isUuid(raw)) {
+      // Legacy data: semesterTahun stored as UUID
+      const semRecord = semesters.find((s) => s.id === raw);
+      if (semRecord) {
+        if (!resolvedSemId) resolvedSemId = semRecord.id;
+        if (!resolvedSemName) resolvedSemName = semRecord.name || "";
+        if (!resolvedAyName) {
+          resolvedAyName = semRecord.academic_year_name || academicYears.find((y) => y.id === semRecord.academic_year_id)?.name || "";
+        }
+      } else {
+        // Maybe it was an academic_year UUID
+        const ayRecord = academicYears.find((y) => y.id === raw);
+        if (ayRecord?.name && !resolvedAyName) {
+          resolvedAyName = ayRecord.name;
+        } else {
+          const semWithAy = semesters.find((s) => s.academic_year_id === raw);
+          if (semWithAy?.academic_year_name && !resolvedAyName) {
+            resolvedAyName = semWithAy.academic_year_name;
+          }
+        }
+      }
+    } else {
+      // Check if raw is composite string e.g. "Semester Ganjil • 2026/2027" or "Semester Ganjil • Tahun Ajaran 2026/2027"
+      const compositeMatch = raw.match(/^(.*?)(?:•|—|-)\s*(?:Tahun Ajaran|TA)?\s*(\d{4}\/\d{4})/i);
+      if (compositeMatch) {
+        if (!resolvedSemName) resolvedSemName = compositeMatch[1].trim();
+        if (!resolvedAyName) resolvedAyName = compositeMatch[2].trim();
+      } else if (!resolvedSemName) {
+        resolvedSemName = raw;
+      }
+    }
+  }
+
+  // 3. Resolve or fallback for tahunAjaran (uses rawTahunAjaran)
+  if (rawTahunAjaran && rawTahunAjaran.trim().length > 0) {
+    const raw = rawTahunAjaran.trim();
+    if (isUuid(raw)) {
+      // UUID detected (e.g. legacy bug where academic_year_id was saved into tahunAjaran)
+      const ayRecord = academicYears.find((y) => y.id === raw);
+      if (ayRecord?.name) {
+        resolvedAyName = ayRecord.name;
+      } else {
+        const semWithAy = semesters.find((s) => s.academic_year_id === raw || s.id === raw);
+        if (semWithAy) {
+          if (semWithAy.academic_year_name) resolvedAyName = semWithAy.academic_year_name;
+          if (!resolvedSemName && semWithAy.name) resolvedSemName = semWithAy.name;
+          if (!resolvedSemId) resolvedSemId = semWithAy.id;
+        }
+      }
+    } else {
+      // Valid human-readable year string (e.g. "2026/2027")
+      resolvedAyName = raw;
+    }
+  }
+
+  // 4. If still no resolvedAyName, check if resolvedSemId can find academic year
+  if (!resolvedAyName && resolvedSemId) {
+    const semRecord = semesters.find((s) => s.id === resolvedSemId);
+    if (semRecord?.academic_year_name) {
+      resolvedAyName = semRecord.academic_year_name;
+    } else if (semRecord?.academic_year_id) {
+      const ayRecord = academicYears.find((y) => y.id === semRecord.academic_year_id);
+      if (ayRecord?.name) {
+        resolvedAyName = ayRecord.name;
+      } else {
+        const semWithAy = semesters.find((s) => s.academic_year_id === semRecord.academic_year_id && s.academic_year_name);
+        if (semWithAy?.academic_year_name) resolvedAyName = semWithAy.academic_year_name;
+      }
+    }
+  }
+
+  // 5. Sanitize: ensure no UUID leaks out as a label
+  if (isUuid(resolvedSemName)) resolvedSemName = "";
+  if (isUuid(resolvedAyName)) resolvedAyName = "";
+
+  // 6. Normalize semesterName (e.g. "Ganjil" without "Semester " prefix)
+  const cleanSemName = resolvedSemName.replace(/^Semester\s+/i, '').trim();
+
+  // 7. Build formatted semesterLabel
+  const semesterLabel = cleanSemName
+    ? (resolvedSemName.toLowerCase().startsWith('semester') ? resolvedSemName : `Semester ${cleanSemName}`)
+    : "-";
+
+  const academicYearLabel = resolvedAyName ? resolvedAyName.trim() : "-";
+
+  // 8. Build combinedLabel
+  let combinedLabel = "-";
+  if (semesterLabel !== "-" && academicYearLabel !== "-") {
+    combinedLabel = `${semesterLabel} • Tahun Ajaran ${academicYearLabel}`;
+  } else if (semesterLabel !== "-") {
+    combinedLabel = semesterLabel;
+  } else if (academicYearLabel !== "-") {
+    combinedLabel = `Tahun Ajaran ${academicYearLabel}`;
+  }
+
+  return {
+    semesterId: resolvedSemId,
+    semesterName: cleanSemName || (resolvedSemName !== "-" ? resolvedSemName : ""),
+    semesterLabel,
+    academicYearLabel,
+    combinedLabel,
+  };
+}
+
+export const getAcademicPeriodDisplay = resolveAcademicPeriodDisplay;
+
+

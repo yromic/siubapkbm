@@ -11,7 +11,7 @@ import {
   WifiOff, Trash2, Edit, User, BookOpen, School, ChevronRight,
   Link2, RefreshCw, Check, AlertTriangle, Sparkles, Database,
   Search, Filter, X, Bookmark, Tag, Users, BarChart3, ClipboardList,
-  GraduationCap, CheckCircle2, Clock
+  GraduationCap, CheckCircle2, Clock, HeartHandshake
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,6 +24,7 @@ import { BankTPItem } from "@/lib/utils/curriculumFilterUtils";
 import { deriveKKTPStatusFromDoc, getKKTPStatusBadge, type KKTPDocStatus } from "@/lib/utils/kktpStatusUtils";
 
 import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
+import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,6 +123,12 @@ interface KKTPItem {
       studentId?: string;
       nisn?: string | null;
       tingkatFase?: string;
+      letterhead?: {
+        id: string;
+        url: string;
+        name: string;
+        snapped_at?: string;
+      };
     };
     tpItems: TPItem[];
     catatanTutor: string;
@@ -136,6 +143,10 @@ interface KKTPItem {
 interface AppSettings {
   school_name?: string;
   school_sub_header?: string;
+  school_headmaster_name?: string;
+  school_headmaster_nip?: string;
+  active_letterhead_id?: string;
+  active_letterhead_url?: string;
 }
 
 // ─── Score helpers ─────────────────────────────────────────────────────────
@@ -792,13 +803,25 @@ export default function KKTPPage() {
         namaMurid: selectedStudentName,
         studentId: selectedStudentId,
         nisn: selectedStudentNisn || undefined,
+        // Letterhead snapshot: preserve existing (historical reprint) or capture active on new doc
+        letterhead: activeDoc?.content?.identitas?.letterhead ||
+          ((schoolSettings as any)?.active_letterhead_id
+            ? {
+                id: (schoolSettings as any).active_letterhead_id,
+                url: (schoolSettings as any).active_letterhead_url || '/branding/school-letterhead.png',
+                name: 'Kop Resmi Aktif',
+                snapped_at: new Date().toISOString(),
+              }
+            : undefined),
       },
       tpItems,
       catatanTutor,
       pesanKemitraan,
     },
   }), [title, selectedClassId, selectedClassName, selectedSubjectId, selectedSubjectName,
-      selectedStudentId, selectedStudentName, selectedStudentNisn, tpItems, catatanTutor, pesanKemitraan]);
+      selectedStudentId, selectedStudentName, selectedStudentNisn, tpItems, catatanTutor,
+      pesanKemitraan, activeDoc, schoolSettings]);
+
 
   const triggerAutoSave = useCallback(() => {
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
@@ -1758,6 +1781,9 @@ export default function KKTPPage() {
           </Button>
         </div>
 
+        {/* Petunjuk Cetak Resmi (Screen Only) */}
+        <PrintBrowserHint />
+
         {/* Dokumen Cetak List */}
         <div className="space-y-8 print:space-y-0">
           {docsToPrint.map((doc, docIdx) => {
@@ -1780,111 +1806,179 @@ export default function KKTPPage() {
               >
                 {/* KOP SURAT RESMI */}
                 <div className="mb-4">
-                  <OfficialSchoolLetterhead schoolSettings={schoolSettings} />
+                  <OfficialSchoolLetterhead
+                    src={doc.content?.identitas?.letterhead?.url || (schoolSettings as any)?.active_letterhead_url || "/branding/school-letterhead.png"}
+                    schoolSettings={schoolSettings}
+                  />
                 </div>
 
-                <div className="text-center mb-4">
-                  <h2 className="text-base font-bold uppercase underline">LEMBAR PENILAIAN KKTP</h2>
-                  <p className="text-xs text-gray-500">Kriteria Ketercapaian Tujuan Pembelajaran</p>
+                <div className="text-center mb-4 border-t-2 border-emerald-800 pt-2 print:border-emerald-800 print-break-inside-avoid">
+                  <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-emerald-950">
+                    LEMBAR PENILAIAN KKTP
+                  </h2>
+                  <p className="text-xs font-semibold text-gray-600 mt-0.5">
+                    Kriteria Ketercapaian Tujuan Pembelajaran
+                  </p>
                 </div>
 
-                {/* INFO DOKUMEN */}
-                <div className="grid grid-cols-2 gap-2 text-xs mb-4 border border-gray-300 p-3 rounded print:break-inside-avoid">
-                  <div className="space-y-1">
-                    <p><span className="font-semibold">No. Dokumen:</span> {docNumber}</p>
-                    <p><span className="font-semibold">Nama Murid:</span> {identitas.namaMurid || '-'}</p>
-                    <p><span className="font-semibold">NISN:</span> {identitas.nisn || (studentSummaries.find(s => s.student_id === identitas.studentId)?.nisn) || '-'}</p>
-                    <p><span className="font-semibold">Kelas:</span> {identitas.kelasRombel || '-'}</p>
-                  </div>
-                  <div className="space-y-1 text-right">
-                    <p><span className="font-semibold">Fase:</span> {identitas.tingkatFase || resolvePhaseByClassName(identitas.kelasRombel) || '-'}</p>
-                    <p><span className="font-semibold">Mata Pelajaran:</span> {identitas.mataPelajaran || '-'}</p>
-                    <p><span className="font-semibold">Tutor:</span> {tutorName}</p>
-                    <p><span className="font-semibold">Tanggal Cetak:</span> {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                {/* INFO DOKUMEN / IDENTITAS MURID */}
+                <div className="border border-emerald-200 rounded-lg p-3 bg-emerald-50/30 text-xs mb-4 print:border-gray-300 print:bg-transparent print-break-inside-avoid">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                    <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+                      <span className="font-semibold text-gray-600">Nama Murid</span>
+                      <span className="font-bold text-gray-900">: {identitas.namaMurid || '-'}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+                      <span className="font-semibold text-gray-600">Mata Pelajaran</span>
+                      <span className="font-bold text-gray-900">: {identitas.mataPelajaran || '-'}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+                      <span className="font-semibold text-gray-600">NISN</span>
+                      <span className="font-bold text-gray-900">: {identitas.nisn || (studentSummaries.find(s => s.student_id === identitas.studentId)?.nisn) || '-'}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+                      <span className="font-semibold text-gray-600">Fase / Kelas</span>
+                      <span className="font-bold text-gray-900">: {identitas.tingkatFase || resolvePhaseByClassName(identitas.kelasRombel) || '-'} ({identitas.kelasRombel || '-'})</span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-0.5">
+                      <span className="font-semibold text-gray-600">Tutor Pengampu</span>
+                      <span className="font-bold text-gray-900">: {tutorName}</span>
+                    </div>
+                    <div className="flex items-baseline justify-between pt-0.5">
+                      <span className="font-semibold text-gray-600">No. Dokumen</span>
+                      <span className="font-medium text-gray-700">: {docNumber}</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* TABEL TP */}
-                <table className="w-full border-collapse border border-gray-400 text-xs mb-4">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-400 p-2 text-center w-8">No</th>
-                      <th className="border border-gray-400 p-2 text-left">Tujuan Pembelajaran</th>
-                      <th className="border border-gray-400 p-2 text-center w-14">Nilai</th>
-                      <th className="border border-gray-400 p-2 text-center w-28">Kategori KKTP</th>
-                      <th className="border border-gray-400 p-2 text-left">Deskripsi Ketercapaian</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tps.map((tp, idx) => {
-                      const kat = getKategori(tp.nilai);
-                      return (
-                        <tr key={tp.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                          <td className="border border-gray-400 p-2 text-center font-semibold">{idx + 1}</td>
-                          <td className="border border-gray-400 p-2">{tp.teks || '-'}</td>
-                          <td className="border border-gray-400 p-2 text-center font-bold">{tp.nilai !== null && tp.nilai !== undefined ? tp.nilai : '-'}</td>
-                          <td className="border border-gray-400 p-2 text-center">{kat.label}</td>
-                          <td className="border border-gray-400 p-2 text-[11px] text-gray-700">
-                            {tp.deskripsi || (tp.nilai !== null && tp.nilai !== undefined ? getDeskripsi(tp.nilai, tp.teks) : 'Belum dinilai')}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    <tr className="bg-yellow-50 font-semibold">
-                      <td colSpan={2} className="border border-gray-400 p-2 text-right text-xs">Rata-Rata Akhir:</td>
-                      <td className="border border-gray-400 p-2 text-center font-bold text-base">{avg !== null ? avg : '-'}</td>
-                      <td className="border border-gray-400 p-2 text-center">{avgKategori.label}</td>
-                      <td className="border border-gray-400 p-2 text-xs text-gray-600">
-                        {avg !== null
-                          ? (avg >= 76 ? 'Murid mencapai ketuntasan minimal secara keseluruhan.' : 'Murid memerlukan bimbingan lanjutan.')
-                          : 'Sebagian atau seluruh Tujuan Pembelajaran belum dinilai.'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div className="mb-4 border border-gray-300 rounded-lg overflow-hidden">
+                  <table className="w-full border-collapse text-xs">
+                    <thead className="bg-emerald-50/70 print:bg-gray-100 text-emerald-950 print:text-gray-900 border-b border-gray-300">
+                      <tr>
+                        <th className="border-r border-gray-300 p-2 text-center w-8 font-bold">No</th>
+                        <th className="border-r border-gray-300 p-2 text-left font-bold">Tujuan Pembelajaran (TP)</th>
+                        <th className="border-r border-gray-300 p-2 text-center w-16 font-bold">Nilai</th>
+                        <th className="border-r border-gray-300 p-2 text-center w-32 font-bold">Kategori KKTP</th>
+                        <th className="p-2 text-left font-bold">Deskripsi Ketercapaian</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {tps.map((tp, idx) => {
+                        const kat = getKategori(tp.nilai);
+                        const hasScore = typeof tp.nilai === 'number';
+                        return (
+                          <tr key={tp.id} className={`print-break-inside-avoid ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/40 print:bg-transparent'}`}>
+                            <td className="border-r border-gray-300 p-2 text-center font-semibold text-gray-700">{idx + 1}</td>
+                            <td className="border-r border-gray-300 p-2 text-gray-900 leading-relaxed font-medium">{tp.teks || '-'}</td>
+                            <td className="border-r border-gray-300 p-2 text-center">
+                              {hasScore ? (
+                                <span className="font-bold text-sm text-gray-900 px-1.5 py-0.5 rounded bg-gray-50 border border-gray-200 print:border-none print:bg-transparent">
+                                  {tp.nilai}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 font-medium">-</span>
+                              )}
+                            </td>
+                            <td className="border-r border-gray-300 p-2 text-center">
+                              <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${kat.color} print:border print:bg-transparent`}>
+                                {kat.label}
+                              </span>
+                            </td>
+                            <td className="p-2 text-[11px] text-gray-800 leading-relaxed">
+                              {tp.deskripsi || (hasScore ? getDeskripsi(tp.nilai, tp.teks) : 'Belum dinilai')}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {/* Rata-Rata Row */}
+                      <tr className="bg-emerald-50/50 print:bg-gray-100 font-semibold border-t-2 border-emerald-700 print:border-gray-400 print-break-inside-avoid">
+                        <td colSpan={2} className="border-r border-gray-300 p-2 text-right text-xs font-bold text-emerald-950 print:text-black">
+                          Rata-Rata Akhir:
+                        </td>
+                        <td className="border-r border-gray-300 p-2 text-center">
+                          <span className="font-black text-sm text-emerald-950 px-1.5 py-0.5 rounded bg-emerald-100/70 border border-emerald-300 print:border-none print:bg-transparent">
+                            {avg !== null ? avg : '-'}
+                          </span>
+                        </td>
+                        <td className="border-r border-gray-300 p-2 text-center">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${avgKategori.color} print:border print:bg-transparent`}>
+                            {avgKategori.label}
+                          </span>
+                        </td>
+                        <td className="p-2 text-xs text-gray-700 leading-snug">
+                          {avg !== null
+                            ? (avg >= 76 ? 'Murid mencapai ketuntasan minimal secara keseluruhan.' : 'Murid memerlukan bimbingan lanjutan.')
+                            : 'Sebagian atau seluruh Tujuan Pembelajaran belum dinilai.'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* CATATAN TUTOR */}
-                <div className="mb-4">
-                  <p className="text-xs font-semibold mb-1">Catatan Tutor:</p>
-                  <div className="border border-gray-300 rounded p-3 min-h-[48px] text-xs text-gray-800 whitespace-pre-wrap">
-                    {doc.content?.catatanTutor || '—'}
+                <div className="mb-3 border-l-4 border-blue-500 bg-blue-50/30 p-3 rounded-r-lg print:border-blue-500 print:bg-transparent print-break-inside-avoid">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-blue-900 uppercase mb-1">
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Catatan Tutor</span>
                   </div>
+                  <p className="text-xs text-gray-800 whitespace-pre-wrap leading-relaxed pl-5">
+                    {doc.content?.catatanTutor || '—'}
+                  </p>
                 </div>
 
                 {/* PESAN KEMITRAAN */}
-                <div className="mb-6">
-                  <p className="text-xs font-semibold mb-1">Pesan Kemitraan untuk Orang Tua/Wali:</p>
-                  <div className="border border-gray-300 rounded p-3 min-h-[48px] text-xs text-gray-800 italic whitespace-pre-wrap">
-                    {doc.content?.pesanKemitraan || '—'}
+                <div className="mb-6 border-l-4 border-amber-500 bg-amber-50/40 p-3 rounded-r-lg print:border-amber-500 print:bg-transparent print-break-inside-avoid">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900 uppercase mb-1">
+                    <HeartHandshake className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Pesan Kemitraan untuk Orang Tua / Wali</span>
                   </div>
+                  <p className="text-xs text-gray-800 italic whitespace-pre-wrap leading-relaxed pl-5">
+                    {doc.content?.pesanKemitraan || '—'}
+                  </p>
                 </div>
 
                 {/* 3 BLOK TANDA TANGAN BASAH */}
-                <div className="flex justify-between items-start text-xs text-center mt-8 print:break-inside-avoid">
-                  <div className="w-40">
-                    <p className="mb-16 leading-snug">Mengetahui,<br /><span className="font-semibold">Orang Tua / Wali Murid</span></p>
-                    <div className="border-b border-black w-32 mx-auto mb-1" />
-                    <p className="text-[11px] text-gray-600">(.................................)</p>
+                <div className="mt-8 pt-4 border-t border-gray-300 print-break-inside-avoid">
+                  <div className="flex justify-between items-start text-xs text-center px-2">
+                    <div className="w-48">
+                      <p className="mb-16 leading-snug">
+                        Mengetahui,<br />
+                        <span className="font-semibold">Orang Tua / Wali Murid</span>
+                      </p>
+                      <div className="border-b border-black w-36 mx-auto mb-1" />
+                      <p className="text-[11px] text-gray-600">(.................................)</p>
+                    </div>
+
+                    <div className="w-52">
+                      <p className="mb-16 leading-snug">
+                        Disusun oleh,<br />
+                        <span className="font-semibold">Tutor Pengampu</span>
+                      </p>
+                      <p className="font-bold underline">{tutorName}</p>
+                      <p className="text-[11px] text-gray-600 mt-0.5">
+                        ID: {doc.author_nip || doc.author_nuptk || '........................................'}
+                      </p>
+                    </div>
+
+                    <div className="w-48">
+                      <p className="mb-16 leading-snug">
+                        Mengetahui,<br />
+                        <span className="font-semibold">Kepala PKBM BLC</span>
+                      </p>
+                      <p className="font-bold underline">
+                        {schoolSettings.school_headmaster_name || "......................................"}
+                      </p>
+                      <p className="text-[11px] text-gray-600 mt-0.5">
+                        NIP/ID. {schoolSettings.school_headmaster_nip || "........................................"}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="w-44">
-                    <p className="mb-16 leading-snug">Disusun oleh,<br /><span className="font-semibold">Tutor Pembimbing BLC</span></p>
-                    <p className="font-bold underline">{tutorName}</p>
-                    <p className="text-[11px] text-gray-600 mt-0.5">
-                      ID: {doc.author_nip || doc.author_nuptk || '........................................'}
-                    </p>
+                  {/* Footer */}
+                  <div className="mt-8 text-center text-[10px] text-gray-400 border-t border-gray-100 pt-2 print:border-t-0">
+                    Dicetak secara otomatis melalui Sistem SIUBA &bull; {docNumber} &bull; {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                   </div>
-
-                  <div className="w-40">
-                    <p className="mb-16 leading-snug">Mengetahui,<br /><span className="font-semibold">Kepala PKBM BLC</span></p>
-                    <div className="border-b border-black w-32 mx-auto mb-1" />
-                    <p className="text-[11px] text-gray-600">(.................................)</p>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                <div className="mt-6 text-center text-[10px] text-gray-400 border-t border-gray-100 pt-2 print:border-t-0">
-                  Dicetak secara otomatis melalui Sistem SIUBA &bull; {docNumber}
                 </div>
               </div>
             );

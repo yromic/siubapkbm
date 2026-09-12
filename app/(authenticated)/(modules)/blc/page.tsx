@@ -7,8 +7,11 @@ import { Card, CardHeader, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { PrintRenderer } from "@/components/print/print-renderer";
+import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 import { Loader2, Copy, Search, Printer, BookOpen, Layers, UserCheck, Link2 } from "lucide-react";
 import { toast } from "sonner";
+import { RPMAttachment } from "@/types/rpmAttachment";
+import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
 
 interface BLCItem {
   id: string;
@@ -37,8 +40,26 @@ export default function BankModulBLCPage() {
   const [filterClassId, setFilterClassId] = useState<string>("");
   const [smartFilterLabel, setSmartFilterLabel] = useState<string>("");
   const [activeDoc, setActiveDoc] = useState<BLCItem | null>(null);
+  const [activeDocAttachments, setActiveDocAttachments] = useState<RPMAttachment[]>([]);
   const [lineageInfo, setLineageInfo] = useState<Record<string, { title: string; authorName: string }>>({});
   const [view, setView] = useState<'CATALOG' | 'PRINT'>('CATALOG');
+
+  // Fallback reactive: pastikan attachments termuat saat berada dalam tampilan PRINT untuk dokumen RPM
+  useEffect(() => {
+    if (view === 'PRINT' && activeDoc?.id && String(activeDoc.type || '').toUpperCase() === 'RPM') {
+      let isMounted = true;
+      fetchRpmAttachments(activeDoc.id)
+        .then((atts) => {
+          if (isMounted && Array.isArray(atts)) {
+            setActiveDocAttachments(atts);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [view, activeDoc?.id, activeDoc?.type]);
 
   // BR-BLC-04: Inisialisasi smart filter dari penugasan aktif guru (Fix 3.1)
   useEffect(() => {
@@ -169,7 +190,9 @@ export default function BankModulBLCPage() {
           </Button>
         </div>
 
-        <PrintRenderer document={activeDoc}>
+        <PrintBrowserHint />
+
+        <PrintRenderer document={activeDoc} attachments={activeDocAttachments}>
           <div className="space-y-4 text-xs">
             {activeDoc.forked_from_id && (
               <div className="p-2 border rounded bg-slate-50 text-slate-700 italic text-xs">
@@ -298,8 +321,22 @@ export default function BankModulBLCPage() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       setActiveDoc(doc);
+                      if (String(doc.type || '').toUpperCase() === 'RPM' && doc.id) {
+                        try {
+                          const atts = await fetchRpmAttachments(doc.id);
+                          if (Array.isArray(atts)) {
+                            setActiveDocAttachments(atts);
+                          } else {
+                            setActiveDocAttachments([]);
+                          }
+                        } catch {
+                          setActiveDocAttachments([]);
+                        }
+                      } else {
+                        setActiveDocAttachments([]);
+                      }
                       setView('PRINT');
                     }}
                     className="min-h-[36px] text-xs"

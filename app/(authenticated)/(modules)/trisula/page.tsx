@@ -10,6 +10,7 @@ import {
   TrisulaStudentReportSheet,
   TrisulaStudentReportData,
 } from "@/components/trisula/TrisulaStudentReportSheet";
+import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 import { PageContainer, PageSection } from "@/components/ui/page-framework";
 import {
   Loader2,
@@ -89,6 +90,30 @@ export default function TrisulaPage() {
   const [loadingClasses, setLoadingClasses] = useState<boolean>(false);
   const [loadingContext, setLoadingContext] = useState<boolean>(false);
 
+  // School Settings & Letterhead State
+  const [schoolSettings, setSchoolSettings] = useState<Record<string, any>>({});
+  const [letterheadVersions, setLetterheadVersions] = useState<any[]>([]);
+
+  // Master Settings Fetch
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch("/api/v1/app-settings");
+        const json = await res.json();
+        if (json.success && json.data) {
+          setSchoolSettings(json.data);
+          if (json.data.letterhead_versions) {
+            try {
+              const parsed = JSON.parse(json.data.letterhead_versions);
+              if (Array.isArray(parsed)) setLetterheadVersions(parsed);
+            } catch {}
+          }
+        }
+      } catch {}
+    };
+    fetchSettings();
+  }, []);
+
   // Assessment & Gradebook State
   const [assessment, setAssessment] = useState<any>(null);
   const [curriculum, setCurriculum] = useState<any[]>([]);
@@ -96,6 +121,15 @@ export default function TrisulaPage() {
   const [studentSearch, setStudentSearch] = useState<string>("");
   const [savingGradebook, setSavingGradebook] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+
+  // Resolve letterhead URL: historical snapshot version -> global active setting -> default static
+  const resolvedLetterheadUrl = useMemo(() => {
+    if (assessment?.letterhead_version_id && letterheadVersions.length > 0) {
+      const matched = letterheadVersions.find((v) => v.id === assessment.letterhead_version_id);
+      if (matched?.url) return matched.url;
+    }
+    return (schoolSettings as any)?.active_letterhead_url || "/branding/school-letterhead.png";
+  }, [assessment?.letterhead_version_id, letterheadVersions, schoolSettings]);
 
   // Modals & Drawers
   const [bankModalOpen, setBankModalOpen] = useState<boolean>(false);
@@ -115,12 +149,15 @@ export default function TrisulaPage() {
   const [loadingReport, setLoadingReport] = useState<boolean>(false);
   const [savingReport, setSavingReport] = useState<boolean>(false);
   const [aiReportLoading, setAiReportLoading] = useState<boolean>(false);
+  const [aiCatatanLoading, setAiCatatanLoading] = useState<boolean>(false);
+  const [aiPesanLoading, setAiPesanLoading] = useState<boolean>(false);
   const [reportCatatan, setReportCatatan] = useState<string>("");
   const [reportPesan, setReportPesan] = useState<string>("");
   const [reportLitDesc, setReportLitDesc] = useState<string>("");
   const [reportNumDesc, setReportNumDesc] = useState<string>("");
   const [reportDinDesc, setReportDinDesc] = useState<string>("");
   const [reportActiveTab, setReportActiveTab] = useState<"PREVIEW" | "EDIT_NARRATIVE">("PREVIEW");
+  const [formulatingPillar, setFormulatingPillar] = useState<string | null>(null);
 
   // Bulk Print State (Secondary Flow)
   const [bulkPrintModalOpen, setBulkPrintModalOpen] = useState<boolean>(false);
@@ -444,6 +481,7 @@ export default function TrisulaPage() {
     setAiLoading(true);
     try {
       const pilarTPs = curriculum.filter((c) => c.pillar === observationPillar);
+      const pilarCP = curriculum.find((c) => c.pillar === observationPillar)?.cp_text_snapshot || null;
       const res = await fetch("/api/v1/trisula/ai/evaluate-observation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -452,14 +490,19 @@ export default function TrisulaPage() {
           className: selectedClassName,
           fase: resolvedFase,
           pillar: observationPillar,
+          cpText: pilarCP,
           observationText: observationText.trim(),
-          tps: pilarTPs.map((t) => t.tp_text_snapshot),
+          tps: pilarTPs.map((t) => ({ id: t.tp_id, teks: t.tp_text_snapshot })),
         }),
       });
       const json = await res.json();
-      if (json.success) {
+      if (res.ok && json.success && json.data) {
         setAiResult(json.data);
-        toast.success("Catatan observasi berhasil dievaluasi AI.");
+        if (json.data.source === "FALLBACK") {
+          toast.warning("AI sedang tidak tersedia. Catatan dievaluasi dengan saran lokal sementara.");
+        } else {
+          toast.success("Catatan observasi berhasil dievaluasi AI.");
+        }
       } else {
         toast.error(json.message || "Gagal menganalisis catatan observasi.");
       }
@@ -470,10 +513,10 @@ export default function TrisulaPage() {
     }
   };
 
-  // Apply AI Evaluation Result to Student Score
+  // Apply AI Evaluation Result to Student Score & Description
   const handleApplyAiResult = () => {
     if (!aiResult || !activeStudentDetail) return;
-    const { nilai, deskripsi } = aiResult;
+    const { nilai, deskripsi, source } = aiResult;
 
     const pKey =
       observationPillar === "LITERASI"
@@ -482,9 +525,136 @@ export default function TrisulaPage() {
         ? "numerasi"
         : "diniyyah";
 
-    handleScoreChange(activeStudentDetail.student_id, pKey, String(nilai));
-    toast.success(`Skor ${nilai} dan deskripsi berhasil diterapkan ke ${activeStudentDetail.student_name}.`);
+    const descKey =
+      observationPillar === "LITERASI"
+        ? "literasi_description"
+        : observationPillar === "NUMERASI"
+        ? "numerasi_description"
+        : "diniyyah_description";
+
+    const num = typeof nilai === "number" ? Math.min(100, Math.max(0, nilai)) : null;
+
+    setHasUnsavedChanges(true);
+    setGradebook((prev) =>
+      prev.map((row) => {
+        if (row.student_id === activeStudentDetail.student_id) {
+          const updated = {
+            ...row,
+            [`${pKey}_score`]: num,
+            [descKey]: deskripsi || row[descKey] || "",
+          };
+          const lit = pKey === "literasi" ? num : updated.literasi_score;
+          const numS = pKey === "numerasi" ? num : updated.numerasi_score;
+          const din = pKey === "diniyyah" ? num : updated.diniyyah_score;
+
+          if (lit !== null && numS !== null && din !== null) {
+            updated.overall_score = Number(((lit + numS + din) / 3).toFixed(1));
+          } else {
+            updated.overall_score = null;
+          }
+          return updated;
+        }
+        return row;
+      })
+    );
+
+    // If individual report modal is open for this student, sync local report fields
+    if (selectedReportStudentId === activeStudentDetail.student_id) {
+      if (pKey === "literasi" && deskripsi) setReportLitDesc(deskripsi);
+      else if (pKey === "numerasi" && deskripsi) setReportNumDesc(deskripsi);
+      else if (pKey === "diniyyah" && deskripsi) setReportDinDesc(deskripsi);
+    }
+
+    if (source === "FALLBACK") {
+      toast.warning(
+        `Saran lokal sementara (${nilai !== null ? nilai : "Null"}) dan deskripsi diterapkan ke ${activeStudentDetail.student_name}.`
+      );
+    } else {
+      toast.success(
+        `Skor (${nilai !== null ? nilai : "Null"}) dan deskripsi AI berhasil diterapkan ke ${activeStudentDetail.student_name}.`
+      );
+    }
     setActiveStudentDetail(null);
+  };
+
+  // Formulate Single Pillar Description using AI
+  const handleFormulateDescription = async (pillar: "LITERASI" | "NUMERASI" | "DINIYYAH") => {
+    if (!reportData) return;
+
+    const pKey = pillar === "LITERASI" ? "literasi" : pillar === "NUMERASI" ? "numerasi" : "diniyyah";
+    const currentText =
+      pillar === "LITERASI"
+        ? reportLitDesc
+        : pillar === "NUMERASI"
+        ? reportNumDesc
+        : reportDinDesc;
+
+    // Auto-overwrite guard: Prompt if manual text already exists
+    if (currentText.trim().length > 0) {
+      const confirmed = window.confirm(
+        `Deskripsi Ketercapaian ${pillar} sudah terisi. Ganti dengan hasil rumusan AI?`
+      );
+      if (!confirmed) return;
+    }
+
+    const scoreVal = reportData.summary?.[`${pKey}_score`];
+    const studentRow = gradebook.find((r) => r.student_id === selectedReportStudentId);
+    const existingObs = studentRow?.tp_scores?.find((tp: any) => tp.pillar === pillar)?.observation_text || null;
+
+    if ((scoreVal === null || scoreVal === undefined || isNaN(Number(scoreVal))) && !existingObs) {
+      toast.warning(
+        `Belum terdapat bukti asesmen yang cukup untuk merumuskan deskripsi ${pillar}. Silakan isi nilai atau catatan pengamatan terlebih dahulu.`
+      );
+      return;
+    }
+
+    setFormulatingPillar(pillar);
+    try {
+      const pilarTPs = curriculum.filter((c) => c.pillar === pillar);
+      const pilarCP = curriculum.find((c) => c.pillar === pillar)?.cp_text_snapshot || null;
+
+      const res = await fetch("/api/v1/trisula/ai/formulate-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentName: reportData.student.full_name,
+          pillar,
+          fase: resolvedFase,
+          score: scoreVal !== null && scoreVal !== undefined && !isNaN(Number(scoreVal)) ? Number(scoreVal) : null,
+          cpText: pilarCP,
+          tps: pilarTPs.map((t) => ({ id: t.tp_id, teks: t.tp_text_snapshot })),
+          observationText: existingObs,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        const { source, deskripsi, insufficientEvidence } = json.data;
+
+        if (insufficientEvidence) {
+          toast.warning(deskripsi || `Belum terdapat bukti asesmen yang cukup untuk ${pillar}.`);
+          return;
+        }
+
+        if (deskripsi) {
+          if (pillar === "LITERASI") setReportLitDesc(deskripsi);
+          else if (pillar === "NUMERASI") setReportNumDesc(deskripsi);
+          else if (pillar === "DINIYYAH") setReportDinDesc(deskripsi);
+        }
+
+        if (source === "FALLBACK") {
+          toast.warning(`AI sedang tidak tersedia. Saran lokal sementara untuk ${pillar} dirumuskan.`);
+        } else {
+          toast.success(`Deskripsi ketercapaian ${pillar} berhasil dirumuskan dengan AI.`);
+        }
+      } else {
+        toast.error(json.message || `Gagal merumuskan deskripsi ${pillar}.`);
+      }
+    } catch {
+      toast.error(`Terjadi kendala saat menghubungi AI untuk pilar ${pillar}.`);
+    } finally {
+      setFormulatingPillar(null);
+    }
   };
 
   // Sync / Initialize Trisula Standard Curriculum
@@ -541,9 +711,133 @@ export default function TrisulaPage() {
     }
   };
 
-  // Synthesize Report Narrative with AI
+  // Synthesize Field A: Catatan & Rekomendasi Perkembangan Trisula
+  const handleSynthesizeCatatanAI = async () => {
+    if (!reportData) return;
+
+    if (reportCatatan.trim().length > 0) {
+      const confirmed = window.confirm(
+        "Catatan & Rekomendasi Perkembangan sudah terisi. Ganti dengan hasil rumusan AI?"
+      );
+      if (!confirmed) return;
+    }
+
+    setAiCatatanLoading(true);
+    try {
+      const res = await fetch("/api/v1/trisula/ai/synthesize-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentName: reportData.student.full_name,
+          className: selectedClassName,
+          fase: resolvedFase,
+          target: "SUMMARY_DEVELOPMENT",
+          scores: {
+            literasi: reportData.summary?.literasi_score,
+            numerasi: reportData.summary?.numerasi_score,
+            diniyyah: reportData.summary?.diniyyah_score,
+          },
+          descriptions: {
+            literasi: reportLitDesc,
+            numerasi: reportNumDesc,
+            diniyyah: reportDinDesc,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        const { source, catatanRangkuman, insufficientEvidence } = json.data;
+
+        if (insufficientEvidence) {
+          toast.warning(catatanRangkuman || "Belum terdapat bukti asesmen yang cukup untuk merumuskan rangkuman.");
+          return;
+        }
+
+        if (catatanRangkuman) setReportCatatan(catatanRangkuman);
+        if (source === "FALLBACK") {
+          toast.warning("AI sedang tidak tersedia. Saran lokal sementara untuk catatan perkembangan dirumuskan.");
+        } else {
+          toast.success("Catatan & Rekomendasi Perkembangan berhasil dirumuskan AI.");
+        }
+      } else {
+        toast.error(json.message || "Gagal merumuskan catatan perkembangan.");
+      }
+    } catch {
+      toast.error("Terjadi kendala saat menghubungi AI.");
+    } finally {
+      setAiCatatanLoading(false);
+    }
+  };
+
+  // Synthesize Field B: Pesan Penguatan Trisula di Rumah (Kemitraan Madrasatul Ula)
+  const handleSynthesizePesanAI = async () => {
+    if (!reportData) return;
+
+    if (reportPesan.trim().length > 0) {
+      const confirmed = window.confirm(
+        "Pesan Penguatan di Rumah sudah terisi. Ganti dengan hasil rumusan AI?"
+      );
+      if (!confirmed) return;
+    }
+
+    setAiPesanLoading(true);
+    try {
+      const res = await fetch("/api/v1/trisula/ai/synthesize-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentName: reportData.student.full_name,
+          className: selectedClassName,
+          fase: resolvedFase,
+          target: "PARENT_REINFORCEMENT",
+          scores: {
+            literasi: reportData.summary?.literasi_score,
+            numerasi: reportData.summary?.numerasi_score,
+            diniyyah: reportData.summary?.diniyyah_score,
+          },
+          descriptions: {
+            literasi: reportLitDesc,
+            numerasi: reportNumDesc,
+            diniyyah: reportDinDesc,
+          },
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success && json.data) {
+        const { source, pesanOrangTua, insufficientEvidence } = json.data;
+
+        if (insufficientEvidence) {
+          toast.warning(pesanOrangTua || "Belum terdapat bukti asesmen yang cukup untuk merumuskan pesan penguatan.");
+          return;
+        }
+
+        if (pesanOrangTua) setReportPesan(pesanOrangTua);
+        if (source === "FALLBACK") {
+          toast.warning("AI sedang tidak tersedia. Saran lokal sementara untuk pesan penguatan dirumuskan.");
+        } else {
+          toast.success("Pesan Penguatan di Rumah berhasil dirumuskan AI.");
+        }
+      } else {
+        toast.error(json.message || "Gagal merumuskan pesan penguatan orang tua.");
+      }
+    } catch {
+      toast.error("Terjadi kendala saat menghubungi AI.");
+    } finally {
+      setAiPesanLoading(false);
+    }
+  };
+
+  // Synthesize Full Report Narrative with AI (Catatan + Pesan)
   const handleSynthesizeReportAI = async () => {
     if (!reportData) return;
+
+    if (reportCatatan.trim().length > 0 || reportPesan.trim().length > 0) {
+      const confirmed = window.confirm(
+        "Catatan perkembangan dan/atau pesan orang tua sudah terisi. Ganti dengan hasil rumusan AI?"
+      );
+      if (!confirmed) return;
+    }
+
     setAiReportLoading(true);
     try {
       const res = await fetch("/api/v1/trisula/ai/synthesize-report", {
@@ -551,23 +845,38 @@ export default function TrisulaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentName: reportData.student.full_name,
+          className: selectedClassName,
+          fase: resolvedFase,
+          target: "ALL",
           scores: {
             literasi: reportData.summary?.literasi_score,
             numerasi: reportData.summary?.numerasi_score,
             diniyyah: reportData.summary?.diniyyah_score,
           },
-          curriculumSnapshot: curriculum.map((c) => c.tp_text_snapshot),
+          descriptions: {
+            literasi: reportLitDesc,
+            numerasi: reportNumDesc,
+            diniyyah: reportDinDesc,
+          },
         }),
       });
       const json = await res.json();
-      if (json.success) {
-        const { catatan, pesan, literasiDesc, numerasiDesc, diniyyahDesc } = json.data;
-        if (catatan) setReportCatatan(catatan);
-        if (pesan) setReportPesan(pesan);
-        if (literasiDesc) setReportLitDesc(literasiDesc);
-        if (numerasiDesc) setReportNumDesc(numerasiDesc);
-        if (diniyyahDesc) setReportDinDesc(diniyyahDesc);
-        toast.success("Narasi raport berhasil dirumuskan AI.");
+      if (res.ok && json.success && json.data) {
+        const { source, catatanRangkuman, pesanOrangTua, insufficientEvidence } = json.data;
+
+        if (insufficientEvidence) {
+          toast.warning("Belum terdapat bukti asesmen yang cukup untuk merumuskan narasi AI.");
+          return;
+        }
+
+        if (catatanRangkuman) setReportCatatan(catatanRangkuman);
+        if (pesanOrangTua) setReportPesan(pesanOrangTua);
+
+        if (source === "FALLBACK") {
+          toast.warning("AI sedang tidak tersedia. Sistem menggunakan saran lokal sementara.");
+        } else {
+          toast.success("Narasi rangkuman dan pesan orang tua berhasil dirumuskan AI.");
+        }
       } else {
         toast.error(json.message || "Gagal merumuskan narasi raport.");
       }
@@ -647,6 +956,11 @@ export default function TrisulaPage() {
   const handleExecuteBulkPrint = () => {
     setBulkPrintModalOpen(false);
     setIsBulkPrinting(true);
+    const resetBulk = () => {
+      setIsBulkPrinting(false);
+      window.removeEventListener('afterprint', resetBulk);
+    };
+    window.addEventListener('afterprint', resetBulk);
     setTimeout(() => {
       window.print();
       setIsBulkPrinting(false);
@@ -658,7 +972,7 @@ export default function TrisulaPage() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (trisulaView === 'CLASS_LIST') {
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
+      <PageContainer maxWidth="7xl" className="space-y-6 print:hidden">
         {/* Header matching SIUBA Dashboard */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
           <div>
@@ -864,8 +1178,12 @@ export default function TrisulaPage() {
   // RENDER: CLASS_DETAIL (Desktop Gradebook & Assessment Workspace)
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <PageContainer maxWidth="7xl" className="space-y-6">
-      {/* Breadcrumb Navigation */}
+    <>
+      {/* ── 1. APPLICATION UI (Gradebook, Workspace, Tabs, Modals) ─────────────── */}
+      {/* Strictly hidden during print/PDF generation */}
+      <div className="print:hidden no-print">
+        <PageContainer maxWidth="7xl" className="space-y-6">
+          {/* Breadcrumb Navigation */}
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <button
           onClick={() => {
@@ -1558,21 +1876,24 @@ export default function TrisulaPage() {
           </div>
 
           {reportData && (
-            <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100/60 flex justify-center">
-              <TrisulaStudentReportSheet
-                data={{
-                  assessment: {
-                    id: assessment?.id || "",
-                    class_name: selectedClassName,
-                    academic_year_name: assessment?.academic_year_name || "2026/2027",
-                    semester_name: assessment?.semester_name || "Semester Ganjil",
-                    fase: resolvedFase,
-                  },
-                  student: reportData.student,
-                  summary: reportData.summary,
-                  tutorName: user?.name || "Tutor Kelas Trisula",
-                }}
-              />
+            <div className="space-y-4">
+              <PrintBrowserHint className="max-w-[210mm] mx-auto" />
+              <div className="border border-gray-200 rounded-2xl p-6 bg-gray-100/60 flex justify-center">
+                <TrisulaStudentReportSheet
+                  data={{
+                    assessment: {
+                      id: assessment?.id || "",
+                      class_name: selectedClassName,
+                      academic_year_name: assessment?.academic_year_name || "2026/2027",
+                      semester_name: assessment?.semester_name || "Semester Ganjil",
+                      fase: resolvedFase,
+                    },
+                    student: reportData.student,
+                    summary: reportData.summary,
+                    tutorName: user?.name || "Tutor Kelas Trisula",
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -1768,8 +2089,11 @@ export default function TrisulaPage() {
                 </div>
               ) : reportData ? (
                 reportActiveTab === "PREVIEW" ? (
-                  <div className="flex justify-center">
+                  <div className="flex flex-col items-center space-y-4">
+                    <PrintBrowserHint className="w-full max-w-[210mm]" />
                     <TrisulaStudentReportSheet
+                      letterheadUrl={resolvedLetterheadUrl}
+                      schoolSettings={schoolSettings}
                       data={{
                         assessment: {
                           id: assessment?.id || "",
@@ -1792,110 +2116,309 @@ export default function TrisulaPage() {
                     />
                   </div>
                 ) : (
-                  <div className="max-w-2xl mx-auto space-y-4 bg-white p-5 rounded-2xl border border-gray-200 text-xs">
-                    <div className="flex items-center justify-between border-b pb-3">
+                  <div className="max-w-3xl mx-auto space-y-4 bg-white p-4 sm:p-6 rounded-2xl border border-gray-200 text-xs shadow-xs">
+                    {/* Student Context Header */}
+                    <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <h4 className="font-bold text-sm text-gray-900">
-                          Pengaturan Narasi Raport
-                        </h4>
-                        <p className="text-[11px] text-gray-500">
-                          Sesuaikan deskripsi capaian 3 pilar dan pesan kemitraan orang tua murid.
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-900 text-sm">{reportData.student.full_name}</span>
+                          <span className="text-[11px] font-mono text-gray-500">NISN: {reportData.student.nisn || "-"}</span>
+                        </div>
+                        <p className="text-[11px] text-emerald-800">
+                          Kelas: {selectedClassName} ({resolvedFase}) &bull; {assessment?.semester_name || "Semester Ganjil"} {assessment?.academic_year_name || "2026/2027"}
                         </p>
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] bg-white text-emerald-700 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                          Editor Narasi Resmi
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* 1. PILAR LITERASI CARD */}
+                      {(() => {
+                        const litScore = reportData.summary?.literasi_score !== null && reportData.summary?.literasi_score !== undefined ? Number(reportData.summary.literasi_score) : null;
+                        const litCat = getScoreCategory(litScore);
+                        return (
+                          <div className="p-3.5 bg-blue-50/30 border border-blue-100 rounded-xl space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100/80 pb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="p-1 rounded bg-blue-100 text-blue-700">
+                                  <BookOpen className="w-3.5 h-3.5" />
+                                </span>
+                                <span className="font-bold text-xs uppercase tracking-wide text-blue-950">
+                                  Pilar Literasi
+                                </span>
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <span className="text-gray-500">Nilai:</span>
+                                  <span className="font-bold text-gray-900 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                                    {litScore !== null ? litScore : "—"}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${litCat ? litCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"}`}>
+                                    {litCat?.label || "Belum Dinilai"}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleFormulateDescription("LITERASI")}
+                                disabled={formulatingPillar !== null}
+                                className="h-7 text-xs border-blue-200 text-blue-700 hover:bg-blue-100/50 font-semibold"
+                              >
+                                {formulatingPillar === "LITERASI" ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5 text-blue-600 mr-1.5" />
+                                )}
+                                <span className="hidden sm:inline">Bantu Rumuskan dengan AI</span>
+                                <span className="sm:hidden">Bantu AI</span>
+                              </Button>
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-gray-700 block mb-1">
+                                Deskripsi Ketercapaian Literasi:
+                              </label>
+                              <Textarea
+                                value={reportLitDesc}
+                                onChange={(e) => setReportLitDesc(e.target.value)}
+                                placeholder="Tulis atau rumuskan deskripsi capaian literasi dan pemahaman membaca santri..."
+                                rows={3}
+                                className="text-xs bg-white resize-y"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 2. PILAR NUMERASI CARD */}
+                      {(() => {
+                        const numScore = reportData.summary?.numerasi_score !== null && reportData.summary?.numerasi_score !== undefined ? Number(reportData.summary.numerasi_score) : null;
+                        const numCat = getScoreCategory(numScore);
+                        return (
+                          <div className="p-3.5 bg-teal-50/30 border border-teal-100 rounded-xl space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-100/80 pb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="p-1 rounded bg-teal-100 text-teal-700">
+                                  <Calculator className="w-3.5 h-3.5" />
+                                </span>
+                                <span className="font-bold text-xs uppercase tracking-wide text-teal-950">
+                                  Pilar Numerasi
+                                </span>
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <span className="text-gray-500">Nilai:</span>
+                                  <span className="font-bold text-gray-900 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                                    {numScore !== null ? numScore : "—"}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${numCat ? numCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"}`}>
+                                    {numCat?.label || "Belum Dinilai"}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleFormulateDescription("NUMERASI")}
+                                disabled={formulatingPillar !== null}
+                                className="h-7 text-xs border-teal-200 text-teal-700 hover:bg-teal-100/50 font-semibold"
+                              >
+                                {formulatingPillar === "NUMERASI" ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5 text-teal-600 mr-1.5" />
+                                )}
+                                <span className="hidden sm:inline">Bantu Rumuskan dengan AI</span>
+                                <span className="sm:hidden">Bantu AI</span>
+                              </Button>
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-gray-700 block mb-1">
+                                Deskripsi Ketercapaian Numerasi:
+                              </label>
+                              <Textarea
+                                value={reportNumDesc}
+                                onChange={(e) => setReportNumDesc(e.target.value)}
+                                placeholder="Tulis atau rumuskan deskripsi kemampuan berhitung, logika bilangan, dan penalaran santri..."
+                                rows={3}
+                                className="text-xs bg-white resize-y"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 3. PILAR DINIYYAH & ADAB CARD */}
+                      {(() => {
+                        const dinScore = reportData.summary?.diniyyah_score !== null && reportData.summary?.diniyyah_score !== undefined ? Number(reportData.summary.diniyyah_score) : null;
+                        const dinCat = getScoreCategory(dinScore);
+                        return (
+                          <div className="p-3.5 bg-amber-50/30 border border-amber-100 rounded-xl space-y-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-100/80 pb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="p-1 rounded bg-amber-100 text-amber-700">
+                                  <HeartHandshake className="w-3.5 h-3.5" />
+                                </span>
+                                <span className="font-bold text-xs uppercase tracking-wide text-amber-950">
+                                  Pilar Diniyyah & Adab
+                                </span>
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <span className="text-gray-500">Nilai:</span>
+                                  <span className="font-bold text-gray-900 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                                    {dinScore !== null ? dinScore : "—"}
+                                  </span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${dinCat ? dinCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"}`}>
+                                    {dinCat?.label || "Belum Dinilai"}
+                                  </span>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleFormulateDescription("DINIYYAH")}
+                                disabled={formulatingPillar !== null}
+                                className="h-7 text-xs border-amber-200 text-amber-700 hover:bg-amber-100/50 font-semibold"
+                              >
+                                {formulatingPillar === "DINIYYAH" ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-600 mr-1.5" />
+                                )}
+                                <span className="hidden sm:inline">Bantu Rumuskan dengan AI</span>
+                                <span className="sm:hidden">Bantu AI</span>
+                              </Button>
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-semibold text-gray-700 block mb-1">
+                                Deskripsi Ketercapaian Diniyyah & Adab:
+                              </label>
+                              <Textarea
+                                value={reportDinDesc}
+                                onChange={(e) => setReportDinDesc(e.target.value)}
+                                placeholder="Tulis atau rumuskan deskripsi adab pergaulan, ibadah harian, dan pembiasaan fitrah santri..."
+                                rows={3}
+                                className="text-xs bg-white resize-y"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 4. RANGKUMAN PERKEMBANGAN TRISULA SECTION */}
+                      <div className="border-t border-gray-200 pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-bold text-xs uppercase tracking-wider text-gray-900 flex items-center gap-1.5">
+                            <span className="w-1.5 h-3 bg-purple-600 rounded-xs inline-block"></span>
+                            <span>Rangkuman Perkembangan Trisula</span>
+                          </h4>
+                          <span className="text-[10px] text-gray-500 font-medium">Holistik & Kemitraan Rumah</span>
+                        </div>
+
+                        {/* Field A: Catatan & Rekomendasi Perkembangan Trisula */}
+                        <div className="p-3.5 bg-gray-50/70 border border-gray-200 rounded-xl space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200/80 pb-2">
+                            <div>
+                              <label className="font-bold text-xs text-gray-900 block">
+                                A. Catatan & Rekomendasi Perkembangan Trisula
+                              </label>
+                              <p className="text-[10px] text-gray-500">
+                                Sintesis holistik 3 pilar yang hangat, mendidik, dan disertai rekomendasi tindak lanjut.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={handleSynthesizeCatatanAI}
+                              disabled={aiCatatanLoading}
+                              className="h-7 text-xs border-purple-200 text-purple-700 hover:bg-purple-50 font-semibold"
+                            >
+                              {aiCatatanLoading ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5 text-purple-600 mr-1.5" />
+                              )}
+                              <span className="hidden sm:inline">Bantu Buat Rangkuman dengan AI</span>
+                              <span className="sm:hidden">Bantu AI</span>
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={reportCatatan}
+                            onChange={(e) => setReportCatatan(e.target.value)}
+                            placeholder="Tulis catatan menyeluruh guru terhadap pertumbuhan kognitif dan karakter anak..."
+                            rows={3}
+                            className="text-xs bg-white resize-y"
+                          />
+                        </div>
+
+                        {/* Field B: Pesan Penguatan Trisula di Rumah */}
+                        <div className="p-3.5 bg-amber-50/40 border border-amber-200 rounded-xl space-y-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-2">
+                            <div>
+                              <label className="font-bold text-xs text-amber-950 block">
+                                B. Pesan Penguatan Trisula di Rumah (Kemitraan Madrasatul Ula)
+                              </label>
+                              <p className="text-[10px] text-gray-500">
+                                1–3 rekomendasi praktis dan hangat untuk dipraktikkan orang tua bersama ananda di rumah.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              onClick={handleSynthesizePesanAI}
+                              disabled={aiPesanLoading}
+                              className="h-7 text-xs border-amber-200 text-amber-800 hover:bg-amber-100/50 font-semibold"
+                            >
+                              {aiPesanLoading ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                              ) : (
+                                <Sparkles className="w-3.5 h-3.5 text-amber-600 mr-1.5" />
+                              )}
+                              <span className="hidden sm:inline">Bantu Buat Pesan dengan AI</span>
+                              <span className="sm:hidden">Bantu AI</span>
+                            </Button>
+                          </div>
+                          <Textarea
+                            value={reportPesan}
+                            onChange={(e) => setReportPesan(e.target.value)}
+                            placeholder="Tulis saran pendampingan Ayah/Bunda di rumah (misal: pembiasaan membaca 15 menit, hitungan belanja, tilawah bersama)..."
+                            rows={3}
+                            className="text-xs bg-white resize-y"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Footer */}
+                    <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200">
                       <Button
+                        type="button"
                         size="sm"
-                        variant="secondary"
+                        variant="ghost"
                         onClick={handleSynthesizeReportAI}
                         disabled={aiReportLoading}
-                        className="text-xs h-8 border-purple-200 text-purple-700 hover:bg-purple-50 font-semibold"
+                        className="text-xs h-8 text-purple-700 hover:bg-purple-50 font-medium"
                       >
                         {aiReportLoading ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
                         ) : (
-                          <Sparkles className="w-3.5 h-3.5 text-purple-600 mr-1" />
+                          <Sparkles className="w-3.5 h-3.5 text-purple-600 mr-1.5" />
                         )}
-                        Bantu AI
+                        <span className="hidden sm:inline">Bantu Seluruh Narasi (AI)</span>
+                        <span className="sm:hidden">Bantu Semua AI</span>
                       </Button>
-                    </div>
 
-                    <div className="space-y-3">
-                      <div>
-                        <label className="font-bold text-blue-900 mb-1 flex items-center gap-1.5">
-                          <BookOpen className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Deskripsi Capaian Literasi:</span>
-                        </label>
-                        <Textarea
-                          value={reportLitDesc}
-                          onChange={(e) => setReportLitDesc(e.target.value)}
-                          placeholder="Deskripsi kemampuan membaca dan pemahaman teks..."
-                          rows={3}
-                          className="text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="font-bold text-emerald-900 mb-1 flex items-center gap-1.5">
-                          <Calculator className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Deskripsi Capaian Numerasi:</span>
-                        </label>
-                        <Textarea
-                          value={reportNumDesc}
-                          onChange={(e) => setReportNumDesc(e.target.value)}
-                          placeholder="Deskripsi kemampuan berhitung dan penalaran logis..."
-                          rows={3}
-                          className="text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="font-bold text-amber-900 mb-1 flex items-center gap-1.5">
-                          <HeartHandshake className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Deskripsi Capaian Diniyyah:</span>
-                        </label>
-                        <Textarea
-                          value={reportDinDesc}
-                          onChange={(e) => setReportDinDesc(e.target.value)}
-                          placeholder="Deskripsi adab, ibadah harian, dan karakter fitrah..."
-                          rows={3}
-                          className="text-xs"
-                        />
-                      </div>
-
-                      <div className="border-t pt-3">
-                        <label className="font-bold text-gray-800 block mb-1">
-                          Catatan & Rekomendasi Perkembangan Murid:
-                        </label>
-                        <Textarea
-                          value={reportCatatan}
-                          onChange={(e) => setReportCatatan(e.target.value)}
-                          placeholder="Catatan menyeluruh guru terhadap perkembangan anak..."
-                          rows={3}
-                          className="text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="font-bold text-gray-800 block mb-1">
-                          Pesan Penguatan di Rumah (Kemitraan Orang Tua):
-                        </label>
-                        <Textarea
-                          value={reportPesan}
-                          onChange={(e) => setReportPesan(e.target.value)}
-                          placeholder="Pesan saran pendampingan Ayah/Bunda di rumah..."
-                          rows={3}
-                          className="text-xs"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="pt-3 flex justify-end gap-2 border-t">
                       <Button
                         size="sm"
                         onClick={handleSaveReport}
                         disabled={savingReport}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-5"
                       >
-                        {savingReport ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Save className="w-3.5 h-3.5 mr-1" />}
+                        {savingReport ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
                         Simpan Narasi Raport
                       </Button>
                     </div>
@@ -1940,6 +2463,8 @@ export default function TrisulaPage() {
               <p className="text-xs text-gray-600 leading-relaxed">
                 Sistem akan menyusun lembar raport resmi A4 untuk setiap santri secara berurutan dengan pemisah halaman otomatis (1 santri per halaman).
               </p>
+
+              <PrintBrowserHint variant="compact" />
 
               <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
                 <Button
@@ -2081,10 +2606,17 @@ export default function TrisulaPage() {
         }}
       />
 
-      {/* Print-Only Single Student Report Container */}
-      {individualReportOpen && reportData && !isBulkPrinting && (
-        <div className="hidden print:block print:w-full print:m-0 print:p-0">
+        </PageContainer>
+      </div>
+
+      {/* ── 2. TRISULA OFFICIAL PRINT ROOT ──────────────────────────────────── */}
+      {/* Strictly visible only during print/PDF generation */}
+      <div className="trisula-print-root hidden print:block print:w-full print:m-0 print:p-0">
+        {/* Single Student Report */}
+        {!isBulkPrinting && reportData && (individualReportOpen || activeTab === "REPORT") && (
           <TrisulaStudentReportSheet
+            letterheadUrl={resolvedLetterheadUrl}
+            schoolSettings={schoolSettings}
             data={{
               assessment: {
                 id: assessment?.id || "",
@@ -2094,58 +2626,62 @@ export default function TrisulaPage() {
                 fase: resolvedFase,
               },
               student: reportData.student,
-              summary: {
-                ...reportData.summary,
-                catatan_rangkuman: reportCatatan,
-                pesan_orang_tua: reportPesan,
-                literasi_description: reportLitDesc,
-                numerasi_description: reportNumDesc,
-                diniyyah_description: reportDinDesc,
-              },
+              summary: individualReportOpen
+                ? {
+                    ...reportData.summary,
+                    catatan_rangkuman: reportCatatan,
+                    pesan_orang_tua: reportPesan,
+                    literasi_description: reportLitDesc,
+                    numerasi_description: reportNumDesc,
+                    diniyyah_description: reportDinDesc,
+                  }
+                : reportData.summary,
               tutorName: user?.name || "Tutor Kelas Trisula",
             }}
           />
-        </div>
-      )}
+        )}
 
-      {/* Print-Only Bulk Class Reports Container */}
-      {isBulkPrinting && (
-        <div className="hidden print:block print:w-full print:m-0 print:p-0">
-          {gradebook.map((row) => (
-            <TrisulaStudentReportSheet
-              key={row.student_id}
-              isPrintBreak={true}
-              data={{
-                assessment: {
-                  id: assessment?.id || "",
-                  class_name: selectedClassName,
-                  academic_year_name: assessment?.academic_year_name || "2026/2027",
-                  semester_name: assessment?.semester_name || "Semester Ganjil",
-                  fase: resolvedFase,
-                },
-                student: {
-                  id: row.student_id,
-                  full_name: row.student_name,
-                  nisn: row.student_nisn,
-                  gender: row.gender,
-                },
-                summary: {
-                  literasi_score: row.literasi_score,
-                  numerasi_score: row.numerasi_score,
-                  diniyyah_score: row.diniyyah_score,
-                  overall_score: row.overall_score,
-                  literasi_description: row.literasi_description,
-                  numerasi_description: row.numerasi_description,
-                  diniyyah_description: row.diniyyah_description,
-                  catatan_rangkuman: row.catatan_rangkuman,
-                  pesan_orang_tua: row.pesan_orang_tua,
-                },
-                tutorName: user?.name || "Tutor Kelas Trisula",
-              }}
-            />
-          ))}
-        </div>
-      )}
-    </PageContainer>
+        {/* Bulk Class Reports (1 student per page with page breaks) */}
+        {isBulkPrinting && (
+          <div>
+            {gradebook.map((row) => (
+              <TrisulaStudentReportSheet
+                key={row.student_id}
+                isPrintBreak={true}
+                letterheadUrl={resolvedLetterheadUrl}
+                schoolSettings={schoolSettings}
+                data={{
+                  assessment: {
+                    id: assessment?.id || "",
+                    class_name: selectedClassName,
+                    academic_year_name: assessment?.academic_year_name || "2026/2027",
+                    semester_name: assessment?.semester_name || "Semester Ganjil",
+                    fase: resolvedFase,
+                  },
+                  student: {
+                    id: row.student_id,
+                    full_name: row.student_name,
+                    nisn: row.student_nisn,
+                    gender: row.gender,
+                  },
+                  summary: {
+                    literasi_score: row.literasi_score,
+                    numerasi_score: row.numerasi_score,
+                    diniyyah_score: row.diniyyah_score,
+                    overall_score: row.overall_score,
+                    literasi_description: row.literasi_description,
+                    numerasi_description: row.numerasi_description,
+                    diniyyah_description: row.diniyyah_description,
+                    catatan_rangkuman: row.catatan_rangkuman,
+                    pesan_orang_tua: row.pesan_orang_tua,
+                  },
+                  tutorName: user?.name || "Tutor Kelas Trisula",
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

@@ -34,9 +34,10 @@ export interface TrisulaFormulateDescriptionParams {
   studentName: string;
   pillar: TrisulaPillar;
   fase: string;
-  score: number;
+  score: number | null;
   cpText?: string | null;
   tps: Array<{ id: string; teks: string }>;
+  observationText?: string | null;
   userId?: string;
 }
 
@@ -44,6 +45,7 @@ export interface TrisulaFormulateDescriptionResult {
   source: AIGenerationSource;
   deskripsi: string;
   rekomendasi: string;
+  insufficientEvidence?: boolean;
   fallbackReason?: AIFallbackReason;
   usage?: AIUsageSnapshot;
 }
@@ -62,6 +64,7 @@ export interface TrisulaReportSynthesisParams {
     numerasi?: string | null;
     diniyyah?: string | null;
   };
+  target?: "ALL" | "SUMMARY_DEVELOPMENT" | "PARENT_REINFORCEMENT";
   userId?: string;
 }
 
@@ -69,6 +72,7 @@ export interface TrisulaReportSynthesisResult {
   source: AIGenerationSource;
   catatanRangkuman: string;
   pesanOrangTua: string;
+  insufficientEvidence?: boolean;
   fallbackReason?: AIFallbackReason;
   usage?: AIUsageSnapshot;
 }
@@ -105,18 +109,33 @@ export function getFallbackDescription(
   usage?: AIUsageSnapshot
 ): TrisulaFormulateDescriptionResult {
   const score = params.score;
+
+  if (score === null || score === undefined || isNaN(Number(score))) {
+    if (!params.observationText || params.observationText.trim().length < 5) {
+      return {
+        source: "FALLBACK",
+        insufficientEvidence: true,
+        fallbackReason: "INSUFFICIENT_EVIDENCE" as AIFallbackReason,
+        usage,
+        deskripsi: "Belum terdapat bukti asesmen yang cukup untuk merumuskan deskripsi ketercapaian.",
+        rekomendasi: "Lengkapi nilai pilar atau catatan pengamatan terlebih dahulu.",
+      };
+    }
+  }
+
+  const numScore = Number(score || 75);
   let level = "baik";
-  if (score >= 90) level = "sangat baik dan melampaui target pembelajaran";
-  else if (score >= 75) level = "tuntas dan konsisten";
-  else if (score >= 60) level = "cukup dan membutuhkan penguatan terarah";
-  else level = "perlu bimbingan intensif dan pendampingan personal";
+  if (numScore >= 90) level = "sangat baik dan melampaui target pembelajaran";
+  else if (numScore >= 75) level = "tuntas dan konsisten";
+  else if (numScore >= 60) level = "cukup dan memerlukan pendampingan berkala";
+  else level = "memerlukan pendampingan personal dan penguatan bertahap";
 
   return {
     source: "FALLBACK",
     fallbackReason: reason,
     usage,
     deskripsi: `${params.studentName} menunjukkan penguasaan kompetensi pilar ${params.pillar} dengan capaian ${level}.`,
-    rekomendasi: `Lanjutkan pembiasaan dan penguatan materi terkait ${params.pillar} secara berkelanjutan.`,
+    rekomendasi: `Lanjutkan pembiasaan terpadu dan penguatan materi terkait ${params.pillar} secara berkelanjutan.`,
   };
 }
 
@@ -125,12 +144,38 @@ export function getFallbackReportSynthesis(
   reason: AIFallbackReason = "NO_API_KEY",
   usage?: AIUsageSnapshot
 ): TrisulaReportSynthesisResult {
+  const hasScores = Object.values(params.scores).some(
+    (v) => v !== null && v !== undefined && !isNaN(Number(v))
+  );
+  const hasDesc = Object.values(params.descriptions).some(
+    (v) => typeof v === "string" && v.trim().length > 0
+  );
+
+  if (!hasScores && !hasDesc) {
+    return {
+      source: "FALLBACK",
+      insufficientEvidence: true,
+      fallbackReason: "INSUFFICIENT_EVIDENCE" as AIFallbackReason,
+      usage,
+      catatanRangkuman: "Belum terdapat bukti asesmen yang cukup untuk merumuskan rangkuman perkembangan.",
+      pesanOrangTua: "Belum terdapat bukti asesmen yang cukup untuk merumuskan pesan kemitraan orang tua.",
+    };
+  }
+
+  const target = params.target || "ALL";
+
   return {
     source: "FALLBACK",
     fallbackReason: reason,
     usage,
-    catatanRangkuman: `Alhamdulillah, ananda ${params.studentName} telah mengikuti rangkaian pembelajaran 3 Pilar Trisula (Literasi, Numerasi, Diniyyah) pada semester ini dengan penuh semangat dan adab terpuji.`,
-    pesanOrangTua: `Mohon dukungan dan sinergi Ayah/Bunda di rumah untuk terus mendampingi pembiasaan membaca, numerasi harian, dan pengamalan ibadah ananda ${params.studentName}.`,
+    catatanRangkuman:
+      target === "PARENT_REINFORCEMENT"
+        ? ""
+        : `Alhamdulillah, ananda ${params.studentName} menunjukkan pertumbuhan karakter dan kompetensi yang positif pada semester ini. Ananda beradab santun serta menunjukkan komitmen belajar yang baik dalam Literasi, Numerasi, dan pembiasaan Diniyyah harian.`,
+    pesanOrangTua:
+      target === "SUMMARY_DEVELOPMENT"
+        ? ""
+        : `Mohon Ayah/Bunda terus membiasakan membaca buku bersama di rumah selama 15 menit, melibatkan ananda dalam hitungan praktis harian, serta menjaga keteladanan sholat dan doa bersama di lingkungan keluarga.`,
   };
 }
 
@@ -289,6 +334,13 @@ export async function formulateTrisulaDescriptionWithAI(
 ): Promise<TrisulaFormulateDescriptionResult> {
   const { apiKey, model, endpointUrl } = getGeminiConfig();
 
+  // Guard: if no score and no observation evidence, return insufficient evidence state
+  if (params.score === null || params.score === undefined || isNaN(Number(params.score))) {
+    if (!params.observationText || params.observationText.trim().length < 5) {
+      return getFallbackDescription(params, "INSUFFICIENT_EVIDENCE" as AIFallbackReason);
+    }
+  }
+
   if (!apiKey || !endpointUrl) {
     return getFallbackDescription(params, "NO_API_KEY");
   }
@@ -308,20 +360,22 @@ export async function formulateTrisulaDescriptionWithAI(
 
   const prompt = `
 Anda adalah Guru Pakar Kurikulum BLC.
-Tugas Anda: Merumuskan deskripsi pencapaian dan rekomendasi tindak lanjut untuk raport pilar ${params.pillar}.
+Tugas Anda: Merumuskan deskripsi capaian pembelajaran dan rekomendasi tindak lanjut untuk raport pilar ${params.pillar}.
 
-DATA:
+DATA ASESMEN AKTUAL:
 - Nama Murid: "${params.studentName}"
-- Nilai yang telah diinput guru: ${params.score} (Skala 0-100)
+- Nilai yang telah diinput guru: ${params.score ?? "Berdasarkan catatan observasi"} (Skala 0-100)
 - Tingkat Fase: ${params.fase}
 - Capaian Pembelajaran: "${params.cpText || "Standar Kurikulum Trisula"}"
 - TP Terkait:
 ${params.tps.map((t, idx) => `  ${idx + 1}. ${t.teks}`).join("\n")}
+${params.observationText ? `- Catatan Observasi Guru: "${params.observationText}"` : ""}
 
-ATURAN:
-1. Formulasikan kalimat deskripsi capaian (2-3 kalimat) yang bernuansa positif, mendidik, dan mencerminkan nilai ${params.score}.
-2. Formulasikan rekomendasi (1-2 kalimat) untuk langkah pengembangan berikutnya.
-3. JANGAN mengubah nilai numerik.
+ATURAN GAYA BAHASA & KONTEN:
+1. Formulasikan kalimat deskripsi capaian (2-3 kalimat) yang bernuansa apresiatif, mendidik, dan secara spesifik mencerminkan indikator TP di atas.
+2. Formulasikan rekomendasi (1-2 kalimat) untuk penguatan dan langkah belajar berikutnya.
+3. JANGAN mengarang kompetensi yang tidak didukung data di atas.
+4. Gunakan gaya bahasa positif dan berkembang (hindari kata kasar seperti "anak lemah", "buruk", atau "tidak bisa").
 
 FORMAT OUTPUT (JSON murni):
 {
@@ -392,6 +446,19 @@ export async function synthesizeTrisulaReportWithAI(
   params: TrisulaReportSynthesisParams
 ): Promise<TrisulaReportSynthesisResult> {
   const { apiKey, model, endpointUrl } = getGeminiConfig();
+  const target = params.target || "ALL";
+
+  // Guard: if no scores and no descriptions exist, do NOT fabricate narratives
+  const hasScores = Object.values(params.scores).some(
+    (v) => v !== null && v !== undefined && !isNaN(Number(v))
+  );
+  const hasDesc = Object.values(params.descriptions).some(
+    (v) => typeof v === "string" && v.trim().length > 0
+  );
+
+  if (!hasScores && !hasDesc) {
+    return getFallbackReportSynthesis(params, "INSUFFICIENT_EVIDENCE" as AIFallbackReason);
+  }
 
   if (!apiKey || !endpointUrl) {
     return getFallbackReportSynthesis(params, "NO_API_KEY");
@@ -410,21 +477,72 @@ export async function synthesizeTrisulaReportWithAI(
     return getFallbackReportSynthesis(params, usageCheck.blockedReason, usageCheck.snapshot);
   }
 
-  const prompt = `
+  let prompt = "";
+  if (target === "SUMMARY_DEVELOPMENT") {
+    prompt = `
 Anda adalah Wali Kelas & Penulis Raport di BLC.
-Tugas Anda: Menyusun (1) Catatan Rangkuman Perkembangan Murid dan (2) Pesan Kemitraan Orang Tua untuk Raport Trisula.
+Tugas Anda: Menyusun "Catatan & Rekomendasi Perkembangan Trisula" (Rangkuman Holistik) untuk Raport Trisula.
 
 DATA ASESMEN AKTUAL (GUNAKAN HANYA DATA INI):
 - Nama Murid: ${params.studentName}
 - Kelas: ${params.className} (${params.fase})
-- Skor & Deskripsi Literasi: ${params.scores.literasi ?? "Belum dinilai"} | ${params.descriptions.literasi || "-"}
-- Skor & Deskripsi Numerasi: ${params.scores.numerasi ?? "Belum dinilai"} | ${params.descriptions.numerasi || "-"}
-- Skor & Deskripsi Diniyyah: ${params.scores.diniyyah ?? "Belum dinilai"} | ${params.descriptions.diniyyah || "-"}
+- Literasi (Nilai: ${params.scores.literasi ?? "-"}): ${params.descriptions.literasi || "Belum ada deskripsi"}
+- Numerasi (Nilai: ${params.scores.numerasi ?? "-"}): ${params.descriptions.numerasi || "Belum ada deskripsi"}
+- Diniyyah (Nilai: ${params.scores.diniyyah ?? "-"}): ${params.descriptions.diniyyah || "Belum ada deskripsi"}
 
 ATURAN:
-1. DILARANG MEREKAYASA prestasi di luar pilar yang memiliki skor di atas.
-2. "catatanRangkuman": Paragraf komprehensif yang merangkum pertumbuhan kognitif dan adab santri.
-3. "pesanOrangTua": Pesan hangat dan actionable untuk orang tua sebagai pendidik utama di rumah.
+1. Nada bahasa: profesional, hangat, spesifik, bernuansa perkembangan (developmental), bukan menghakimi.
+2. DILARANG menggunakan kata menghakimi ("anak lemah", "buruk", "tidak mampu"). Gunakan "masih memerlukan pendampingan...", "perlu penguatan bertahap pada...".
+3. DILARANG menggunakan template generik klise ("Terus tingkatkan belajar", "Pertahankan prestasi") tanpa konteks nyata.
+4. Sintesiskan ketiga pilar menjadi satu rangkuman holistik ringkas (2-3 kalimat) ditambah rekomendasi langkah pengembangan terarah.
+
+FORMAT OUTPUT (JSON murni):
+{
+  "catatanRangkuman": string,
+  "pesanOrangTua": ""
+}
+`;
+  } else if (target === "PARENT_REINFORCEMENT") {
+    prompt = `
+Anda adalah Pendidik BLC & Konsultan Kemitraan Orang Tua (Madrasatul Ula).
+Tugas Anda: Menyusun "Pesan Penguatan Trisula di Rumah (Kemitraan Madrasatul Ula)" untuk Ayah/Bunda wali murid.
+
+DATA ASESMEN AKTUAL:
+- Nama Murid: ${params.studentName}
+- Kelas: ${params.className} (${params.fase})
+- Literasi: Nilai ${params.scores.literasi ?? "-"} | ${params.descriptions.literasi || "-"}
+- Numerasi: Nilai ${params.scores.numerasi ?? "-"} | ${params.descriptions.numerasi || "-"}
+- Diniyyah: Nilai ${params.scores.diniyyah ?? "-"} | ${params.descriptions.diniyyah || "-"}
+
+ATURAN:
+1. Berikan 1–3 poin rekomendasi praktis dan hangat yang dapat dijalankan orang tua di rumah untuk mendampingi ananda.
+2. Harus konkret dan relevan dengan perkembangan aktual ananda (contoh: membaca buku 15 menit bersama sebelum tidur, melibatkan dalam hitungan belanja harian, tilawah/sholat berjamaah).
+3. DILARANG membuat laporan formal sekolah kedua. Fokus pada kemitraan pengasuhan & pembiasaan rumah (Madrasatul Ula).
+4. DILARANG menggunakan kata generik klise ("Semangat belajar di rumah").
+
+FORMAT OUTPUT (JSON murni):
+{
+  "catatanRangkuman": "",
+  "pesanOrangTua": string
+}
+`;
+  } else {
+    prompt = `
+Anda adalah Wali Kelas & Penulis Raport di BLC.
+Tugas Anda: Menyusun (1) Catatan & Rekomendasi Perkembangan Trisula dan (2) Pesan Penguatan Trisula di Rumah (Kemitraan Madrasatul Ula).
+
+DATA ASESMEN AKTUAL (GUNAKAN HANYA DATA INI):
+- Nama Murid: ${params.studentName}
+- Kelas: ${params.className} (${params.fase})
+- Literasi (Nilai: ${params.scores.literasi ?? "-"}): ${params.descriptions.literasi || "-"}
+- Numerasi (Nilai: ${params.scores.numerasi ?? "-"}): ${params.descriptions.numerasi || "-"}
+- Diniyyah (Nilai: ${params.scores.diniyyah ?? "-"}): ${params.descriptions.diniyyah || "-"}
+
+ATURAN:
+1. DILARANG MEREKAYASA prestasi di luar pilar yang memiliki data di atas.
+2. "catatanRangkuman": Sintesis holistik ketiga pilar yang hangat, mendidik, dan bernuansa perkembangan (bukan menghakimi).
+3. "pesanOrangTua": 1-3 saran praktis kemitraan orang tua di rumah yang actionable dan ramah keluarga.
+4. Hindari kalimat klise kosong tanpa substansi data asesmen.
 
 FORMAT OUTPUT (JSON murni):
 {
@@ -432,6 +550,7 @@ FORMAT OUTPUT (JSON murni):
   "pesanOrangTua": string
 }
 `;
+  }
 
   const startedAt = new Date();
   try {
@@ -470,8 +589,8 @@ FORMAT OUTPUT (JSON murni):
 
     return {
       source: "GEMINI",
-      catatanRangkuman: parsed.catatanRangkuman || "Ananda menunjukkan perkembangan belajar yang positif.",
-      pesanOrangTua: parsed.pesanOrangTua || "Mohon terus mendampingi ananda dalam pembiasaan harian.",
+      catatanRangkuman: parsed.catatanRangkuman || "",
+      pesanOrangTua: parsed.pesanOrangTua || "",
       usage: usageCheck.snapshot,
     };
   } catch {

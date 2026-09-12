@@ -195,6 +195,13 @@ const MENU_ITEMS: MenuItem[] = [
     icon: <RefreshCw className="w-5 h-5" />,
   },
   {
+    name: "Kop Surat Resmi",
+    href: "/settings/letterhead",
+    roles: ["administrator", "admin"],
+    category: "sistem",
+    icon: <ShieldCheck className="w-5 h-5" />,
+  },
+  {
     name: "Kelola Landing Page",
     href: "/settings/cms-landing",
     roles: ["administrator", "admin"],

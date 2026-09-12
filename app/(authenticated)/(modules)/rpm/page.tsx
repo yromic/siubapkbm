@@ -9,13 +9,16 @@ import { Card, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PrintRenderer } from "@/components/print/print-renderer";
+import { PrintSectionHeader } from "@/components/print/PrintSectionHeader";
+import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 import { PageContainer, PageSection } from "@/components/ui/page-framework";
 import { AIUsageStatus, getAIErrorMessageByReason } from "@/components/ai/AIUsageStatus";
 import {
   Loader2, Plus, Sparkles, ArrowLeft, Printer, CheckCircle,
   WifiOff, Clock, RefreshCw, Trash2, Share2, ShieldCheck, PenSquare,
   BookOpen, Calculator, HeartHandshake, Database, Layers, FileText,
-  Search, X, School, Users, CheckCircle2, ChevronRight, Bookmark, Tag
+  Search, X, School, Users, CheckCircle2, ChevronRight, Bookmark, Tag,
+  Paperclip, Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,8 +35,12 @@ import {
   computeLegacyDurationFromActivities,
   VALID_KURNAS,
 } from "@/lib/utils/rpmUtils";
-import { resolvePhaseByClassName } from "@/lib/utils/academicUtils";
+import { resolvePhaseByClassName, resolveAcademicPeriodDisplay, isUuid } from "@/lib/utils/academicUtils";
 import { CurriculumBankModal, SelectedTPPayload } from "@/components/curriculum/CurriculumBankModal";
+import { RPMAttachmentSection } from "@/components/rpm/RPMAttachmentSection";
+import { RPMAttachment } from "@/types/rpmAttachment";
+import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
+import { formatAttachmentType, formatFileSize } from "@/lib/utils/rpmAttachmentUtils";
 
 interface RPMItem {
   id: string;
@@ -45,11 +52,15 @@ interface RPMItem {
   author_name?: string;
   author_nip?: string | null;
   author_nuptk?: string | null;
+  semester_id?: string | null;
+  semester_name?: string | null;
   signer_name?: string;
   signer_nip?: string | null;
   signer_nuptk?: string | null;
   signed_at?: string | null;
   blc_shared_at?: string | null;
+  attachment_count?: number;
+  created_at?: string;
   updated_at: string;
   content: {
     identitas: {
@@ -68,6 +79,12 @@ interface RPMItem {
       semesterId?: string;
       semesterTahun?: string;
       tahunAjaran?: string;
+      letterhead?: {
+        id: string;
+        url: string;
+        name: string;
+        snapped_at?: string;
+      };
     };
     desainPembelajaran: {
       capaianPembelajaran: string;
@@ -257,8 +274,10 @@ export default function RPMPage() {
   const [filterTab, setFilterTab] = useState<'MY_ACTIVE' | 'ALL'>('MY_ACTIVE');
   const [rpmSearch, setRpmSearch] = useState('');
   const [view, setView] = useState<'LIST' | 'WIZARD' | 'PRINT'>('LIST');
+  const [returnView, setReturnView] = useState<'LIST' | 'WIZARD'>('LIST');
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [activeDoc, setActiveDoc] = useState<RPMItem | null>(null);
+  const [activeDocAttachments, setActiveDocAttachments] = useState<RPMAttachment[]>([]);
   const [schoolSettings, setSchoolSettings] = useState<any>({});
 
   // Filter documents: MY_ACTIVE prioritizes current user's active work
@@ -355,7 +374,14 @@ export default function RPMPage() {
   const [dplKurnasTags, setDplKurnasTags] = useState<string[]>(["Penalaran Kritis", "Kemandirian", "Kreativitas", "Kolaborasi"]);
 
   // ── Semester / TA master data ──────────────────────────────────────────────
-  const [masterSemesters, setMasterSemesters] = useState<Array<{ id: string; name: string; academic_year_id: string; is_active: number }>>([]);
+  const [masterSemesters, setMasterSemesters] = useState<Array<{
+    id: string;
+    name: string;
+    academic_year_id: string;
+    academic_year_name?: string;
+    is_active: number | boolean;
+  }>>([]);
+  const [masterAcademicYears, setMasterAcademicYears] = useState<Array<{ id: string; name: string }>>([]);
   const [semesterId, setSemesterId] = useState<string>("");
   const [semesterNama, setSemesterNama] = useState<string>("");
   const [tahunAjaran, setTahunAjaran] = useState<string>("");
@@ -377,19 +403,24 @@ export default function RPMPage() {
   const [masterTeachers, setMasterTeachers] = useState<Array<{ id: string; full_name: string }>>([]);
 
   useEffect(() => {
-    // Load Master Data including semesters
+    // Load Master Data including semesters and academic years
     const loadMasterData = async () => {
       try {
-        const [subjRes, classRes, usersRes, semRes] = await Promise.all([
+        const [subjRes, classRes, usersRes, semRes, ayRes, settingsRes] = await Promise.all([
           fetch("/api/v1/subjects"),
           fetch("/api/v1/classes"),
           fetch("/api/v1/users?role=teacher&limit=100"),
-          fetch("/api/v1/semesters?limit=20"),
+          fetch("/api/v1/semesters?limit=50"),
+          fetch("/api/v1/academic-years?limit=50"),
+          fetch("/api/v1/app-settings"),
         ]);
         const subjJson = await subjRes.json();
         const classJson = await classRes.json();
         const usersJson = await usersRes.json();
         const semJson = await semRes.json();
+        const ayJson = await ayRes.json();
+        const settingsJson = await settingsRes.json();
+        if (settingsJson.success) setSchoolSettings(settingsJson.data || {});
 
         const subjectsData = Array.isArray(subjJson.data?.data)
           ? subjJson.data.data
@@ -423,6 +454,14 @@ export default function RPMPage() {
           ? semJson.data
           : [];
 
+        const academicYearsData = Array.isArray(ayJson.data?.data)
+          ? ayJson.data.data
+          : Array.isArray(ayJson.data?.items)
+          ? ayJson.data.items
+          : Array.isArray(ayJson.data)
+          ? ayJson.data
+          : [];
+
         if (subjJson.success) setMasterSubjects(subjectsData);
         if (classJson.success) setMasterClasses(classesData);
         if (usersJson.success) {
@@ -433,6 +472,9 @@ export default function RPMPage() {
             }))
           );
         }
+        if (ayJson.success && academicYearsData.length > 0) {
+          setMasterAcademicYears(academicYearsData);
+        }
         if (semJson.success && semestersData.length > 0) {
           setMasterSemesters(semestersData);
           // Auto-select active semester
@@ -440,11 +482,12 @@ export default function RPMPage() {
           const selectedSem = activeSem || semestersData[0];
           if (selectedSem) {
             setSemesterId(selectedSem.id);
-            setSemesterNama(selectedSem.name);
-            // Derive academic year label from academic_year_id e.g. "AY_2026_2027" → "2026/2027"
-            const ayRaw: string = selectedSem.academic_year_id || "";
-            const ayMatch = ayRaw.match(/(\d{4})_(\d{4})/);
-            setTahunAjaran(ayMatch ? `${ayMatch[1]}/${ayMatch[2]}` : ayRaw);
+            const period = resolveAcademicPeriodDisplay(
+              { semesterId: selectedSem.id },
+              { semesters: semestersData, academicYears: academicYearsData }
+            );
+            setSemesterNama(period.semesterName || selectedSem.name || "");
+            setTahunAjaran(period.academicYearLabel !== "-" ? period.academicYearLabel : (selectedSem.academic_year_name || ""));
           }
         }
       } catch (err) {
@@ -453,6 +496,19 @@ export default function RPMPage() {
     };
     loadMasterData();
   }, []);
+
+  // Auto-reconcile legacy UUIDs or missing labels when master data becomes available
+  useEffect(() => {
+    if (masterSemesters.length > 0 && (isUuid(tahunAjaran) || isUuid(semesterNama) || (semesterId && (!tahunAjaran || !semesterNama)))) {
+      const period = resolveAcademicPeriodDisplay(
+        { semesterId, semesterName: semesterNama, tahunAjaran },
+        { semesters: masterSemesters, academicYears: masterAcademicYears }
+      );
+      if (period.semesterId && !semesterId) setSemesterId(period.semesterId);
+      if (period.semesterName && (!semesterNama || isUuid(semesterNama))) setSemesterNama(period.semesterName);
+      if (period.academicYearLabel !== "-" && (!tahunAjaran || isUuid(tahunAjaran))) setTahunAjaran(period.academicYearLabel);
+    }
+  }, [masterSemesters, masterAcademicYears, semesterId, semesterNama, tahunAjaran]);
 
   // Duration check — Structured metadata (primary) with legacy text-regex fallback
   const totalDurasi = useMemo(() => {
@@ -532,55 +588,81 @@ export default function RPMPage() {
   }, [fetchRPMDocuments]);
 
   // Build Payload
-  const buildPayload = useCallback(() => ({
-    type: "RPM" as const,
-    title: title.trim() || `RPM ${mataPelajaran} - ${modulTopik || "Topik Baru"}`,
-    content: {
-      identitas: {
-        mataPelajaran,
-        kelasRombel,
-        tingkatFase,
-        alokasiWaktu,
-        modulTopik,
-        namaTutorPengampu: namaTutorPengampu || user?.name,
-        trisulaKompetensi: trisulaTags,
-        deskripsiTrisula,
-        karakterFitrah: karakterTags,
-        budayaSahabat: budayaSahabatTags,
-        dplUtsman: dplUtsmanTags,
-        dplKurnas: dplKurnasTags,
-        // Authoritative semester/TA snapshot — sourced from master data
-        semesterId,
-        semesterTahun: semesterNama ? `Semester ${semesterNama}` : "",
-        tahunAjaran,
-      },
-      desainPembelajaran: {
-        capaianPembelajaran,
-        pemahamanBermakna,
-        tujuanPembelajaran: tujuanPembelajaran.filter((t) => t.trim().length > 0),
-        pertanyaanPemantik: pertanyaanPemantik.filter((p) => p.trim().length > 0),
-        mediaAjar: mediaAjar.filter((m) => m.trim().length > 0),
-        sumberBelajar: sumberBelajar.filter((s) => s.trim().length > 0),
-        kegiatanPembelajaran: {
-          awal: kegiatanAwal,
-          inti: kegiatanInti,
-          akhir: kegiatanAkhir,
-          metadata: {
-            awal: kegiatanMetadataAwal,
-            inti: kegiatanMetadataInti,
-            akhir: kegiatanMetadataAkhir,
+  const buildPayload = useCallback(() => {
+    const period = resolveAcademicPeriodDisplay(
+      { semesterId, semesterName: semesterNama, tahunAjaran },
+      { semesters: masterSemesters, academicYears: masterAcademicYears }
+    );
+    const cleanSemName = period.semesterName || (isUuid(semesterNama) ? "" : semesterNama.replace(/^Semester\s*/i, "").trim());
+    const cleanSemLabel = period.semesterLabel !== "-" ? period.semesterLabel : (cleanSemName ? `Semester ${cleanSemName}` : "");
+    const cleanAyLabel = period.academicYearLabel !== "-" ? period.academicYearLabel : (isUuid(tahunAjaran) ? "" : tahunAjaran);
+
+    const selectedClass = masterClasses.find((c) => c.name === kelasRombel);
+    const selectedSubj = masterSubjects.find((s) => s.name === mataPelajaran);
+
+    return {
+      type: "RPM" as const,
+      title: title.trim() || `RPM ${mataPelajaran} - ${modulTopik || "Topik Baru"}`,
+      class_id: selectedClass?.id || null,
+      subject_id: selectedSubj?.id || null,
+      semester_id: semesterId || null,
+      content: {
+        identitas: {
+          mataPelajaran,
+          kelasRombel,
+          tingkatFase,
+          alokasiWaktu,
+          modulTopik,
+          namaTutorPengampu: namaTutorPengampu || user?.name,
+          trisulaKompetensi: trisulaTags,
+          deskripsiTrisula,
+          karakterFitrah: karakterTags,
+          budayaSahabat: budayaSahabatTags,
+          dplUtsman: dplUtsmanTags,
+          dplKurnas: dplKurnasTags,
+          // Authoritative semester/TA snapshot — sourced from master data (human-readable)
+          semesterId: semesterId || undefined,
+          semesterTahun: cleanSemLabel,
+          tahunAjaran: cleanAyLabel,
+          // Letterhead snapshot: capture active kop at first save — preserved for historical reprint
+          letterhead: activeDoc?.content?.identitas?.letterhead ||
+            ((schoolSettings as any)?.active_letterhead_id
+              ? {
+                  id: (schoolSettings as any).active_letterhead_id,
+                  url: (schoolSettings as any).active_letterhead_url || "/branding/school-letterhead.png",
+                  name: "Kop Resmi Aktif",
+                  snapped_at: new Date().toISOString(),
+                }
+              : undefined),
+        },
+        desainPembelajaran: {
+          capaianPembelajaran,
+          pemahamanBermakna,
+          tujuanPembelajaran: tujuanPembelajaran.filter((t) => t.trim().length > 0),
+          pertanyaanPemantik: pertanyaanPemantik.filter((p) => p.trim().length > 0),
+          mediaAjar: mediaAjar.filter((m) => m.trim().length > 0),
+          sumberBelajar: sumberBelajar.filter((s) => s.trim().length > 0),
+          kegiatanPembelajaran: {
+            awal: kegiatanAwal,
+            inti: kegiatanInti,
+            akhir: kegiatanAkhir,
+            metadata: {
+              awal: kegiatanMetadataAwal,
+              inti: kegiatanMetadataInti,
+              akhir: kegiatanMetadataAkhir,
+            },
+          },
+          asesmen: {
+            awal: asesmenAwal,
+            formatif: asesmenFormatif,
+            sumatif: asesmenSumatif,
+            pesanEdukasiOrangTua,
+            rubrikKarakterFitrah: rubrikKarakterFitrah.length > 0 ? rubrikKarakterFitrah : undefined,
           },
         },
-        asesmen: {
-          awal: asesmenAwal,
-          formatif: asesmenFormatif,
-          sumatif: asesmenSumatif,
-          pesanEdukasiOrangTua,
-          rubrikKarakterFitrah: rubrikKarakterFitrah.length > 0 ? rubrikKarakterFitrah : undefined,
-        },
       },
-    },
-  }), [
+    };
+  }, [
     title, mataPelajaran, kelasRombel, tingkatFase, alokasiWaktu, modulTopik,
     namaTutorPengampu, user?.name, trisulaTags, deskripsiTrisula, karakterTags,
     budayaSahabatTags, dplUtsmanTags, dplKurnasTags, capaianPembelajaran,
@@ -589,6 +671,7 @@ export default function RPMPage() {
     semesterId, semesterNama, tahunAjaran,
     pertanyaanPemantik, mediaAjar, sumberBelajar, rubrikKarakterFitrah,
     kegiatanMetadataAwal, kegiatanMetadataInti, kegiatanMetadataAkhir,
+    masterSemesters, masterAcademicYears, masterClasses, masterSubjects,
   ]);
 
   // Auto-Save Trigger
@@ -625,8 +708,26 @@ export default function RPMPage() {
     };
   }, [view, triggerAutoSave, title, modulTopik, capaianPembelajaran, pemahamanBermakna, tujuanPembelajaran, kegiatanAwal, kegiatanInti, kegiatanAkhir, deskripsiTrisula]);
 
+  // Fallback reactive: pastikan attachments termuat saat berada dalam tampilan PRINT
+  useEffect(() => {
+    if (view === 'PRINT' && activeDoc?.id && activeDoc.id !== 'preview-temp') {
+      let isMounted = true;
+      fetchRpmAttachments(activeDoc.id)
+        .then((atts) => {
+          if (isMounted && Array.isArray(atts)) {
+            setActiveDocAttachments(atts);
+          }
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [view, activeDoc?.id]);
+
   const handleCreateNew = () => {
     setActiveDoc(null);
+    setActiveDocAttachments([]);
     autoSaveDraftIdRef.current = undefined;
     setAutoSaveStatus('idle');
     setAutoSaveLastTime(null);
@@ -659,55 +760,181 @@ export default function RPMPage() {
     setView('WIZARD');
   };
 
-  const applyAiContent = (aiData: any) => {
+  type RPMGenerateTarget =
+    | "ALL"
+    | "PEMAHAMAN_BERMAKNA"
+    | "PERTANYAAN_PEMANTIK"
+    | "MEDIA_AJAR"
+    | "SUMBER_BELAJAR"
+    | "PESAN_ORANG_TUA";
+
+  const [generatingField, setGeneratingField] = useState<RPMGenerateTarget | null>(null);
+
+  const applyAiContent = (aiData: any, overwriteTP = false) => {
     if (!aiData) return;
-    setCapaianPembelajaran(aiData.desainPembelajaran?.capaianPembelajaran || "");
-    setPemahamanBermakna(aiData.desainPembelajaran?.pemahamanBermakna || "");
-    setTujuanPembelajaran(aiData.desainPembelajaran?.tujuanPembelajaran || [""]);
+    const content = aiData.content || aiData;
+    const dp = content.desainPembelajaran;
+    const id = content.identitas;
+
+    // CP is authoritative — never replace teacher/bank selected CP with AI output
+    if (!capaianPembelajaran.trim()) {
+      setCapaianPembelajaran(dp?.capaianPembelajaran || "");
+    }
+
+    setPemahamanBermakna(dp?.pemahamanBermakna || "");
+
+    // TP is preserved if already populated, unless teacher explicitly confirmed overwrite
+    const hasValidExistingTP = tujuanPembelajaran.some((t: string) => t && t.trim().length > 0);
+    if (!hasValidExistingTP || overwriteTP) {
+      setTujuanPembelajaran(dp?.tujuanPembelajaran || [""]);
+    }
 
     // New fields
-    if (Array.isArray(aiData.desainPembelajaran?.pertanyaanPemantik)) {
-      setPertanyaanPemantik(aiData.desainPembelajaran.pertanyaanPemantik);
+    if (Array.isArray(dp?.pertanyaanPemantik)) {
+      setPertanyaanPemantik(dp.pertanyaanPemantik);
     }
-    if (Array.isArray(aiData.desainPembelajaran?.mediaAjar)) {
-      setMediaAjar(aiData.desainPembelajaran.mediaAjar);
+    if (Array.isArray(dp?.mediaAjar)) {
+      setMediaAjar(dp.mediaAjar);
     }
-    if (Array.isArray(aiData.desainPembelajaran?.sumberBelajar)) {
-      setSumberBelajar(aiData.desainPembelajaran.sumberBelajar);
+    if (Array.isArray(dp?.sumberBelajar)) {
+      setSumberBelajar(dp.sumberBelajar);
     }
 
-    if (aiData.identitas?.trisulaKompetensi) setTrisulaTags(aiData.identitas.trisulaKompetensi);
-    if (aiData.identitas?.deskripsiTrisula) {
+    if (id?.trisulaKompetensi) setTrisulaTags(id.trisulaKompetensi);
+    if (id?.deskripsiTrisula) {
       setDeskripsiTrisula({
-        literasi: aiData.identitas.deskripsiTrisula.literasi || "",
-        numerasi: aiData.identitas.deskripsiTrisula.numerasi || "",
-        diniyyah: aiData.identitas.deskripsiTrisula.diniyyah || "",
+        literasi: id.deskripsiTrisula.literasi || "",
+        numerasi: id.deskripsiTrisula.numerasi || "",
+        diniyyah: id.deskripsiTrisula.diniyyah || "",
       });
     }
-    if (aiData.identitas?.karakterFitrah) setKarakterTags(aiData.identitas.karakterFitrah);
-    if (aiData.identitas?.budayaSahabat) setBudayaSahabatTags(aiData.identitas.budayaSahabat);
-    if (aiData.identitas?.dplUtsman) setDplUtsmanTags(aiData.identitas.dplUtsman);
-    if (aiData.identitas?.dplKurnas) setDplKurnasTags(aiData.identitas.dplKurnas);
+    if (id?.karakterFitrah) setKarakterTags(id.karakterFitrah);
+    if (id?.budayaSahabat) setBudayaSahabatTags(id.budayaSahabat);
+    if (id?.dplUtsman) setDplUtsmanTags(id.dplUtsman);
+    if (id?.dplKurnas) setDplKurnasTags(id.dplKurnas);
 
-    if (aiData.desainPembelajaran?.kegiatanPembelajaran) {
-      setKegiatanAwal((aiData.desainPembelajaran.kegiatanPembelajaran.awal || []).map(normalizeActivityItem));
-      setKegiatanInti((aiData.desainPembelajaran.kegiatanPembelajaran.inti || []).map(normalizeActivityItem));
-      setKegiatanAkhir((aiData.desainPembelajaran.kegiatanPembelajaran.akhir || []).map(normalizeActivityItem));
+    if (dp?.kegiatanPembelajaran) {
+      setKegiatanAwal((dp.kegiatanPembelajaran.awal || []).map(normalizeActivityItem));
+      setKegiatanInti((dp.kegiatanPembelajaran.inti || []).map(normalizeActivityItem));
+      setKegiatanAkhir((dp.kegiatanPembelajaran.akhir || []).map(normalizeActivityItem));
       // Activity metadata
-      const meta = aiData.desainPembelajaran.kegiatanPembelajaran.metadata;
+      const meta = dp.kegiatanPembelajaran.metadata;
       if (meta?.awal) setKegiatanMetadataAwal({ fokus: meta.awal.fokus || "", durasiMenit: meta.awal.durasiMenit || 10, fokusAdab: meta.awal.fokusAdab || "" });
       if (meta?.inti) setKegiatanMetadataInti({ fokus: meta.inti.fokus || "", durasiMenit: meta.inti.durasiMenit || 50, pendekatanMetode: meta.inti.pendekatanMetode || "" });
       if (meta?.akhir) setKegiatanMetadataAkhir({ fokus: meta.akhir.fokus || "", durasiMenit: meta.akhir.durasiMenit || 10, fokusRefleksi: meta.akhir.fokusRefleksi || "" });
     }
 
-    if (aiData.desainPembelajaran?.asesmen) {
-      setAsesmenAwal(aiData.desainPembelajaran.asesmen.awal || "Tanya Jawab Diagnostik");
-      setAsesmenFormatif(aiData.desainPembelajaran.asesmen.formatif || "Observasi Diskusi");
-      setAsesmenSumatif(aiData.desainPembelajaran.asesmen.sumatif || "Evaluasi Tertulis");
-      setPesanEdukasiOrangTua(aiData.desainPembelajaran.asesmen.pesanEdukasiOrangTua || "");
-      if (Array.isArray(aiData.desainPembelajaran.asesmen.rubrikKarakterFitrah)) {
-        setRubrikKarakterFitrah(aiData.desainPembelajaran.asesmen.rubrikKarakterFitrah);
+    if (dp?.asesmen) {
+      setAsesmenAwal(dp.asesmen.awal || "Tanya Jawab Diagnostik");
+      setAsesmenFormatif(dp.asesmen.formatif || "Observasi Diskusi");
+      setAsesmenSumatif(dp.asesmen.sumatif || "Evaluasi Tertulis");
+      setPesanEdukasiOrangTua(dp.asesmen.pesanEdukasiOrangTua || "");
+      if (Array.isArray(dp.asesmen.rubrikKarakterFitrah)) {
+        setRubrikKarakterFitrah(dp.asesmen.rubrikKarakterFitrah);
       }
+    }
+  };
+
+  const handleGenerateFieldAI = async (target: RPMGenerateTarget) => {
+    if (!modulTopik.trim()) {
+      toast.error("Silakan isi topik/modul terlebih dahulu di Langkah 1.");
+      return;
+    }
+
+    let hasExisting = false;
+    let fieldLabel = "";
+    if (target === "PEMAHAMAN_BERMAKNA") {
+      hasExisting = pemahamanBermakna.trim().length > 0;
+      fieldLabel = "Pemahaman Bermakna";
+    } else if (target === "PERTANYAAN_PEMANTIK") {
+      hasExisting = pertanyaanPemantik.filter((p) => p.trim()).length > 0;
+      fieldLabel = "Pertanyaan Pemantik";
+    } else if (target === "MEDIA_AJAR") {
+      hasExisting = mediaAjar.filter((m) => m.trim()).length > 0;
+      fieldLabel = "Media Ajar";
+    } else if (target === "SUMBER_BELAJAR") {
+      hasExisting = sumberBelajar.filter((s) => s.trim()).length > 0;
+      fieldLabel = "Sumber Belajar";
+    } else if (target === "PESAN_ORANG_TUA") {
+      hasExisting = pesanEdukasiOrangTua.trim().length > 0;
+      fieldLabel = "Pesan Edukasi Orang Tua";
+    }
+
+    if (hasExisting) {
+      const confirmOverwrite = window.confirm(
+        `${fieldLabel} sudah memiliki isian. Ganti dengan hasil rumusan AI baru?`
+      );
+      if (!confirmOverwrite) return;
+    }
+
+    setGeneratingField(target);
+
+    try {
+      const period = resolveAcademicPeriodDisplay(
+        { semesterId, semesterName: semesterNama, tahunAjaran },
+        { semesters: masterSemesters, academicYears: masterAcademicYears }
+      );
+      const safeSem = period.semesterName || (isUuid(semesterNama) ? undefined : semesterNama) || undefined;
+      const safeAy = (period.academicYearLabel !== "-" ? period.academicYearLabel : (isUuid(tahunAjaran) ? undefined : tahunAjaran)) || undefined;
+
+      const payload = {
+        target,
+        mataPelajaran,
+        kelasRombel,
+        tingkatFase,
+        alokasiWaktu,
+        modulTopik,
+        semester: safeSem,
+        academicYear: safeAy,
+        capaianPembelajaran: capaianPembelajaran.trim() || undefined,
+        tujuanPembelajaran: tujuanPembelajaran.filter((t) => t.trim()).length > 0 ? tujuanPembelajaran.filter((t) => t.trim()) : undefined,
+        karakterFitrah: karakterTags.length > 0 ? karakterTags : undefined,
+      };
+
+      const res = await fetch("/api/v1/rpm/generate-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.message || `Gagal merumuskan ${fieldLabel}.`);
+        return;
+      }
+
+      const resData = json.data;
+      const isFallback = resData?.source === 'FALLBACK';
+      if (isFallback) {
+        toast.warning(getAIErrorMessageByReason(resData?.fallbackReason, "Saran lokal digunakan karena AI tidak tersedia."));
+      } else {
+        toast.success(`${fieldLabel} berhasil dirumuskan oleh AI.`);
+      }
+
+      const rawData = resData?.data;
+      const content = resData?.content;
+      const dp = content?.desainPembelajaran;
+
+      if (target === "PEMAHAMAN_BERMAKNA") {
+        const val = typeof rawData === "string" ? rawData : dp?.pemahamanBermakna || "";
+        if (val) setPemahamanBermakna(val);
+      } else if (target === "PERTANYAAN_PEMANTIK") {
+        const list = Array.isArray(rawData) ? rawData : dp?.pertanyaanPemantik || [];
+        if (list.length > 0) setPertanyaanPemantik(list);
+      } else if (target === "MEDIA_AJAR") {
+        const list = Array.isArray(rawData) ? rawData : dp?.mediaAjar || [];
+        if (list.length > 0) setMediaAjar(list);
+      } else if (target === "SUMBER_BELAJAR") {
+        const list = Array.isArray(rawData) ? rawData : dp?.sumberBelajar || [];
+        if (list.length > 0) setSumberBelajar(list);
+      } else if (target === "PESAN_ORANG_TUA") {
+        const val = typeof rawData === "string" ? rawData : dp?.asesmen?.pesanEdukasiOrangTua || "";
+        if (val) setPesanEdukasiOrangTua(val);
+      }
+    } catch {
+      toast.error(`Terjadi kendala jaringan saat merumuskan ${fieldLabel}.`);
+    } finally {
+      setGeneratingField(null);
     }
   };
 
@@ -720,15 +947,22 @@ export default function RPMPage() {
     setAiLoading(true);
     setAiError(null);
 
+    const period = resolveAcademicPeriodDisplay(
+      { semesterId, semesterName: semesterNama, tahunAjaran },
+      { semesters: masterSemesters, academicYears: masterAcademicYears }
+    );
+    const safeSem = period.semesterName || (isUuid(semesterNama) ? undefined : semesterNama) || undefined;
+    const safeAy = (period.academicYearLabel !== "-" ? period.academicYearLabel : (isUuid(tahunAjaran) ? undefined : tahunAjaran)) || undefined;
+
     const payload = customPayload || {
       mataPelajaran,
       kelasRombel,
       tingkatFase,
       alokasiWaktu,
       modulTopik,
-      // Pass authoritative context so AI doesn't override them
-      semester: semesterNama || undefined,
-      academicYear: tahunAjaran || undefined,
+      // Pass authoritative context so AI doesn't override them (human-readable labels only)
+      semester: safeSem,
+      academicYear: safeAy,
       capaianPembelajaran: capaianPembelajaran.trim() || undefined,
       tujuanPembelajaran: tujuanPembelajaran.filter(t => t.trim()).length > 0 ? tujuanPembelajaran.filter(t => t.trim()) : undefined,
       karakterFitrah: karakterTags.length > 0 ? karakterTags : undefined,
@@ -749,7 +983,7 @@ export default function RPMPage() {
       }
 
       if (json.data?.source === 'FALLBACK') {
-        toast.warning(getAIErrorMessageByReason(json.data?.fallbackReason, "Menggunakan template kurikulum nasional standar."));
+        toast.warning(getAIErrorMessageByReason(json.data?.fallbackReason, "Saran lokal digunakan karena AI tidak tersedia."));
       } else {
         toast.success("Rancangan RPM berhasil dirumuskan oleh AI.");
       }
@@ -1022,6 +1256,32 @@ export default function RPMPage() {
     }
   };
 
+  const handleSaveDraftAndOpenAttachments = async () => {
+    setSubmitting(true);
+    try {
+      const payload = buildPayload();
+      const res = await fetch("/api/v1/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.message || "Gagal menyimpan draf RPM.");
+        return;
+      }
+      const newDoc = json.data;
+      autoSaveDraftIdRef.current = newDoc.id;
+      setActiveDoc(newDoc);
+      fetchRPMDocuments();
+      toast.success("RPM berhasil disimpan. Silakan tambahkan lampiran pendukung.");
+    } catch {
+      toast.error("Gagal memproses penyimpanan RPM.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleDeleteRPM = async (docId: string) => {
     setDeleting(true);
     try {
@@ -1066,14 +1326,22 @@ export default function RPMPage() {
 
   const handleOpenPrint = async (doc: RPMItem) => {
     setActiveDoc(doc);
+    setReturnView('LIST');
     try {
-      const res = await fetch('/api/v1/app-settings');
-      const json = await res.json();
-      if (json.success && json.data) {
-        setSchoolSettings(json.data);
+      const [settingsRes, attsRes] = await Promise.allSettled([
+        fetch('/api/v1/app-settings').then((r) => r.json()),
+        fetchRpmAttachments(doc.id),
+      ]);
+      if (settingsRes.status === 'fulfilled' && settingsRes.value?.success && settingsRes.value.data) {
+        setSchoolSettings(settingsRes.value.data);
+      }
+      if (attsRes.status === 'fulfilled' && Array.isArray(attsRes.value)) {
+        setActiveDocAttachments(attsRes.value);
+      } else {
+        setActiveDocAttachments([]);
       }
     } catch {
-      // Fallback in OfficialSchoolLetterhead will handle missing settings
+      setActiveDocAttachments([]);
     }
     setView('PRINT');
   };
@@ -1095,117 +1363,50 @@ export default function RPMPage() {
     const metaAkhir = kp?.metadata?.akhir;
     const asesmen = dp?.asesmen;
 
+    const printPeriod = resolveAcademicPeriodDisplay(
+      {
+        semesterId: activeDoc.semester_id || identitas?.semesterId,
+        semesterName: activeDoc.semester_name,
+        semesterTahun: identitas?.semesterTahun,
+        tahunAjaran: identitas?.tahunAjaran,
+      },
+      { semesters: masterSemesters, academicYears: masterAcademicYears }
+    );
+
     return (
       <div className="space-y-4 max-w-4xl mx-auto p-4 print:p-0">
         <div className="flex justify-between items-center print:hidden border-b pb-4">
-          <Button variant="secondary" onClick={() => setView('LIST')} className="min-h-[38px] text-xs">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Daftar
+          <Button variant="secondary" onClick={() => setView(returnView)} className="min-h-[38px] text-xs">
+            <ArrowLeft className="w-4 h-4 mr-2" /> {returnView === 'WIZARD' ? 'Kembali ke Editor' : 'Kembali ke Daftar'}
           </Button>
           <Button onClick={() => window.print()} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
             <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen
           </Button>
         </div>
 
-        <PrintRenderer document={activeDoc} schoolSettings={schoolSettings}>
-          <div className="space-y-6">
+        <PrintBrowserHint />
 
-            {/* BAGIAN 1: Identitas & Desain Pembelajaran */}
-            <div className="space-y-4">
-              <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 print:border-gray-300 print:p-3 print:break-inside-avoid">
-                <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Identitas & Desain Pembelajaran</h3>
-                <div className="grid grid-cols-2 text-xs gap-2 pt-1">
-                  <p><span className="font-semibold">Topik / Modul:</span> {identitas?.modulTopik || "-"}</p>
-                  <p><span className="font-semibold">Mata Pelajaran:</span> {identitas?.mataPelajaran || "-"}</p>
-                  <p><span className="font-semibold">Fase / Kelas:</span> {identitas?.tingkatFase || "-"} ({identitas?.kelasRombel || "-"})</p>
-                  <p><span className="font-semibold">Tutor Pengampu:</span> {identitas?.namaTutorPengampu || activeDoc.author_name || "-"}</p>
-                  <p><span className="font-semibold">Alokasi Waktu:</span> {identitas?.alokasiWaktu || 0} Menit</p>
-                  {(identitas?.semesterTahun || identitas?.tahunAjaran) && (
-                    <p><span className="font-semibold">Semester / TA:</span> {identitas?.semesterTahun || "-"} &bull; TA {identitas?.tahunAjaran || "-"}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Capaian Pembelajaran */}
-              <div className="border p-4 rounded-xl bg-gray-50/50 print:border-gray-300 print:p-3 print:break-inside-avoid">
-                <h3 className="font-bold text-sm text-gray-800 uppercase mb-1 border-b pb-1">Capaian Pembelajaran (CP)</h3>
-                <p className="text-xs leading-relaxed text-gray-900 mt-1">{dp?.capaianPembelajaran || "-"}</p>
-              </div>
-
-              {/* Tujuan Pembelajaran (TP) - P0 RESTORATION */}
-              {dp?.tujuanPembelajaran &&
-                dp.tujuanPembelajaran.filter((t: string) => t && t.trim().length > 0).length > 0 && (
-                <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 print:border-gray-300 print:p-3 print:break-inside-avoid">
-                  <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Tujuan Pembelajaran (TP)</h3>
-                  <ol className="space-y-1.5 text-xs list-decimal list-inside text-gray-900 leading-relaxed pt-1">
-                    {dp.tujuanPembelajaran
-                      .filter((t: string) => t && t.trim().length > 0)
-                      .map((tp: string, i: number) => (
-                        <li key={i} className="pl-1 font-medium text-black">
-                          {tp.trim()}
-                        </li>
-                      ))}
-                  </ol>
-                </div>
-              )}
-
-              {/* Pemahaman Bermakna */}
-              {dp?.pemahamanBermakna?.trim() && (
-                <div className="border p-4 rounded-xl bg-emerald-50/30 print:border-gray-300 print:p-3 print:break-inside-avoid">
-                  <h3 className="font-bold text-sm text-emerald-900 uppercase mb-1 border-b pb-1">Pemahaman Bermakna (Deep Insight)</h3>
-                  <p className="text-xs leading-relaxed text-gray-900 mt-1">{dp.pemahamanBermakna.trim()}</p>
-                </div>
-              )}
-
-              {/* Pertanyaan Pemantik */}
-              {dp?.pertanyaanPemantik &&
-                dp.pertanyaanPemantik.filter((p: string) => p && p.trim()).length > 0 && (
-                <div className="border p-4 rounded-xl bg-amber-50/40 border-amber-200 print:border-gray-300 print:p-3 print:break-inside-avoid">
-                  <h3 className="font-bold text-sm text-amber-900 uppercase mb-2 border-b pb-1">Pertanyaan Pemantik</h3>
-                  <ol className="space-y-1.5 text-xs list-decimal list-inside text-gray-900 leading-relaxed">
-                    {dp.pertanyaanPemantik
-                      .filter((p: string) => p && p.trim())
-                      .map((p: string, i: number) => (
-                        <li key={i} className="pl-1 italic">"{p.trim()}"</li>
-                      ))}
-                  </ol>
-                </div>
-              )}
-
-              {/* Media Ajar & Sumber Belajar — 2-column on print */}
-              {(((dp?.mediaAjar?.filter((m: string) => m?.trim()).length || 0) > 0) ||
-                ((dp?.sumberBelajar?.filter((s: string) => s?.trim()).length || 0) > 0)) && (
-                <div className="grid grid-cols-2 gap-3 print:break-inside-avoid">
-                  {((dp?.mediaAjar?.filter((m: string) => m?.trim()).length || 0) > 0) && (
-                    <div className="border p-3 rounded-xl bg-blue-50/40 border-blue-200 print:border-gray-300 text-xs">
-                      <h4 className="font-bold text-blue-900 uppercase mb-1.5 border-b pb-1">Media Ajar</h4>
-                      <ul className="space-y-1 list-disc list-inside text-gray-900">
-                        {dp?.mediaAjar?.filter((m: string) => m?.trim()).map((m: string, i: number) => (
-                          <li key={i}>{m.trim()}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {((dp?.sumberBelajar?.filter((s: string) => s?.trim()).length || 0) > 0) && (
-                    <div className="border p-3 rounded-xl bg-green-50/40 border-green-200 print:border-gray-300 text-xs">
-                      <h4 className="font-bold text-green-900 uppercase mb-1.5 border-b pb-1">Sumber Belajar</h4>
-                      <ul className="space-y-1 list-disc list-inside text-gray-900">
-                        {dp?.sumberBelajar?.filter((s: string) => s?.trim()).map((s: string, i: number) => (
-                          <li key={i}>{s.trim()}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Integrasi Tag & Karakter (Trisula badges, FITRAH, SAHABAT, DPL Utsman, DPL Kurnas) */}
-              <div className="border p-4 rounded-xl bg-slate-50 space-y-3 text-xs print:border-gray-300 print:p-3 print:break-inside-avoid">
-                <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide border-b pb-1">
-                  Integrasi Tag & Karakter
-                </h3>
-                <div className="space-y-2">
+        <PrintRenderer
+          document={activeDoc}
+          attachments={activeDocAttachments}
+          schoolSettings={schoolSettings}
+          semesters={masterSemesters}
+          academicYears={masterAcademicYears}
+        >
+          <div className="space-y-4 text-gray-900">
+            {/* 1. INTEGRASI PEMBELAJARAN */}
+            <div className="space-y-2">
+              <PrintSectionHeader
+                title="Integrasi Pembelajaran"
+                variant="primary"
+                icon={<Layers className="w-3.5 h-3.5" />}
+              />
+              <div className="border border-emerald-100 rounded-lg p-3 bg-emerald-50/20 text-xs space-y-2.5 print:border-gray-300 print:p-2.5 print:bg-transparent print-break-inside-avoid">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
-                    <span className="font-bold text-emerald-900 block mb-0.5">Trisula Kompetensi:</span>
+                    <span className="font-bold text-emerald-900 block mb-1 text-[11px] uppercase tracking-wide">
+                      Trisula Kompetensi:
+                    </span>
                     <div className="flex flex-wrap gap-1">
                       {(identitas?.trisulaKompetensi && identitas.trisulaKompetensi.length > 0
                         ? identitas.trisulaKompetensi
@@ -1219,42 +1420,49 @@ export default function RPMPage() {
                   </div>
 
                   <div>
-                    <span className="font-bold text-blue-900 block mb-0.5">Karakter FITRAH:</span>
+                    <span className="font-bold text-blue-900 block mb-1 text-[11px] uppercase tracking-wide">
+                      Karakter FITRAH:
+                    </span>
                     <div className="flex flex-wrap gap-1">
                       {(identitas?.karakterFitrah && identitas.karakterFitrah.length > 0) ? (
                         identitas.karakterFitrah.map((t: string) => (
-                          <span key={t} className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded text-[11px]">
+                          <span key={t} className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded text-[11px] font-medium">
                             {t}
                           </span>
                         ))
                       ) : (
-                        <span className="text-gray-400 italic">Belum ada tag karakter fitrah</span>
+                        <span className="text-gray-400 italic text-[11px]">-</span>
                       )}
                     </div>
                   </div>
+                </div>
 
+                <div className="border-t border-emerald-100/60 pt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 print:border-gray-200">
                   <div>
-                    <span className="font-bold text-purple-900 block mb-0.5">Budaya SAHABAT:</span>
+                    <span className="font-bold text-purple-900 block mb-1 text-[11px] uppercase tracking-wide">
+                      Budaya SAHABAT:
+                    </span>
                     <div className="flex flex-wrap gap-1">
                       {(identitas?.budayaSahabat && identitas.budayaSahabat.length > 0) ? (
                         identitas.budayaSahabat.map((t: string) => (
-                          <span key={t} className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded text-[11px]">
+                          <span key={t} className="px-2 py-0.5 bg-purple-50 text-purple-800 border border-purple-200 rounded text-[10px] font-medium">
                             {t}
                           </span>
                         ))
                       ) : (
-                        <span className="text-gray-400 italic">Belum ada tag budaya sahabat</span>
+                        <span className="text-gray-400 italic text-[10px]">-</span>
                       )}
                     </div>
                   </div>
 
-                  {/* DPL Utsman - P0 RESTORATION */}
                   {identitas?.dplUtsman && identitas.dplUtsman.length > 0 && (
                     <div>
-                      <span className="font-bold text-teal-900 block mb-0.5">DPL Utsman (Dimensi Profil Lulusan):</span>
+                      <span className="font-bold text-teal-900 block mb-1 text-[11px] uppercase tracking-wide">
+                        DPL Utsman:
+                      </span>
                       <div className="flex flex-wrap gap-1">
                         {identitas.dplUtsman.map((t: string) => (
-                          <span key={t} className="px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 rounded text-[11px]">
+                          <span key={t} className="px-2 py-0.5 bg-teal-50 text-teal-800 border border-teal-200 rounded text-[10px] font-medium">
                             {t}
                           </span>
                         ))}
@@ -1262,13 +1470,14 @@ export default function RPMPage() {
                     </div>
                   )}
 
-                  {/* DPL Kurnas - P0 RESTORATION */}
                   {identitas?.dplKurnas && identitas.dplKurnas.length > 0 && (
                     <div>
-                      <span className="font-bold text-indigo-900 block mb-0.5">DPL Kurikulum Nasional:</span>
+                      <span className="font-bold text-indigo-900 block mb-1 text-[11px] uppercase tracking-wide">
+                        DPL Kurikulum Nasional:
+                      </span>
                       <div className="flex flex-wrap gap-1">
                         {identitas.dplKurnas.map((t: string) => (
-                          <span key={t} className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded text-[11px]">
+                          <span key={t} className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200 rounded text-[10px] font-medium">
                             {t}
                           </span>
                         ))}
@@ -1277,65 +1486,165 @@ export default function RPMPage() {
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Rincian Paragraf Trisula Kompetensi (Literasi, Numerasi, Diniyyah) - P0 RESTORATION */}
-              {identitas?.deskripsiTrisula &&
-                (identitas.deskripsiTrisula.literasi?.trim() ||
-                 identitas.deskripsiTrisula.numerasi?.trim() ||
-                 identitas.deskripsiTrisula.diniyyah?.trim()) && (
-                <div className="border p-4 rounded-xl bg-slate-50/70 space-y-3 print:border-gray-300 print:p-3 print:break-inside-avoid">
-                  <h3 className="font-bold text-sm text-slate-800 uppercase border-b pb-1">
-                    Rincian Trisula Kompetensi
-                  </h3>
-                  <div className="space-y-3 text-xs">
-                    {identitas.deskripsiTrisula.literasi?.trim() && (
-                      <div className="border-l-2 border-blue-500 pl-3">
-                        <span className="font-bold text-blue-900 block mb-0.5">1. Kegiatan Literasi:</span>
-                        <p className="text-gray-800 leading-relaxed text-justify">
-                          {identitas.deskripsiTrisula.literasi.trim()}
-                        </p>
+            {/* 2. RINCIAN TRISULA KOMPETENSI */}
+            {identitas?.deskripsiTrisula &&
+              (identitas.deskripsiTrisula.literasi?.trim() ||
+               identitas.deskripsiTrisula.numerasi?.trim() ||
+               identitas.deskripsiTrisula.diniyyah?.trim()) && (
+              <div className="space-y-2">
+                <PrintSectionHeader
+                  title="Rincian Trisula Kompetensi"
+                  variant="secondary"
+                  icon={<BookOpen className="w-3.5 h-3.5" />}
+                />
+                <div className="space-y-2 text-xs">
+                  {identitas.deskripsiTrisula.literasi?.trim() && (
+                    <div className="border-l-4 border-blue-500 bg-blue-50/30 p-2.5 rounded-r-lg print:bg-transparent print-break-inside-avoid">
+                      <div className="flex items-center gap-1.5 font-bold text-blue-900 mb-1 text-[11px]">
+                        <BookOpen className="w-3 h-3 text-blue-700" />
+                        <span>1. Kegiatan Literasi</span>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed text-justify pl-4">
+                        {identitas.deskripsiTrisula.literasi.trim()}
+                      </p>
+                    </div>
+                  )}
+                  {identitas.deskripsiTrisula.numerasi?.trim() && (
+                    <div className="border-l-4 border-teal-500 bg-teal-50/30 p-2.5 rounded-r-lg print:bg-transparent print-break-inside-avoid">
+                      <div className="flex items-center gap-1.5 font-bold text-teal-900 mb-1 text-[11px]">
+                        <Calculator className="w-3 h-3 text-teal-700" />
+                        <span>2. Kegiatan Numerasi</span>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed text-justify pl-4">
+                        {identitas.deskripsiTrisula.numerasi.trim()}
+                      </p>
+                    </div>
+                  )}
+                  {identitas.deskripsiTrisula.diniyyah?.trim() && (
+                    <div className="border-l-4 border-amber-500 bg-amber-50/30 p-2.5 rounded-r-lg print:bg-transparent print-break-inside-avoid">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-900 mb-1 text-[11px]">
+                        <HeartHandshake className="w-3 h-3 text-amber-700" />
+                        <span>3. Diniyyah & Adab</span>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed text-justify pl-4">
+                        {identitas.deskripsiTrisula.diniyyah.trim()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 3. DESAIN PEMBELAJARAN */}
+            <div className="space-y-2">
+              <PrintSectionHeader
+                title="Desain Pembelajaran"
+                variant="primary"
+                icon={<FileText className="w-3.5 h-3.5" />}
+              />
+              <div className="space-y-2.5 text-xs">
+                {/* Capaian Pembelajaran */}
+                <div className="border-l-4 border-slate-400 bg-slate-50/40 p-2.5 rounded-r-lg print:bg-transparent print-break-inside-avoid">
+                  <h4 className="font-bold text-slate-900 uppercase text-[11px] mb-1">Capaian Pembelajaran (CP)</h4>
+                  <p className="text-gray-800 leading-relaxed text-justify">{dp?.capaianPembelajaran || "-"}</p>
+                </div>
+
+                {/* Tujuan Pembelajaran (TP) */}
+                {dp?.tujuanPembelajaran &&
+                  dp.tujuanPembelajaran.filter((t: string) => t && t.trim().length > 0).length > 0 && (
+                  <div className="border-l-4 border-emerald-500 bg-emerald-50/30 p-2.5 rounded-r-lg print:bg-transparent">
+                    <h4 className="font-bold text-emerald-900 uppercase text-[11px] mb-1.5">Tujuan Pembelajaran (TP)</h4>
+                    <ol className="space-y-1.5 text-xs list-decimal list-inside text-gray-900 leading-relaxed">
+                      {dp.tujuanPembelajaran
+                        .filter((t: string) => t && t.trim().length > 0)
+                        .map((tp: string, i: number) => (
+                          <li key={i} className="pl-1 font-medium">
+                            {tp.trim()}
+                          </li>
+                        ))}
+                    </ol>
+                  </div>
+                )}
+
+                {/* Pemahaman Bermakna */}
+                {dp?.pemahamanBermakna?.trim() && (
+                  <div className="border-l-4 border-teal-500 bg-teal-50/30 p-2.5 rounded-r-lg print:bg-transparent print-break-inside-avoid">
+                    <h4 className="font-bold text-teal-900 uppercase text-[11px] mb-1">Pemahaman Bermakna (Deep Insight)</h4>
+                    <p className="text-gray-800 leading-relaxed text-justify">{dp.pemahamanBermakna.trim()}</p>
+                  </div>
+                )}
+
+                {/* Pertanyaan Pemantik */}
+                {dp?.pertanyaanPemantik &&
+                  dp.pertanyaanPemantik.filter((p: string) => p && p.trim()).length > 0 && (
+                  <div className="border-l-4 border-amber-500 bg-amber-50/30 p-2.5 rounded-r-lg print:bg-transparent print-break-inside-avoid">
+                    <h4 className="font-bold text-amber-900 uppercase text-[11px] mb-1">Pertanyaan Pemantik</h4>
+                    <ol className="space-y-1 text-xs list-decimal list-inside text-gray-900 leading-relaxed">
+                      {dp.pertanyaanPemantik
+                        .filter((p: string) => p && p.trim())
+                        .map((p: string, i: number) => (
+                          <li key={i} className="pl-1 italic">"{p.trim()}"</li>
+                        ))}
+                    </ol>
+                  </div>
+                )}
+
+                {/* Media Ajar & Sumber Belajar */}
+                {(((dp?.mediaAjar?.filter((m: string) => m?.trim()).length || 0) > 0) ||
+                  ((dp?.sumberBelajar?.filter((s: string) => s?.trim()).length || 0) > 0)) && (
+                  <div className="grid grid-cols-2 gap-3 print-break-inside-avoid">
+                    {((dp?.mediaAjar?.filter((m: string) => m?.trim()).length || 0) > 0) && (
+                      <div className="border-l-4 border-blue-400 bg-blue-50/30 p-2.5 rounded-r-lg print:bg-transparent text-xs">
+                        <h5 className="font-bold text-blue-900 uppercase text-[10px] mb-1">Media Ajar</h5>
+                        <ul className="space-y-1 list-disc list-inside text-gray-800">
+                          {dp?.mediaAjar?.filter((m: string) => m?.trim()).map((m: string, i: number) => (
+                            <li key={i}>{m.trim()}</li>
+                          ))}
+                        </ul>
                       </div>
                     )}
-                    {identitas.deskripsiTrisula.numerasi?.trim() && (
-                      <div className="border-l-2 border-emerald-500 pl-3">
-                        <span className="font-bold text-emerald-900 block mb-0.5">2. Kegiatan Numerasi:</span>
-                        <p className="text-gray-800 leading-relaxed text-justify">
-                          {identitas.deskripsiTrisula.numerasi.trim()}
-                        </p>
-                      </div>
-                    )}
-                    {identitas.deskripsiTrisula.diniyyah?.trim() && (
-                      <div className="border-l-2 border-amber-500 pl-3">
-                        <span className="font-bold text-amber-900 block mb-0.5">3. Diniyyah & Adab:</span>
-                        <p className="text-gray-800 leading-relaxed text-justify">
-                          {identitas.deskripsiTrisula.diniyyah.trim()}
-                        </p>
+                    {((dp?.sumberBelajar?.filter((s: string) => s?.trim()).length || 0) > 0) && (
+                      <div className="border-l-4 border-emerald-400 bg-emerald-50/30 p-2.5 rounded-r-lg print:bg-transparent text-xs">
+                        <h5 className="font-bold text-emerald-900 uppercase text-[10px] mb-1">Sumber Belajar</h5>
+                        <ul className="space-y-1 list-disc list-inside text-gray-800">
+                          {dp?.sumberBelajar?.filter((s: string) => s?.trim()).map((s: string, i: number) => (
+                            <li key={i}>{s.trim()}</li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* Strategic Page break for Skenario Aktivitas */}
-            <div className="hidden print:block print:break-before-page" />
+            {/* 4. PENGALAMAN BELAJAR (SKENARIO AKTIVITAS) */}
+            <div className="space-y-2">
+              <PrintSectionHeader
+                title="Pengalaman Belajar"
+                subtitle="Skenario Alur Pembelajaran Aktif"
+                variant="primary"
+                icon={<Clock className="w-3.5 h-3.5" />}
+              />
 
-            {/* BAGIAN 2: Skenario Aktivitas Pembelajaran */}
-            <div className="space-y-4 pt-4 print:pt-0">
-              <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Skenario Aktivitas Pembelajaran</h3>
-
-              <div className="space-y-4 text-xs">
-                <div className="p-3 border rounded-xl bg-white space-y-2 print:border-gray-300 print:break-inside-avoid">
-                  <div className="border-b pb-1 flex flex-wrap justify-between items-baseline gap-1">
-                    <h4 className="font-bold text-emerald-800">1. Kegiatan Awal (Pendahuluan)</h4>
+              <div className="space-y-3 text-xs">
+                {/* 01 Kegiatan Awal */}
+                <div className="border border-emerald-200/80 rounded-lg bg-white overflow-hidden print:border-gray-300">
+                  <div className="bg-emerald-50/70 border-b border-emerald-100 px-3 py-1.5 flex justify-between items-center print-break-inside-avoid print:bg-gray-100 print:border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs text-emerald-800">01</span>
+                      <h4 className="font-bold text-emerald-950 text-xs uppercase">Kegiatan Awal (Pendahuluan)</h4>
+                    </div>
                     {metaAwal?.durasiMenit && (
-                      <span className="text-[11px] font-semibold text-emerald-700">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                         {metaAwal.durasiMenit} Menit
                       </span>
                     )}
                   </div>
                   {metaAwal && (metaAwal.fokus || metaAwal.fokusAdab) && (
-                    <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 space-y-0.5 print:bg-white print:border-gray-200">
+                    <div className="text-[11px] text-gray-600 bg-gray-50/60 px-3 py-1.5 border-b border-gray-100 space-y-0.5 print:bg-white print:border-gray-200 print-break-inside-avoid">
                       {metaAwal.fokus && (
                         <p><span className="font-semibold text-gray-700">Fokus:</span> {metaAwal.fokus}</p>
                       )}
@@ -1344,7 +1653,7 @@ export default function RPMPage() {
                       )}
                     </div>
                   )}
-                  <ul className="space-y-2">
+                  <ul className="p-3 space-y-2">
                     {(kp?.awal || []).map((act: RPMActivityInput, i: number) => {
                       const norm = normalizeActivityItem(act);
                       return (
@@ -1373,17 +1682,21 @@ export default function RPMPage() {
                   </ul>
                 </div>
 
-                <div className="p-3 border rounded-xl bg-white space-y-2 print:border-gray-300 print:break-inside-avoid">
-                  <div className="border-b pb-1 flex flex-wrap justify-between items-baseline gap-1">
-                    <h4 className="font-bold text-emerald-800">2. Kegiatan Inti (Eksplorasi & Kolaborasi)</h4>
+                {/* 02 Kegiatan Inti */}
+                <div className="border border-emerald-200/80 rounded-lg bg-white overflow-hidden print:border-gray-300">
+                  <div className="bg-emerald-50/70 border-b border-emerald-100 px-3 py-1.5 flex justify-between items-center print-break-inside-avoid print:bg-gray-100 print:border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs text-emerald-800">02</span>
+                      <h4 className="font-bold text-emerald-950 text-xs uppercase">Kegiatan Inti (Eksplorasi & Kolaborasi)</h4>
+                    </div>
                     {metaInti?.durasiMenit && (
-                      <span className="text-[11px] font-semibold text-emerald-700">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                         {metaInti.durasiMenit} Menit
                       </span>
                     )}
                   </div>
                   {metaInti && (metaInti.fokus || metaInti.pendekatanMetode) && (
-                    <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 space-y-0.5 print:bg-white print:border-gray-200">
+                    <div className="text-[11px] text-gray-600 bg-gray-50/60 px-3 py-1.5 border-b border-gray-100 space-y-0.5 print:bg-white print:border-gray-200 print-break-inside-avoid">
                       {metaInti.fokus && (
                         <p><span className="font-semibold text-gray-700">Fokus:</span> {metaInti.fokus}</p>
                       )}
@@ -1392,7 +1705,7 @@ export default function RPMPage() {
                       )}
                     </div>
                   )}
-                  <ul className="space-y-2">
+                  <ul className="p-3 space-y-2">
                     {(kp?.inti || []).map((act: RPMActivityInput, i: number) => {
                       const norm = normalizeActivityItem(act);
                       return (
@@ -1421,17 +1734,21 @@ export default function RPMPage() {
                   </ul>
                 </div>
 
-                <div className="p-3 border rounded-xl bg-white space-y-2 print:border-gray-300 print:break-inside-avoid">
-                  <div className="border-b pb-1 flex flex-wrap justify-between items-baseline gap-1">
-                    <h4 className="font-bold text-emerald-800">3. Kegiatan Penutup (Refleksi & Doa)</h4>
+                {/* 03 Kegiatan Penutup */}
+                <div className="border border-emerald-200/80 rounded-lg bg-white overflow-hidden print:border-gray-300">
+                  <div className="bg-emerald-50/70 border-b border-emerald-100 px-3 py-1.5 flex justify-between items-center print-break-inside-avoid print:bg-gray-100 print:border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-xs text-emerald-800">03</span>
+                      <h4 className="font-bold text-emerald-950 text-xs uppercase">Kegiatan Penutup (Refleksi & Doa)</h4>
+                    </div>
                     {metaAkhir?.durasiMenit && (
-                      <span className="text-[11px] font-semibold text-emerald-700">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                         {metaAkhir.durasiMenit} Menit
                       </span>
                     )}
                   </div>
                   {metaAkhir && (metaAkhir.fokus || metaAkhir.fokusRefleksi) && (
-                    <div className="text-[11px] text-gray-600 bg-gray-50 p-2 rounded border border-gray-100 space-y-0.5 print:bg-white print:border-gray-200">
+                    <div className="text-[11px] text-gray-600 bg-gray-50/60 px-3 py-1.5 border-b border-gray-100 space-y-0.5 print:bg-white print:border-gray-200 print-break-inside-avoid">
                       {metaAkhir.fokus && (
                         <p><span className="font-semibold text-gray-700">Fokus:</span> {metaAkhir.fokus}</p>
                       )}
@@ -1440,7 +1757,7 @@ export default function RPMPage() {
                       )}
                     </div>
                   )}
-                  <ul className="space-y-2">
+                  <ul className="p-3 space-y-2">
                     {(kp?.akhir || []).map((act: RPMActivityInput, i: number) => {
                       const norm = normalizeActivityItem(act);
                       return (
@@ -1471,47 +1788,74 @@ export default function RPMPage() {
               </div>
             </div>
 
-            {/* BAGIAN 3: Asesmen & Edukasi Orang Tua (Madrasatul Ula) */}
-            <div className="space-y-4 pt-4 print:pt-0 print:break-inside-avoid">
-              <h3 className="font-bold text-sm text-gray-800 uppercase border-b pb-1">Asesmen & Edukasi Orang Tua (Madrasatul Ula)</h3>
-              <div className="border p-4 rounded-xl bg-gray-50/50 space-y-2 text-xs print:border-gray-300 print:p-3">
-                <h4 className="font-bold text-emerald-900 uppercase">Rencana Evaluasi & Asesmen Spesifik Topik</h4>
-                <p><span className="font-semibold">Asesmen Awal (Diagnostik):</span> {asesmen?.awal || "-"}</p>
-                <p><span className="font-semibold">Asesmen Proses (Formatif - Rubrik Karakter):</span> {asesmen?.formatif || "-"}</p>
-                <p><span className="font-semibold">Asesmen Akhir (Sumatif Karya):</span> {asesmen?.sumatif || "-"}</p>
-              </div>
+            {/* 5. ASESMEN PEMBELAJARAN */}
+            <div className="space-y-3">
+              <PrintSectionHeader
+                title="Asesmen Pembelajaran"
+                variant="primary"
+                icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+              />
 
-              {asesmen?.pesanEdukasiOrangTua?.trim() && (
-                <div className="border p-4 rounded-xl bg-amber-50/40 border-amber-200 print:border-gray-300 print:p-3">
-                  <h4 className="font-bold text-xs text-amber-900 uppercase mb-1">Pesan Edukasi Orang Tua (Madrasatul Ula)</h4>
-                  <p className="text-xs italic leading-relaxed text-amber-950">
-                    "{asesmen.pesanEdukasiOrangTua.trim()}"
-                  </p>
+              {/* 3 Asesmen Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs print-break-inside-avoid">
+                <div className="border-l-4 border-blue-500 bg-blue-50/30 p-2.5 rounded-r-lg print:border-blue-500 print:bg-transparent">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-0.5">Asesmen Awal</div>
+                  <h5 className="font-bold text-gray-900 mb-1">Diagnostik</h5>
+                  <p className="text-gray-700 text-[11px] leading-relaxed">{asesmen?.awal || "-"}</p>
                 </div>
-              )}
+
+                <div className="border-l-4 border-teal-500 bg-teal-50/30 p-2.5 rounded-r-lg print:border-teal-500 print:bg-transparent">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-teal-800 mb-0.5">Asesmen Proses</div>
+                  <h5 className="font-bold text-gray-900 mb-1">Formatif & Rubrik Karakter</h5>
+                  <p className="text-gray-700 text-[11px] leading-relaxed">{asesmen?.formatif || "-"}</p>
+                </div>
+
+                <div className="border-l-4 border-emerald-500 bg-emerald-50/30 p-2.5 rounded-r-lg print:border-emerald-500 print:bg-transparent">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 mb-0.5">Asesmen Akhir</div>
+                  <h5 className="font-bold text-gray-900 mb-1">Sumatif Karya</h5>
+                  <p className="text-gray-700 text-[11px] leading-relaxed">{asesmen?.sumatif || "-"}</p>
+                </div>
+              </div>
 
               {/* Rubrik Karakter FITRAH */}
               {asesmen?.rubrikKarakterFitrah && asesmen.rubrikKarakterFitrah.length > 0 && (
-                <div className="border p-4 rounded-xl bg-slate-50/50 print:border-gray-300 print:p-3 print:break-inside-avoid overflow-auto">
-                  <h4 className="font-bold text-xs text-slate-800 uppercase mb-2 border-b pb-1">Rubrik Karakter FITRAH (Observasi Perilaku Formatif)</h4>
-                  <table className="w-full text-[11px] border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100 print:bg-gray-100">
-                        <th className="border border-gray-300 p-2 text-left font-bold w-1/4">Indikator Karakter</th>
-                        <th className="border border-gray-300 p-2 text-left font-bold">Sangat Baik (SB)</th>
-                        <th className="border border-gray-300 p-2 text-left font-bold">Perlu Bimbingan (PB)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {asesmen.rubrikKarakterFitrah.map((row: { indikator: string; sangatBaik: string; perluBimbingan: string }, i: number) => (
-                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                          <td className="border border-gray-300 p-2 font-semibold text-slate-800">{row.indikator}</td>
-                          <td className="border border-gray-300 p-2 text-gray-900 leading-relaxed">{row.sangatBaik}</td>
-                          <td className="border border-gray-300 p-2 text-gray-900 leading-relaxed">{row.perluBimbingan}</td>
+                <div className="space-y-1.5 pt-1">
+                  <h4 className="font-bold text-xs text-slate-800 uppercase print-break-after-avoid">
+                    Rubrik Karakter FITRAH (Observasi Perilaku Formatif)
+                  </h4>
+                  <div className="border border-gray-300 rounded-lg overflow-hidden">
+                    <table className="w-full text-[11px] border-collapse">
+                      <thead className="bg-emerald-50/60 print:bg-gray-100 text-emerald-950 print:text-gray-900">
+                        <tr>
+                          <th className="border border-gray-300 p-2 text-left font-bold w-1/4">Indikator Karakter</th>
+                          <th className="border border-gray-300 p-2 text-left font-bold">Sangat Baik (SB)</th>
+                          <th className="border border-gray-300 p-2 text-left font-bold">Perlu Bimbingan (PB)</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {asesmen.rubrikKarakterFitrah.map((row: { indikator: string; sangatBaik: string; perluBimbingan: string }, i: number) => (
+                          <tr key={i} className={`print-break-inside-avoid ${i % 2 === 0 ? "bg-white" : "bg-slate-50/40 print:bg-transparent"}`}>
+                            <td className="border border-gray-300 p-2 font-semibold text-slate-800">{row.indikator}</td>
+                            <td className="border border-gray-300 p-2 text-gray-900 leading-relaxed">{row.sangatBaik}</td>
+                            <td className="border border-gray-300 p-2 text-gray-900 leading-relaxed">{row.perluBimbingan}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Pesan Edukasi Orang Tua (Madrasatul Ula) */}
+              {asesmen?.pesanEdukasiOrangTua?.trim() && (
+                <div className="border-l-4 border-amber-500 bg-amber-50/40 p-3 rounded-r-lg print:border-amber-500 print:bg-transparent print-break-inside-avoid mt-2">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900 uppercase mb-1">
+                    <HeartHandshake className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Pesan Edukasi Orang Tua (Madrasatul Ula)</span>
+                  </div>
+                  <p className="text-xs italic leading-relaxed text-amber-950 pl-5">
+                    "{asesmen.pesanEdukasiOrangTua.trim()}"
+                  </p>
                 </div>
               )}
             </div>
@@ -1701,21 +2045,37 @@ export default function RPMPage() {
                         <select
                           value={semesterId}
                           onChange={(e) => {
-                            const sel = masterSemesters.find(s => s.id === e.target.value);
-                            if (sel) {
-                              setSemesterId(sel.id);
-                              setSemesterNama(sel.name);
-                              const ayRaw = sel.academic_year_id || "";
-                              const ayMatch = ayRaw.match(/(\d{4})_(\d{4})/);
-                              setTahunAjaran(ayMatch ? `${ayMatch[1]}/${ayMatch[2]}` : ayRaw);
+                            const selId = e.target.value;
+                            setSemesterId(selId);
+                            if (selId) {
+                              const period = resolveAcademicPeriodDisplay(
+                                { semesterId: selId },
+                                { semesters: masterSemesters, academicYears: masterAcademicYears }
+                              );
+                              setSemesterNama(period.semesterName);
+                              setTahunAjaran(period.academicYearLabel !== "-" ? period.academicYearLabel : "");
+                            } else {
+                              setSemesterNama("");
+                              setTahunAjaran("");
                             }
                           }}
                           className="w-full min-h-[40px] px-3 py-2 text-xs border rounded-xl bg-white border-gray-200"
                         >
                           <option value="">Pilih Semester...</option>
-                          {masterSemesters.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}{s.is_active ? " (Aktif)" : ""}</option>
-                          ))}
+                          {masterSemesters.map((s) => {
+                            const period = resolveAcademicPeriodDisplay(
+                              { semesterId: s.id },
+                              { semesters: masterSemesters, academicYears: masterAcademicYears }
+                            );
+                            const semDisplay = period.semesterLabel !== "-" ? period.semesterLabel : s.name;
+                            const ayDisplay = period.academicYearLabel !== "-" ? period.academicYearLabel : (s.academic_year_name || "");
+                            const fullLabel = ayDisplay ? `${semDisplay} — ${ayDisplay}` : semDisplay;
+                            return (
+                              <option key={s.id} value={s.id}>
+                                {fullLabel}{s.is_active ? " (Aktif)" : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                       ) : (
                         <Input
@@ -1729,7 +2089,7 @@ export default function RPMPage() {
                     <div>
                       <label className="block text-xs font-bold text-gray-700 mb-1">Tahun Ajaran</label>
                       <Input
-                        placeholder="Contoh: 2025/2026"
+                        placeholder="Contoh: 2026/2027"
                         value={tahunAjaran}
                         onChange={(e) => setTahunAjaran(e.target.value)}
                         className="text-xs"
@@ -1928,7 +2288,25 @@ export default function RPMPage() {
 
                   {/* Pemahaman Bermakna */}
                   <div>
-                    <label className="block text-xs font-bold mb-1 text-gray-700">Pemahaman Bermakna (Deep Insight)</label>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <label className="block text-xs font-bold text-gray-700">
+                        Pemahaman Bermakna (Deep Insight)
+                      </label>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={generatingField !== null}
+                        onClick={() => handleGenerateFieldAI("PEMAHAMAN_BERMAKNA")}
+                        className="text-xs h-7 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                      >
+                        {generatingField === "PEMAHAMAN_BERMAKNA" ? (
+                          <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Merumuskan...</>
+                        ) : (
+                          <><Sparkles className="w-3 h-3 mr-1 text-emerald-600" /> Bantu Buat dengan AI</>
+                        )}
+                      </Button>
+                    </div>
                     <Textarea
                       placeholder="Manfaat praktikal & hikmah konsep yang dipelajari siswa..."
                       value={pemahamanBermakna}
@@ -1940,7 +2318,7 @@ export default function RPMPage() {
 
                   {/* Pertanyaan Pemantik */}
                   <div className="p-4 border rounded-xl bg-amber-50/30 border-amber-200/70 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <label className="block text-xs font-bold text-amber-900 uppercase">
                           Pertanyaan Pemantik (Curiosity Triggers)
@@ -1949,18 +2327,34 @@ export default function RPMPage() {
                           2–3 pertanyaan terbuka untuk memantik rasa ingin tahu santri secara kontekstual.
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setPertanyaanPemantik([...pertanyaanPemantik, ""])}
-                        className="text-xs h-7 border-amber-300 text-amber-800 hover:bg-amber-100"
-                      >
-                        <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={generatingField !== null}
+                          onClick={() => handleGenerateFieldAI("PERTANYAAN_PEMANTIK")}
+                          className="text-xs h-7 border-amber-300 text-amber-800 hover:bg-amber-100"
+                        >
+                          {generatingField === "PERTANYAAN_PEMANTIK" ? (
+                            <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Merumuskan...</>
+                          ) : (
+                            <><Sparkles className="w-3 h-3 mr-1 text-amber-600" /> Bantu Buat dengan AI</>
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setPertanyaanPemantik([...pertanyaanPemantik, ""])}
+                          className="text-xs h-7 border-amber-300 text-amber-800 hover:bg-amber-100"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                        </Button>
+                      </div>
                     </div>
                     {pertanyaanPemantik.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">Belum ada pertanyaan pemantik. Klik Tambah atau gunakan AI.</p>
+                      <p className="text-xs text-gray-400 italic">Belum ada pertanyaan pemantik. Klik Tambah atau gunakan Bantu Buat dengan AI.</p>
                     ) : (
                       <div className="space-y-2">
                         {pertanyaanPemantik.map((p, idx) => (
@@ -1995,7 +2389,7 @@ export default function RPMPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Media Ajar */}
                     <div className="p-4 border rounded-xl bg-blue-50/30 border-blue-200/70 space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <label className="block text-xs font-bold text-blue-900 uppercase">
                             Media Ajar / Sarana
@@ -2004,18 +2398,34 @@ export default function RPMPage() {
                             3–5 media konkret & praktis.
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setMediaAjar([...mediaAjar, ""])}
-                          className="text-xs h-7 border-blue-300 text-blue-800 hover:bg-blue-100"
-                        >
-                          <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={generatingField !== null}
+                            onClick={() => handleGenerateFieldAI("MEDIA_AJAR")}
+                            className="text-xs h-7 border-blue-300 text-blue-800 hover:bg-blue-100"
+                          >
+                            {generatingField === "MEDIA_AJAR" ? (
+                              <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Merumuskan...</>
+                            ) : (
+                              <><Sparkles className="w-3 h-3 mr-1 text-blue-600" /> Bantu Buat dengan AI</>
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setMediaAjar([...mediaAjar, ""])}
+                            className="text-xs h-7 border-blue-300 text-blue-800 hover:bg-blue-100"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                          </Button>
+                        </div>
                       </div>
                       {mediaAjar.length === 0 ? (
-                        <p className="text-xs text-gray-400 italic">Belum ada media ajar.</p>
+                        <p className="text-xs text-gray-400 italic">Belum ada media ajar. Klik Tambah atau gunakan Bantu Buat dengan AI.</p>
                       ) : (
                         <div className="space-y-2">
                           {mediaAjar.map((m, idx) => (
@@ -2047,7 +2457,7 @@ export default function RPMPage() {
 
                     {/* Sumber Belajar */}
                     <div className="p-4 border rounded-xl bg-green-50/30 border-green-200/70 space-y-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <label className="block text-xs font-bold text-green-900 uppercase">
                             Sumber Belajar / Rujukan
@@ -2056,18 +2466,34 @@ export default function RPMPage() {
                             3–5 sumber belajar realistis.
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setSumberBelajar([...sumberBelajar, ""])}
-                          className="text-xs h-7 border-green-300 text-green-800 hover:bg-green-100"
-                        >
-                          <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={generatingField !== null}
+                            onClick={() => handleGenerateFieldAI("SUMBER_BELAJAR")}
+                            className="text-xs h-7 border-green-300 text-green-800 hover:bg-green-100"
+                          >
+                            {generatingField === "SUMBER_BELAJAR" ? (
+                              <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Merumuskan...</>
+                            ) : (
+                              <><Sparkles className="w-3 h-3 mr-1 text-green-600" /> Bantu Buat dengan AI</>
+                            )}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setSumberBelajar([...sumberBelajar, ""])}
+                            className="text-xs h-7 border-green-300 text-green-800 hover:bg-green-100"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" /> Tambah
+                          </Button>
+                        </div>
                       </div>
                       {sumberBelajar.length === 0 ? (
-                        <p className="text-xs text-gray-400 italic">Belum ada sumber belajar.</p>
+                        <p className="text-xs text-gray-400 italic">Belum ada sumber belajar. Klik Tambah atau gunakan Bantu Buat dengan AI.</p>
                       ) : (
                         <div className="space-y-2">
                           {sumberBelajar.map((s, idx) => (
@@ -2526,7 +2952,25 @@ export default function RPMPage() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold mb-1 text-gray-700">Pesan Edukasi Orang Tua (Madrasatul Ula)</label>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <label className="block text-xs font-bold text-gray-700">
+                        Pesan Edukasi Orang Tua (Madrasatul Ula)
+                      </label>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={generatingField !== null}
+                        onClick={() => handleGenerateFieldAI("PESAN_ORANG_TUA")}
+                        className="text-xs h-7 border-purple-300 text-purple-800 hover:bg-purple-50"
+                      >
+                        {generatingField === "PESAN_ORANG_TUA" ? (
+                          <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Merumuskan...</>
+                        ) : (
+                          <><Sparkles className="w-3 h-3 mr-1 text-purple-600" /> Bantu Buat dengan AI</>
+                        )}
+                      </Button>
+                    </div>
                     <Textarea
                       placeholder="Catatan/panduan pembiasaan harian siswa untuk orang tua di rumah..."
                       value={pesanEdukasiOrangTua}
@@ -2546,6 +2990,14 @@ export default function RPMPage() {
                   </Button>
                 </div>
               </Card>
+
+              {/* Card Lampiran RPM */}
+              <RPMAttachmentSection
+                documentId={activeDoc?.id || autoSaveDraftIdRef.current || null}
+                initialAttachments={activeDocAttachments}
+                onSaveAndOpenAttachments={handleSaveDraftAndOpenAttachments}
+                onAttachmentsChange={setActiveDocAttachments}
+              />
             </div>
 
             {/* ── Sticky Sidebar (4 cols) ── */}
@@ -2637,11 +3089,57 @@ export default function RPMPage() {
                     <p className="mt-0.5 text-blue-600">Tanda tangan kepala sekolah bersifat opsional dan dapat dibubuhkan kapan saja.</p>
                   </div>
                 </div>
+
+                {/* Lampiran RPM Section on Step 3 */}
+                <RPMAttachmentSection
+                  documentId={activeDoc?.id || autoSaveDraftIdRef.current || null}
+                  initialAttachments={activeDocAttachments}
+                  onSaveAndOpenAttachments={handleSaveDraftAndOpenAttachments}
+                  onAttachmentsChange={setActiveDocAttachments}
+                />
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2.5 justify-end border-t border-gray-100 p-4 bg-gray-50/40">
                 <Button variant="secondary" onClick={() => setStep(2)} disabled={submitting} className="min-h-[38px] text-xs">
                   &larr; Kembali Edit
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={async () => {
+                    const docId = activeDoc?.id || autoSaveDraftIdRef.current;
+                    if (docId && docId !== 'preview-temp') {
+                      try {
+                        const atts = await fetchRpmAttachments(docId);
+                        if (Array.isArray(atts)) {
+                          setActiveDocAttachments(atts);
+                        }
+                      } catch (err) {
+                        console.error("Failed to fetch attachments for preview:", err);
+                      }
+                    }
+                    const payload = buildPayload();
+                    const previewDoc: any = {
+                      id: docId || 'preview-temp',
+                      title: payload.title,
+                      type: 'RPM',
+                      status: activeDoc?.status || 'DRAFT',
+                      version: activeDoc?.version || 1,
+                      author_name: user?.name || 'Tutor Pengampu',
+                      author_id: user?.id || '',
+                      created_at: activeDoc?.created_at || new Date().toISOString(),
+                      updated_at: new Date().toISOString(),
+                      content: payload.content,
+                      semester_id: payload.semester_id,
+                    };
+                    setActiveDoc(previewDoc);
+                    setReturnView('WIZARD');
+                    setView('PRINT');
+                  }}
+                  disabled={submitting}
+                  className="min-h-[38px] text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-semibold"
+                >
+                  <Eye className="w-3.5 h-3.5 mr-1.5 text-emerald-600" /> Pratinjau Dokumen
                 </Button>
                 <Button
                   onClick={() => handleSaveRPM()}
@@ -2668,7 +3166,7 @@ export default function RPMPage() {
                 <Button
                   className="w-full min-h-[40px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold"
                   onClick={() => {
-                    applyAiContent(pendingAiContent);
+                    applyAiContent(pendingAiContent, true);
                     setShowOverwriteModal(false);
                     setPendingAiContent(null);
                     setStep(2);
@@ -2681,7 +3179,7 @@ export default function RPMPage() {
                   className="w-full min-h-[40px] border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold"
                   onClick={async () => {
                     setShowOverwriteModal(false);
-                    applyAiContent(pendingAiContent);
+                    applyAiContent(pendingAiContent, true);
                     setPendingAiContent(null);
                     await handleSaveRPM(true);
                     toast.success("Draf AI baru berhasil dibuat. Draf lama tetap tersimpan.");
@@ -2952,7 +3450,14 @@ export default function RPMPage() {
                           {idx + 1}
                         </td>
                         <td className="py-3.5 px-4">
-                          <p className="font-bold text-gray-900 text-sm truncate max-w-xs">{doc.title}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-bold text-gray-900 text-sm truncate max-w-xs">{doc.title}</p>
+                            {Number(doc.attachment_count || 0) > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0" title={`${doc.attachment_count} Lampiran`}>
+                                <Paperclip className="w-2.5 h-2.5" /> {doc.attachment_count}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-gray-500 truncate max-w-xs mt-0.5">
                             {doc.content?.identitas?.modulTopik || 'Topik Umum'} &bull; {doc.content?.identitas?.alokasiWaktu || 0} Menit
                           </p>
@@ -2998,6 +3503,12 @@ export default function RPMPage() {
                                 className="h-8 text-xs font-semibold"
                                 onClick={() => {
                                   setActiveDoc(doc);
+                                  setActiveDocAttachments([]);
+                                  if (doc.id) {
+                                    fetchRpmAttachments(doc.id)
+                                      .then(setActiveDocAttachments)
+                                      .catch(() => setActiveDocAttachments([]));
+                                  }
                                   setTitle(doc.title);
                                   setMataPelajaran(doc.content?.identitas?.mataPelajaran || "");
                                   setKelasRombel(doc.content?.identitas?.kelasRombel || "");
@@ -3015,10 +3526,18 @@ export default function RPMPage() {
                                   setBudayaSahabatTags(doc.content?.identitas?.budayaSahabat || []);
                                   setDplUtsmanTags(doc.content?.identitas?.dplUtsman || []);
                                   setDplKurnasTags(doc.content?.identitas?.dplKurnas || []);
-                                  // Semester/TA
-                                  setSemesterId(doc.content?.identitas?.semesterId || "");
-                                  setSemesterNama(doc.content?.identitas?.semesterTahun?.replace(/^Semester\s*/i, "") || "");
-                                  setTahunAjaran(doc.content?.identitas?.tahunAjaran || "");
+                                  // Semester/TA resolution on edit
+                                  const editPeriod = resolveAcademicPeriodDisplay(
+                                    {
+                                      semesterId: doc.content?.identitas?.semesterId || doc.semester_id,
+                                      semesterTahun: doc.content?.identitas?.semesterTahun,
+                                      tahunAjaran: doc.content?.identitas?.tahunAjaran,
+                                    },
+                                    { semesters: masterSemesters, academicYears: masterAcademicYears }
+                                  );
+                                  setSemesterId(editPeriod.semesterId || doc.content?.identitas?.semesterId || doc.semester_id || "");
+                                  setSemesterNama(editPeriod.semesterName || (doc.content?.identitas?.semesterTahun && !isUuid(doc.content.identitas.semesterTahun) ? doc.content.identitas.semesterTahun.replace(/^Semester\s*/i, "") : ""));
+                                  setTahunAjaran(editPeriod.academicYearLabel !== "-" ? editPeriod.academicYearLabel : (doc.content?.identitas?.tahunAjaran && !isUuid(doc.content.identitas.tahunAjaran) ? doc.content.identitas.tahunAjaran : ""));
                                   setCapaianPembelajaran(doc.content?.desainPembelajaran?.capaianPembelajaran || "");
                                   setPemahamanBermakna(doc.content?.desainPembelajaran?.pemahamanBermakna || "");
                                   setTujuanPembelajaran(doc.content?.desainPembelajaran?.tujuanPembelajaran || [""]);
@@ -3102,6 +3621,11 @@ export default function RPMPage() {
                             BLC
                           </span>
                         )}
+                        {Number(doc.attachment_count || 0) > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-blue-50 text-blue-700 border-blue-200 inline-flex items-center gap-1">
+                            <Paperclip className="w-2.5 h-2.5" /> {doc.attachment_count}
+                          </span>
+                        )}
                       </div>
                       <h3 className="text-sm font-bold text-gray-900 line-clamp-2">{doc.title}</h3>
                     </div>
@@ -3129,6 +3653,12 @@ export default function RPMPage() {
                         className="flex-1 min-h-[38px] text-xs font-semibold"
                         onClick={() => {
                           setActiveDoc(doc);
+                          setActiveDocAttachments([]);
+                          if (doc.id) {
+                            fetchRpmAttachments(doc.id)
+                              .then(setActiveDocAttachments)
+                              .catch(() => setActiveDocAttachments([]));
+                          }
                           setTitle(doc.title);
                           setMataPelajaran(doc.content?.identitas?.mataPelajaran || "");
                           setKelasRombel(doc.content?.identitas?.kelasRombel || "");
@@ -3146,10 +3676,18 @@ export default function RPMPage() {
                           setBudayaSahabatTags(doc.content?.identitas?.budayaSahabat || []);
                           setDplUtsmanTags(doc.content?.identitas?.dplUtsman || []);
                           setDplKurnasTags(doc.content?.identitas?.dplKurnas || []);
-                          // Semester/TA
-                          setSemesterId(doc.content?.identitas?.semesterId || "");
-                          setSemesterNama(doc.content?.identitas?.semesterTahun?.replace(/^Semester\s*/i, "") || "");
-                          setTahunAjaran(doc.content?.identitas?.tahunAjaran || "");
+                          // Semester/TA resolution on edit
+                          const editPeriodMob = resolveAcademicPeriodDisplay(
+                            {
+                              semesterId: doc.content?.identitas?.semesterId || doc.semester_id,
+                              semesterTahun: doc.content?.identitas?.semesterTahun,
+                              tahunAjaran: doc.content?.identitas?.tahunAjaran,
+                            },
+                            { semesters: masterSemesters, academicYears: masterAcademicYears }
+                          );
+                          setSemesterId(editPeriodMob.semesterId || doc.content?.identitas?.semesterId || doc.semester_id || "");
+                          setSemesterNama(editPeriodMob.semesterName || (doc.content?.identitas?.semesterTahun && !isUuid(doc.content.identitas.semesterTahun) ? doc.content.identitas.semesterTahun.replace(/^Semester\s*/i, "") : ""));
+                          setTahunAjaran(editPeriodMob.academicYearLabel !== "-" ? editPeriodMob.academicYearLabel : (doc.content?.identitas?.tahunAjaran && !isUuid(doc.content.identitas.tahunAjaran) ? doc.content.identitas.tahunAjaran : ""));
                           setCapaianPembelajaran(doc.content?.desainPembelajaran?.capaianPembelajaran || "");
                           setPemahamanBermakna(doc.content?.desainPembelajaran?.pemahamanBermakna || "");
                           setTujuanPembelajaran(doc.content?.desainPembelajaran?.tujuanPembelajaran || [""]);

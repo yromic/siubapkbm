@@ -3,6 +3,7 @@
 import React from "react";
 import { ScoreCategory, getScoreCategory } from "@/lib/utils/academicUtils";
 import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
+import { BookOpen, Calculator, HeartHandshake } from "lucide-react";
 
 export interface TrisulaStudentReportData {
   assessment: {
@@ -40,6 +41,15 @@ interface TrisulaStudentReportSheetProps {
   data: TrisulaStudentReportData;
   className?: string;
   isPrintBreak?: boolean;
+  /** Resolved letterhead URL (historical snapshot or active global). Defaults to static path. */
+  letterheadUrl?: string;
+  /** School settings for textual fallback rendering */
+  schoolSettings?: {
+    school_name?: string;
+    school_sub_header?: string;
+    school_headmaster_name?: string;
+    school_headmaster_nip?: string;
+  };
 }
 
 export function generateTrisulaDocumentNumber(
@@ -59,6 +69,8 @@ export function TrisulaStudentReportSheet({
   data,
   className = "",
   isPrintBreak = false,
+  letterheadUrl,
+  schoolSettings,
 }: TrisulaStudentReportSheetProps) {
   const { assessment, student, summary, tutorName, kepalaName } = data;
 
@@ -87,151 +99,185 @@ export function TrisulaStudentReportSheet({
 
   return (
     <div
-      className={`trisula-report-sheet bg-white text-zinc-950 p-6 sm:p-8 md:p-10 font-sans shadow-sm border border-zinc-200 mx-auto max-w-[210mm] min-h-[297mm] flex flex-col justify-between print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none print:w-full print:min-h-0 ${
+      className={`trisula-report-sheet bg-white text-gray-950 p-6 sm:p-8 md:p-10 font-sans shadow-sm border border-gray-200 mx-auto max-w-[210mm] space-y-4 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-none print:w-full print:space-y-4 ${
         isPrintBreak ? "print-page-break" : ""
       } ${className}`}
     >
       {/* Top Header / KOP PKBM BLC */}
       <div>
         <div className="pb-2 text-center">
-          <OfficialSchoolLetterhead />
+          <OfficialSchoolLetterhead
+            src={letterheadUrl}
+            schoolSettings={schoolSettings}
+          />
           
-          <div className="mt-2 pt-1 border-t border-zinc-300 flex flex-col items-center">
-            <h2 className="text-sm sm:text-base font-bold uppercase tracking-wide text-zinc-900 underline decoration-1 underline-offset-2">
+          <div className="mt-3 pt-2 border-t-2 border-emerald-800 flex flex-col items-center print:border-emerald-800 print-break-inside-avoid">
+            <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-emerald-950">
               RAPORT TRISULA AKADEMIK BLC
             </h2>
-            <span className="text-[11px] font-mono text-zinc-500 mt-0.5 font-medium">
+            <span className="text-[11px] font-mono text-emerald-800 mt-0.5 font-semibold">
               No: {docNumber}
             </span>
           </div>
         </div>
 
         {/* Student Metadata Section */}
-        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs bg-zinc-50 print:bg-transparent p-3 rounded-xl border border-zinc-200 print:border-none print:p-0">
+        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs bg-emerald-50/30 p-3 rounded-lg border border-emerald-200 print:border-gray-300 print:bg-transparent print-break-inside-avoid">
           <div className="space-y-1">
-            <div className="flex">
-              <span className="w-28 font-semibold text-zinc-600">Nama Murid</span>
-              <span className="mr-2 font-bold">:</span>
-              <span className="font-bold text-zinc-900 uppercase">{student.full_name}</span>
+            <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+              <span className="font-semibold text-gray-600">Nama Murid</span>
+              <span className="font-bold text-gray-900 uppercase">: {student.full_name}</span>
             </div>
-            <div className="flex">
-              <span className="w-28 font-semibold text-zinc-600">NISN / ID</span>
-              <span className="mr-2">:</span>
-              <span className="text-zinc-800 font-mono">{student.nisn || "-"}</span>
+            <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+              <span className="font-semibold text-gray-600">NISN / ID</span>
+              <span className="font-bold text-gray-900 font-mono">: {student.nisn || "-"}</span>
             </div>
-            <div className="flex">
-              <span className="w-28 font-semibold text-zinc-600">Fase / Jenjang</span>
-              <span className="mr-2">:</span>
-              <span className="text-zinc-800 font-semibold">{assessment.fase || "-"}</span>
+            <div className="flex items-baseline justify-between pt-0.5">
+              <span className="font-semibold text-gray-600">Fase / Jenjang</span>
+              <span className="font-bold text-gray-900">: {assessment.fase || "-"}</span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <div className="flex">
-              <span className="w-28 font-semibold text-zinc-600">Kelas & Rombel</span>
-              <span className="mr-2 font-bold">:</span>
-              <span className="font-bold text-zinc-900">{assessment.class_name || "-"}</span>
+            <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+              <span className="font-semibold text-gray-600">Kelas & Rombel</span>
+              <span className="font-bold text-gray-900">: {assessment.class_name || "-"}</span>
             </div>
-            <div className="flex">
-              <span className="w-28 font-semibold text-zinc-600">Semester / TA</span>
-              <span className="mr-2">:</span>
-              <span className="text-zinc-800 font-medium">
-                {assessment.semester_name || "-"} / {assessment.academic_year_name || "-"}
-              </span>
+            <div className="flex items-baseline justify-between border-b border-emerald-100/60 pb-1 print:border-gray-200">
+              <span className="font-semibold text-gray-600">Semester / TA</span>
+              <span className="font-bold text-gray-900">: {assessment.semester_name || "-"} • TA {assessment.academic_year_name || "-"}</span>
             </div>
-            <div className="flex">
-              <span className="w-28 font-semibold text-zinc-600">Bidang Asesmen</span>
-              <span className="mr-2">:</span>
-              <span className="text-emerald-800 font-bold">Trisula Akademik BLC</span>
+            <div className="flex items-baseline justify-between pt-0.5">
+              <span className="font-semibold text-gray-600">Bidang Asesmen</span>
+              <span className="text-emerald-800 font-bold">: Trisula Akademik BLC</span>
             </div>
           </div>
         </div>
 
         {/* I. Capaian Asesmen Trisula Akademik BLC (Table) */}
-        <div className="mt-5">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 mb-2 flex items-center gap-1.5">
-            <span>I.</span>
-            <span>Capaian Asesmen Trisula Akademik BLC (Literasi, Numerasi & Diniyyah)</span>
+        <div className="mt-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900 mb-1.5 flex items-center gap-1.5 print-break-after-avoid">
+            <span className="w-1.5 h-3.5 bg-emerald-600 rounded-xs inline-block"></span>
+            <span>I. Capaian Asesmen Trisula Akademik BLC (Literasi, Numerasi & Diniyyah)</span>
           </h3>
 
-          <div className="border border-zinc-900 rounded-lg overflow-hidden">
+          <div className="border border-gray-300 rounded-lg overflow-hidden">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-zinc-100 text-zinc-900 border-b border-zinc-900 font-bold">
-                  <th className="py-2 px-3 border-r border-zinc-900 w-36">Pilar Trisula BLC</th>
-                  <th className="py-2 px-2 border-r border-zinc-900 w-16 text-center">Nilai</th>
-                  <th className="py-2 px-3 border-r border-zinc-900 w-28 text-center">Kategori</th>
+                <tr className="bg-emerald-50/70 print:bg-gray-100 text-emerald-950 print:text-gray-900 border-b border-gray-300 font-bold">
+                  <th className="py-2 px-3 border-r border-gray-300 w-40">Pilar Trisula BLC</th>
+                  <th className="py-2 px-2 border-r border-gray-300 w-16 text-center">Nilai</th>
+                  <th className="py-2 px-3 border-r border-gray-300 w-32 text-center">Kategori</th>
                   <th className="py-2 px-3">Deskripsi Ketercapaian Integrasi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-900 text-zinc-800">
+              <tbody className="divide-y divide-gray-200 text-gray-800">
                 {/* 1. Literasi */}
-                <tr>
-                  <td className="py-2.5 px-3 border-r border-zinc-900 font-bold">
-                    Literasi
+                <tr className="print-break-inside-avoid">
+                  <td className="py-2.5 px-3 border-r border-gray-300 font-bold text-blue-950 bg-blue-50/20 print:bg-transparent">
+                    <div className="flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Literasi</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-2 border-r border-zinc-900 text-center font-bold text-sm">
-                    {litScore !== null ? litScore : "—"}
+                  <td className="py-2.5 px-2 border-r border-gray-300 text-center font-bold text-sm text-gray-900">
+                    {litScore !== null ? (
+                      <span className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-200 print:border-none print:bg-transparent">
+                        {litScore}
+                      </span>
+                    ) : "—"}
                   </td>
-                  <td className="py-2.5 px-3 border-r border-zinc-900 text-center font-semibold text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-zinc-100 print:bg-transparent font-bold">
+                  <td className="py-2.5 px-3 border-r border-gray-300 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${litCat ? litCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"} print:border print:bg-transparent`}>
                       {litCat?.label || "Belum Dinilai"}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-[11px] leading-relaxed italic text-zinc-700">
-                    {summary?.literasi_description || "Santri aktif mengikuti pembelajaran membaca dan pemahaman teks terintegrasi."}
+                  <td className="py-2.5 px-3 text-[11px] leading-relaxed text-gray-700">
+                    {summary?.literasi_description?.trim() ? (
+                      summary.literasi_description
+                    ) : (
+                      <span className="text-gray-400 italic">Belum ada deskripsi ketercapaian.</span>
+                    )}
                   </td>
                 </tr>
 
                 {/* 2. Numerasi */}
-                <tr>
-                  <td className="py-2.5 px-3 border-r border-zinc-900 font-bold">
-                    Numerasi
+                <tr className="print-break-inside-avoid">
+                  <td className="py-2.5 px-3 border-r border-gray-300 font-bold text-teal-950 bg-teal-50/20 print:bg-transparent">
+                    <div className="flex items-center gap-1.5">
+                      <Calculator className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Numerasi</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-2 border-r border-zinc-900 text-center font-bold text-sm">
-                    {numScore !== null ? numScore : "—"}
+                  <td className="py-2.5 px-2 border-r border-gray-300 text-center font-bold text-sm text-gray-900">
+                    {numScore !== null ? (
+                      <span className="px-1.5 py-0.5 rounded bg-teal-50 border border-teal-200 print:border-none print:bg-transparent">
+                        {numScore}
+                      </span>
+                    ) : "—"}
                   </td>
-                  <td className="py-2.5 px-3 border-r border-zinc-900 text-center font-semibold text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-zinc-100 print:bg-transparent font-bold">
+                  <td className="py-2.5 px-3 border-r border-gray-300 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${numCat ? numCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"} print:border print:bg-transparent`}>
                       {numCat?.label || "Belum Dinilai"}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-[11px] leading-relaxed italic text-zinc-700">
-                    {summary?.numerasi_description || "Santri menunjukkan penalaran matematis dan kemampuan pemecahan masalah kontekstual."}
+                  <td className="py-2.5 px-3 text-[11px] leading-relaxed text-gray-700">
+                    {summary?.numerasi_description?.trim() ? (
+                      summary.numerasi_description
+                    ) : (
+                      <span className="text-gray-400 italic">Belum ada deskripsi ketercapaian.</span>
+                    )}
                   </td>
                 </tr>
 
                 {/* 3. Diniyyah */}
-                <tr>
-                  <td className="py-2.5 px-3 border-r border-zinc-900 font-bold">
-                    Diniyyah
+                <tr className="print-break-inside-avoid">
+                  <td className="py-2.5 px-3 border-r border-gray-300 font-bold text-amber-950 bg-amber-50/20 print:bg-transparent">
+                    <div className="flex items-center gap-1.5">
+                      <HeartHandshake className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Diniyyah & Adab</span>
+                    </div>
                   </td>
-                  <td className="py-2.5 px-2 border-r border-zinc-900 text-center font-bold text-sm">
-                    {dinScore !== null ? dinScore : "—"}
+                  <td className="py-2.5 px-2 border-r border-gray-300 text-center font-bold text-sm text-gray-900">
+                    {dinScore !== null ? (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 print:border-none print:bg-transparent">
+                        {dinScore}
+                      </span>
+                    ) : "—"}
                   </td>
-                  <td className="py-2.5 px-3 border-r border-zinc-900 text-center font-semibold text-[11px]">
-                    <span className="px-2 py-0.5 rounded bg-zinc-100 print:bg-transparent font-bold">
+                  <td className="py-2.5 px-3 border-r border-gray-300 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${dinCat ? dinCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"} print:border print:bg-transparent`}>
                       {dinCat?.label || "Belum Dinilai"}
                     </span>
                   </td>
-                  <td className="py-2.5 px-3 text-[11px] leading-relaxed italic text-zinc-700">
-                    {summary?.diniyyah_description || "Santri mengamalkan adab islami, ketertiban ibadah harian, dan karakter fitrah mulia."}
+                  <td className="py-2.5 px-3 text-[11px] leading-relaxed text-gray-700">
+                    {summary?.diniyyah_description?.trim() ? (
+                      summary.diniyyah_description
+                    ) : (
+                      <span className="text-gray-400 italic">Belum ada deskripsi ketercapaian.</span>
+                    )}
                   </td>
                 </tr>
 
                 {/* Summary Row */}
-                <tr className="bg-zinc-50 font-bold border-t-2 border-zinc-900">
-                  <td className="py-2 px-3 border-r border-zinc-900 text-zinc-900">
+                <tr className="bg-emerald-50/60 print:bg-gray-100 font-bold border-t-2 border-emerald-800 print:border-gray-400 print-break-inside-avoid">
+                  <td className="py-2 px-3 border-r border-gray-300 text-emerald-950 print:text-black">
                     Rata-Rata Akhir
                   </td>
-                  <td className="py-2 px-2 border-r border-zinc-900 text-center text-sm font-black text-emerald-800">
-                    {ovScore !== null ? ovScore : "—"}
+                  <td className="py-2 px-2 border-r border-gray-300 text-center text-sm font-black text-emerald-950">
+                    {ovScore !== null ? (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-100/70 border border-emerald-300 print:border-none print:bg-transparent">
+                        {ovScore}
+                      </span>
+                    ) : "—"}
                   </td>
-                  <td className="py-2 px-3 border-r border-zinc-900 text-center font-bold text-zinc-900 text-[11px]">
-                    {ovCat?.label || "—"}
+                  <td className="py-2 px-3 border-r border-gray-300 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${ovCat ? ovCat.colorClass : "text-gray-500 bg-gray-100 border-gray-200"} print:border print:bg-transparent`}>
+                      {ovCat?.label || "—"}
+                    </span>
                   </td>
-                  <td className="py-2 px-3 text-[10px] text-zinc-600 font-normal">
-                    Skala Penilaian: 90–100 (Sangat Baik), 75–89 (Baik), 60–74 (Cukup), &lt;60 (Perlu Bimbingan)
+                  <td className="py-2 px-3 text-[10px] text-gray-600 font-normal">
+                    Skala: 90–100 (Sangat Baik), 75–89 (Baik), 60–74 (Cukup), &lt;60 (Perlu Bimbingan)
                   </td>
                 </tr>
               </tbody>
@@ -240,82 +286,88 @@ export function TrisulaStudentReportSheet({
         </div>
 
         {/* II. Rangkuman Capaian Trisula BLC & Kemitraan Orang Tua */}
-        <div className="mt-5 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-900 flex items-center gap-1.5">
-            <span>II.</span>
-            <span>Rangkuman Capaian Trisula BLC & Kemitraan Orang Tua</span>
+        <div className="mt-4 space-y-2.5">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-900 flex items-center gap-1.5 print-break-after-avoid">
+            <span className="w-1.5 h-3.5 bg-emerald-600 rounded-xs inline-block"></span>
+            <span>II. Rangkuman Capaian Trisula BLC & Kemitraan Orang Tua</span>
           </h3>
 
           {/* Catatan & Rekomendasi Trisula */}
-          <div className="p-3 rounded-lg border border-zinc-900 bg-zinc-50/40 print:bg-transparent text-xs">
-            <span className="font-bold text-zinc-900 block mb-1 text-[11px] uppercase tracking-wide">
+          <div className="border-l-4 border-blue-500 bg-blue-50/30 p-3 rounded-r-lg print:border-blue-500 print:bg-transparent print-break-inside-avoid text-xs">
+            <span className="font-bold text-blue-900 block mb-1 text-[11px] uppercase tracking-wide">
               A. Catatan & Rekomendasi Perkembangan Trisula:
             </span>
-            <p className="text-zinc-800 leading-relaxed text-[11px] whitespace-pre-wrap">
-              {summary?.catatan_rangkuman ||
-                "Santri menunjukkan komitmen belajar yang baik pada pilar Literasi, Numerasi, dan Diniyyah. Disarankan untuk terus mempertahankan ketekunan membaca dan adab kebiasaan harian."}
+            <p className="text-gray-800 leading-relaxed text-[11px] whitespace-pre-wrap">
+              {summary?.catatan_rangkuman?.trim() ? (
+                summary.catatan_rangkuman
+              ) : (
+                <span className="text-gray-400 italic">Belum ada catatan rangkuman perkembangan.</span>
+              )}
             </p>
           </div>
 
           {/* Pesan Penguatan Trisula di Rumah */}
-          <div className="p-3 rounded-lg border border-zinc-900 bg-zinc-50/40 print:bg-transparent text-xs">
-            <span className="font-bold text-zinc-900 block mb-1 text-[11px] uppercase tracking-wide">
+          <div className="border-l-4 border-amber-500 bg-amber-50/40 p-3 rounded-r-lg print:border-amber-500 print:bg-transparent print-break-inside-avoid text-xs">
+            <span className="font-bold text-amber-900 block mb-1 text-[11px] uppercase tracking-wide">
               B. Pesan Penguatan Trisula di Rumah (Kemitraan Madrasatul Ula):
             </span>
-            <p className="text-zinc-800 leading-relaxed text-[11px] whitespace-pre-wrap">
-              {summary?.pesan_orang_tua ||
-                "Mohon Ayah/Bunda senantiasa mendampingi tilawah harian di rumah, mengajak ananda berdiskusi buku bacaan, serta memberikan keteladanan ibadah tepat waktu."}
+            <p className="text-gray-800 leading-relaxed text-[11px] whitespace-pre-wrap">
+              {summary?.pesan_orang_tua?.trim() ? (
+                summary.pesan_orang_tua
+              ) : (
+                <span className="text-gray-400 italic">Belum ada pesan kemitraan orang tua.</span>
+              )}
             </p>
           </div>
         </div>
       </div>
 
       {/* III. Signatures Section */}
-      <div className="mt-8 pt-4 border-t border-zinc-300 print:break-inside-avoid">
-        <div className="text-right text-[11px] text-zinc-600 mb-4">
+      <div className="mt-6 pt-4 border-t border-gray-300 print-break-inside-avoid">
+        <div className="text-right text-[11px] text-gray-600 mb-3">
           Baitusyukur, {currentDateFormatted}
         </div>
 
         <div className="grid grid-cols-3 gap-4 text-center text-xs">
           {/* Kolom 1: Orang Tua / Wali */}
-          <div className="flex flex-col justify-between h-28">
-            <p className="font-medium text-zinc-700">
+          <div className="flex flex-col justify-between h-24">
+            <p className="font-semibold text-gray-700">
               Orang Tua / Wali Murid,
             </p>
             <div>
-              <div className="border-b border-zinc-900 w-36 mx-auto mb-1"></div>
-              <p className="text-[10px] text-zinc-500">(Nama & Tanda Tangan)</p>
+              <div className="border-b border-black w-36 mx-auto mb-1"></div>
+              <p className="text-[10px] text-gray-500">(Nama & Tanda Tangan)</p>
             </div>
           </div>
 
           {/* Kolom 2: Tutor Pembimbing */}
-          <div className="flex flex-col justify-between h-28">
-            <p className="font-medium text-zinc-700">
-              Tutor Pembimbing BLC,
+          <div className="flex flex-col justify-between h-24">
+            <p className="font-semibold text-gray-700">
+              Tutor Pengampu,
             </p>
             <div>
-              <p className="font-bold underline text-zinc-900">
+              <p className="font-bold underline text-gray-900">
                 {tutorName || "Tutor Kelas Trisula"}
               </p>
-              <p className="text-[10px] text-zinc-500">NIP/ID. ........................................</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">ID: ........................................</p>
             </div>
           </div>
 
           {/* Kolom 3: Kepala PKBM */}
-          <div className="flex flex-col justify-between h-28">
-            <p className="font-medium text-zinc-700">
+          <div className="flex flex-col justify-between h-24">
+            <p className="font-semibold text-gray-700">
               Kepala PKBM BLC,
             </p>
             <div>
-              <p className="font-bold underline text-zinc-900">
-                {kepalaName || "Kepala PKBM BLC"}
+              <p className="font-bold underline text-gray-900">
+                {kepalaName || schoolSettings?.school_headmaster_name || "Kepala PKBM BLC"}
               </p>
-              <p className="text-[10px] text-zinc-500">NIP/ID. ........................................</p>
+              <p className="text-[10px] text-gray-500 mt-0.5">NIP/ID. {schoolSettings?.school_headmaster_nip || "........................................"}</p>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 text-center text-[9px] text-zinc-400">
+        <div className="mt-4 text-center text-[9px] text-gray-400">
           Lembar Raport Trisula Resmi • Dicetak melalui Sistem Informasi Pembelajaran Terpadu SIUBA PKBM
         </div>
       </div>

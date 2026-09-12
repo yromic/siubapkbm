@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils/academicUtils";
 import { getActiveAcademicYear } from "@/lib/services/academicYearService";
 import { getActiveSemester } from "@/lib/services/semesterService";
+import { getAppSettings } from "@/lib/services/appSettingsService";
 
 export type { TrisulaPillar, ScoreCategory };
 export { calculatePillarScore, getScoreCategory };
@@ -44,6 +45,8 @@ export interface StudentScoreInput {
     numerasi?: string | null;
     diniyyah?: string | null;
   };
+  catatan_rangkuman?: string | null;
+  pesan_orang_tua?: string | null;
   evidenceStatuses?: {
     literasi?: EvidenceStatus | null;
     numerasi?: EvidenceStatus | null;
@@ -75,11 +78,19 @@ export async function ensureTrisulaTablesExist(): Promise<void> {
       table.string("fase", 50).notNullable();
       table.enum("status", ["DRAFT", "IN_PROGRESS", "FINALIZED"]).notNullable().defaultTo("DRAFT");
       table.string("created_by", 36).nullable();
+      table.string("letterhead_version_id", 64).nullable();
       table.dateTime("created_at").defaultTo(db.fn.now());
       table.dateTime("updated_at").defaultTo(db.fn.now());
 
       table.index(["class_id", "academic_year_id", "semester_id"], "idx_trisula_assessment_context");
     });
+  } else {
+    const hasLetterheadCol = await db.schema.hasColumn("trisula_assessments", "letterhead_version_id");
+    if (!hasLetterheadCol) {
+      await db.schema.alterTable("trisula_assessments", (table: Knex.TableBuilder) => {
+        table.string("letterhead_version_id", 64).nullable();
+      });
+    }
   }
 
   const hasCurriculum = await db.schema.hasTable("trisula_assessment_curriculum");
@@ -189,6 +200,11 @@ export async function getOrCreateAssessmentSession(params: {
     const id = uuidv4();
     const defaultTitle = params.title || `Asesmen Trisula ${cls.name}`;
     const now = new Date();
+
+    // Bind current active letterhead ID if available
+    const settings = await getAppSettings().catch(() => ({} as any));
+    const activeLetterheadId = settings?.active_letterhead_id || null;
+
     await db("trisula_assessments").insert({
       id,
       title: defaultTitle,
@@ -198,6 +214,7 @@ export async function getOrCreateAssessmentSession(params: {
       fase,
       status: "DRAFT",
       created_by: params.userId || null,
+      letterhead_version_id: activeLetterheadId,
       created_at: now,
       updated_at: now,
     });
@@ -384,9 +401,26 @@ export async function saveClassGradebookScores(
         numerasi_score: numScore,
         diniyyah_score: dinScore,
         overall_score: overall,
-        literasi_description: item.descriptions?.literasi || null,
-        numerasi_description: item.descriptions?.numerasi || null,
-        diniyyah_description: item.descriptions?.diniyyah || null,
+        literasi_description:
+          item.descriptions?.literasi !== undefined
+            ? (item.descriptions.literasi || null)
+            : (existingSummary?.literasi_description || null),
+        numerasi_description:
+          item.descriptions?.numerasi !== undefined
+            ? (item.descriptions.numerasi || null)
+            : (existingSummary?.numerasi_description || null),
+        diniyyah_description:
+          item.descriptions?.diniyyah !== undefined
+            ? (item.descriptions.diniyyah || null)
+            : (existingSummary?.diniyyah_description || null),
+        catatan_rangkuman:
+          item.catatan_rangkuman !== undefined
+            ? (item.catatan_rangkuman || null)
+            : (existingSummary?.catatan_rangkuman || null),
+        pesan_orang_tua:
+          item.pesan_orang_tua !== undefined
+            ? (item.pesan_orang_tua || null)
+            : (existingSummary?.pesan_orang_tua || null),
         status: (litScore !== null && numScore !== null && dinScore !== null ? "COMPLETED" : "DRAFT") as "DRAFT" | "COMPLETED",
         updated_at: now,
       };

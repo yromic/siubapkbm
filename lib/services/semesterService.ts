@@ -20,25 +20,37 @@ export async function listSemesters(
   limit = 20
 ) {
   try {
-    const query = db('semesters').whereNot('lifecycle_status', 'soft_deleted');
+    const query = db('semesters')
+      .leftJoin('academic_years', 'semesters.academic_year_id', 'academic_years.id')
+      .whereNot('semesters.lifecycle_status', 'soft_deleted');
 
     if (filters.academic_year_id) {
-      query.where('academic_year_id', filters.academic_year_id);
+      query.where('semesters.academic_year_id', filters.academic_year_id);
     }
 
     if (filters.is_active !== undefined) {
-      query.where('is_active', filters.is_active ? 1 : 0);
+      query.where('semesters.is_active', filters.is_active ? 1 : 0);
     }
 
-    const totalQuery = query.clone();
+    const totalQuery = db('semesters').whereNot('lifecycle_status', 'soft_deleted');
+    if (filters.academic_year_id) {
+      totalQuery.where('academic_year_id', filters.academic_year_id);
+    }
+    if (filters.is_active !== undefined) {
+      totalQuery.where('is_active', filters.is_active ? 1 : 0);
+    }
     const countResult = await totalQuery.count('id as total').first();
     const total = Number(countResult?.total || 0);
 
     const offset = (page - 1) * limit;
     const items = await query
+      .select(
+        'semesters.*',
+        'academic_years.name as academic_year_name'
+      )
       .limit(limit)
       .offset(offset)
-      .orderBy('start_date', 'asc');
+      .orderBy('semesters.start_date', 'asc');
 
     return {
       data: items,
@@ -65,8 +77,13 @@ export async function getSemesterById(id: string) {
 
   try {
     const item = await db('semesters')
-      .where('id', id)
-      .whereNot('lifecycle_status', 'soft_deleted')
+      .leftJoin('academic_years', 'semesters.academic_year_id', 'academic_years.id')
+      .where('semesters.id', id)
+      .whereNot('semesters.lifecycle_status', 'soft_deleted')
+      .select(
+        'semesters.*',
+        'academic_years.name as academic_year_name'
+      )
       .first();
 
     if (!item) {

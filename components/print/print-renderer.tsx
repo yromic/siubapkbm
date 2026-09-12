@@ -4,6 +4,9 @@ import React, { ReactNode } from "react";
 import { UX_COPY } from "@/lib/ux-copy";
 import { DocumentStatus } from "@/lib/permissions/documents";
 import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
+import { resolveAcademicPeriodDisplay } from "@/lib/utils/academicUtils";
+import { RPMAttachment } from "@/types/rpmAttachment";
+import { RPMAttachmentPrintList } from "@/components/rpm/RPMAttachmentPrintList";
 
 export interface DocumentPrintHeaderProps {
   institutionName?: string;
@@ -28,6 +31,10 @@ export interface SchoolSettings {
   school_headmaster_name?: string;
   /** Headmaster NIP/ID from institutional app_settings */
   school_headmaster_nip?: string;
+  /** Active institutional letterhead ID from app_settings */
+  active_letterhead_id?: string;
+  /** Active institutional letterhead public URL from app_settings */
+  active_letterhead_url?: string;
 }
 
 export interface PrintRendererProps {
@@ -39,12 +46,13 @@ export interface PrintRendererProps {
     version?: number;
     created_at?: string;
     updated_at?: string;
-    author_name?: string;
+    author_name?: string | null;
     author_nip?: string | null;
     author_nuptk?: string | null;
-    class_name?: string;
-    subject_name?: string;
-    semester_name?: string;
+    class_name?: string | null;
+    subject_name?: string | null;
+    semester_id?: string | null;
+    semester_name?: string | null;
     // RPM zero-approval fields
     signed_at?: string | null;
     signed_by?: string | null;
@@ -58,6 +66,12 @@ export interface PrintRendererProps {
   showKop?: boolean;
   /** Kop surat dari app_settings — bila disediakan, menggantikan placeholder hardcode */
   schoolSettings?: SchoolSettings;
+  /** Master semester records for dynamic label resolution */
+  semesters?: Array<{ id: string; name: string; academic_year_id?: string; academic_year_name?: string }>;
+  /** Master academic years for dynamic label resolution */
+  academicYears?: Array<{ id: string; name: string }>;
+  /** Lampiran resmi terdaftar untuk dokumen RPM */
+  attachments?: RPMAttachment[];
 }
 
 /**
@@ -100,13 +114,16 @@ export function PrintRenderer({
   headerProps,
   showKop = true,
   schoolSettings,
+  semesters,
+  academicYears,
+  attachments,
 }: PrintRendererProps) {
   const watermarkText = resolveWatermark(document);
   const documentTitle  = resolveDocumentTitle(document, headerProps);
   const documentSubtitle = resolveDocumentSubtitle(document, headerProps);
 
   // Unifikasi sumber data: Untuk RPM, sinkronkan dengan content.identitas
-  const isRPM = document.type === 'RPM';
+  const isRPM = String(document.type || '').toUpperCase() === 'RPM';
   const identitas = document.content?.identitas;
 
   const resolvedSubjectName = isRPM
@@ -141,12 +158,25 @@ export function PrintRenderer({
     || document.signer_nuptk?.trim()
     || "";
 
-  // Semester & TA for RPM metadata
-  const semesterLabel = isRPM
-    ? (identitas?.semesterTahun || (identitas?.semesterId ? '' : ''))
-    : (document.semester_name || '');
+  // Dynamic semester & TA resolution — never leaks raw database UUIDs to printed document
+  const resolvedPeriod = resolveAcademicPeriodDisplay({
+    semesterId: document.semester_id || identitas?.semesterId,
+    semesterName: document.semester_name || identitas?.semesterNama,
+    tahunAjaranRaw: identitas?.tahunAjaran,
+    semesterTahunRaw: identitas?.semesterTahun,
+    masterSemesters: semesters,
+    masterAcademicYears: academicYears,
+  });
 
-  const tahunAjaran = isRPM ? (identitas?.tahunAjaran || '') : '';
+  const semesterLabel = resolvedPeriod.semesterLabel;
+  const tahunAjaran = resolvedPeriod.academicYearLabel;
+
+  // ── Letterhead URL resolution chain ─────────────────────────────────────
+  // Priority: historical snapshot → active global setting → static legacy
+  const resolvedLetterheadUrl: string =
+    document.content?.identitas?.letterhead?.url ||
+    schoolSettings?.active_letterhead_url ||
+    "/branding/school-letterhead.png";
 
   return (
     <div className="print-engine-container relative w-full bg-white text-black p-6 print:p-0 print:m-0">
@@ -163,44 +193,54 @@ export function PrintRenderer({
       {showKop && (
         <div className="mb-6">
           <OfficialSchoolLetterhead
+            src={resolvedLetterheadUrl}
             schoolSettings={schoolSettings}
             defaultSchoolName={headerProps?.institutionName}
             defaultSubHeader={headerProps?.institutionSubHeader}
           />
-          <div className="mt-3 border-t border-black pt-2 text-center print:border-black">
-            <h2 className="text-base sm:text-lg font-bold uppercase underline text-black">
+          <div className="mt-3 border-t-2 border-emerald-800 pt-2 text-center print:border-emerald-800 print-break-inside-avoid">
+            <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-emerald-950">
               {documentTitle}
             </h2>
-            {documentSubtitle && (
+            {isRPM && documentSubtitle ? (
+              <div className="mt-0.5">
+                <p className="text-sm sm:text-base font-bold text-gray-900 leading-snug">
+                  {documentSubtitle}
+                </p>
+                <p className="text-[11px] font-semibold text-emerald-800 mt-0.5">
+                  {resolvedClassName} &bull; {semesterLabel !== "-" ? semesterLabel : "Semester"} &bull; {tahunAjaran !== "-" ? `TA ${tahunAjaran}` : ""}
+                </p>
+              </div>
+            ) : documentSubtitle ? (
               <p className="text-xs font-semibold text-gray-700 mt-0.5">{documentSubtitle}</p>
-            )}
+            ) : null}
           </div>
         </div>
       )}
 
-      {/* Metadata Table — RPM: compact subject/class/tutor only; no internal system fields */}
+      {/* Metadata Table — RPM: compact 2-column grid with formal academic tone */}
       {isRPM ? (
-        <div className="mb-4 text-xs border border-gray-200 rounded-lg overflow-hidden print:border-gray-300">
+        <div className="mb-4 text-xs border border-emerald-200/90 rounded-lg overflow-hidden bg-emerald-50/20 print:border-gray-300 print:bg-transparent print-break-inside-avoid">
           <table className="w-full">
-            <tbody className="divide-y divide-gray-100 print:divide-gray-300">
+            <tbody className="divide-y divide-gray-200 text-[11px] print:divide-gray-300">
               <tr>
-                <td className="py-1.5 px-3 font-semibold text-gray-600 w-1/3">Mata Pelajaran</td>
-                <td className="py-1.5 px-3">: {resolvedSubjectName}</td>
-                <td className="py-1.5 px-3 font-semibold text-gray-600 w-1/3">Tutor Pengampu</td>
-                <td className="py-1.5 px-3">: {resolvedAuthorName !== "-" ? resolvedAuthorName : (document.author_name || "-")}</td>
+                <td className="py-1 px-3 font-semibold text-gray-600 w-1/4 bg-gray-50/70 print:bg-transparent">Mata Pelajaran</td>
+                <td className="py-1 px-3 font-bold text-gray-900 w-1/4">: {resolvedSubjectName}</td>
+                <td className="py-1 px-3 font-semibold text-gray-600 w-1/4 bg-gray-50/70 print:bg-transparent">Tutor Pengampu</td>
+                <td className="py-1 px-3 font-bold text-gray-900 w-1/4">: {resolvedAuthorName !== "-" ? resolvedAuthorName : (document.author_name || "-")}</td>
               </tr>
               <tr>
-                <td className="py-1.5 px-3 font-semibold text-gray-600">Kelas / Fase</td>
-                <td className="py-1.5 px-3">: {resolvedClassName}</td>
-                <td className="py-1.5 px-3 font-semibold text-gray-600">Alokasi Waktu</td>
-                <td className="py-1.5 px-3">: {identitas?.alokasiWaktu || 0} Menit</td>
+                <td className="py-1 px-3 font-semibold text-gray-600 bg-gray-50/70 print:bg-transparent">Kelas / Fase</td>
+                <td className="py-1 px-3 font-bold text-gray-900">: {resolvedClassName}</td>
+                <td className="py-1 px-3 font-semibold text-gray-600 bg-gray-50/70 print:bg-transparent">Alokasi Waktu</td>
+                <td className="py-1 px-3 font-bold text-gray-900">: {identitas?.alokasiWaktu || 0} Menit</td>
               </tr>
-              {(semesterLabel || tahunAjaran) && (
+              {(semesterLabel !== "-" || tahunAjaran !== "-") && (
                 <tr>
-                  <td className="py-1.5 px-3 font-semibold text-gray-600">Semester</td>
-                  <td className="py-1.5 px-3">: {semesterLabel || "-"}</td>
-                  <td className="py-1.5 px-3 font-semibold text-gray-600">Tahun Ajaran</td>
-                  <td className="py-1.5 px-3">: {tahunAjaran || "-"}</td>
+                  <td className="py-1 px-3 font-semibold text-gray-600 bg-gray-50/70 print:bg-transparent">Semester</td>
+                  <td className="py-1 px-3 font-bold text-gray-900">: {semesterLabel}</td>
+                  <td className="py-1 px-3 font-semibold text-gray-600 bg-gray-50/70 print:bg-transparent">Tahun Ajaran</td>
+                  <td className="py-1 px-3 font-bold text-gray-900">: {tahunAjaran}</td>
                 </tr>
               )}
             </tbody>
@@ -208,7 +248,7 @@ export function PrintRenderer({
         </div>
       ) : (
         /* Non-RPM: original metadata table preserved */
-        <div className="mb-6 grid grid-cols-2 gap-4 text-xs">
+        <div className="mb-6 grid grid-cols-2 gap-4 text-xs print-break-inside-avoid">
           <div>
             <p><span className="font-semibold">Dokumen:</span> {document.type} (v{document.version || 1})</p>
             <p><span className="font-semibold">Mata Pelajaran:</span> {resolvedSubjectName}</p>
@@ -225,10 +265,13 @@ export function PrintRenderer({
       {/* Main Document Content */}
       <div className="document-body space-y-4">
         {children}
+        {isRPM && Array.isArray(attachments) && attachments.length > 0 && (
+          <RPMAttachmentPrintList attachments={attachments} />
+        )}
       </div>
 
       {/* Footer & Tanda Tangan Basah */}
-      <div className="mt-12 pt-6 border-t border-gray-300 print:break-inside-avoid">
+      <div className="mt-6 pt-4 border-t border-gray-300 print-break-inside-avoid">
         <div className="flex justify-between items-start text-xs text-center px-4">
 
           {/* Kolom kiri: Mengetahui - Kepala PKBM BLC */}

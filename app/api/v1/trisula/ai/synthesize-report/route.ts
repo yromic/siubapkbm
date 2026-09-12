@@ -23,10 +23,11 @@ export async function POST(req: NextRequest) {
           fase: body.fase || "Fase C",
           scores: body.scores || {},
           descriptions: body.descriptions || {},
+          target: body.target || "ALL",
           userId: authenticatedReq.user?.id,
         });
 
-        return successResponse(result, "Catatan rangkuman dan pesan orang tua berhasil dirumuskan.");
+        return successResponse(result, "Narasi perkembangan berhasil dirumuskan.");
       } catch (error) {
         if (error instanceof AppError) {
           return errorResponse(error.message, error.code, error.statusCode);

@@ -13,6 +13,7 @@ import { AppError } from "@/lib/errors";
 import { VALID_KURNAS } from "@/lib/services/rpmAiService";
 import { autoSaveTPsToBank } from "@/lib/services/tpBankService";
 import { resolvePhaseByClassLevel, resolvePhaseByClassName } from "@/lib/utils/academicUtils";
+import { cleanupRpmAttachmentsForDocument } from "@/lib/services/rpmAttachmentService";
 
 /**
  * Resolves authoritative phase for a document.
@@ -256,6 +257,13 @@ export async function listDocuments(
       "subjects.name as subject_name",
       "semesters.name as semester_name"
     );
+
+  const hasAttachmentsTable = await db.schema.hasTable("rpm_attachments");
+  if (hasAttachmentsTable) {
+    query.select(
+      db.raw("(SELECT COUNT(*) FROM rpm_attachments WHERE rpm_attachments.document_id = documents.id) as attachment_count")
+    );
+  }
 
   if (filters.type) query.where("documents.type", filters.type);
 
@@ -715,6 +723,9 @@ export async function deleteDocument(id: string, user: { id: string; role: strin
       403
     );
   }
+
+  // Bersihkan berkas fisik lampiran RPM yang tersimpan di disk
+  await cleanupRpmAttachmentsForDocument(id);
 
   await db("documents").where("id", id).delete();
   return { success: true, deleted_id: id };
