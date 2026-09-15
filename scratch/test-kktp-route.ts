@@ -1,0 +1,16 @@
+async function main() {
+  const BASE_URL = 'http://localhost:3000';
+  const loginRes = await fetch(`${BASE_URL}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifier: 'admin', password: 'admin123' })
+  });
+
+  const cookie = loginRes.headers.get('set-cookie');
+  const headers = { Cookie: cookie || '' };
+
+  const res = await fetch(`${BASE_URL}/api/v1/kktp/classes/c1/subjects/s1/students`, { headers });
+  console.log(`kktp students Status: ${res.status}`);
+}
+
+main().catch(console.error);

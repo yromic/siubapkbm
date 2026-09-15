@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { v4 as uuidv4 } from "uuid";
 import { db } from "@/lib/db";
+import type { Knex } from "knex";
 import { AppError } from "@/lib/errors";
 import { getDocumentById } from "@/lib/services/documentService";
 import { canViewDocument, canEditDocument } from "@/lib/permissions/documents";
@@ -354,7 +355,7 @@ export async function reorderRpmAttachments(
     throw new AppError("Daftar ID lampiran tidak valid.", "ERR_VALIDATION", 400);
   }
 
-  await db.transaction(async (trx) => {
+  await db.transaction(async (trx: Knex.Transaction) => {
     for (let index = 0; index < orderedIds.length; index++) {
       const id = orderedIds[index];
       await trx("rpm_attachments")

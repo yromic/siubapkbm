@@ -38,6 +38,32 @@ export interface SchoolSettings {
   active_letterhead_url?: string;
 }
 
+export interface DocumentPrintIdentitas {
+  modulTopik?: string;
+  mataPelajaran?: string;
+  kelasRombel?: string;
+  tingkatFase?: string;
+  alokasiWaktu?: number;
+  namaTutorPengampu?: string;
+  nipTutor?: string;
+  semesterId?: string;
+  semesterNama?: string;
+  tahunAjaran?: string;
+  semesterTahun?: string;
+  letterhead?: {
+    id?: string;
+    url?: string;
+    name?: string;
+    snapped_at?: string;
+  };
+  [key: string]: unknown;
+}
+
+export interface DocumentPrintContent {
+  identitas?: DocumentPrintIdentitas;
+  [key: string]: unknown;
+}
+
 export interface PrintRendererProps {
   document: {
     id: string;
@@ -60,7 +86,7 @@ export interface PrintRendererProps {
     signer_name?: string | null;
     signer_nip?: string | null;
     signer_nuptk?: string | null;
-    content?: Record<string, unknown> | null;
+    content?: DocumentPrintContent | Record<string, unknown> | null;
   };
   children: ReactNode;
   headerProps?: DocumentPrintHeaderProps;
@@ -105,8 +131,9 @@ function resolveDocumentTitle(doc: PrintRendererProps['document'], headerProps?:
 function resolveDocumentSubtitle(doc: PrintRendererProps['document'], headerProps?: DocumentPrintHeaderProps): string | undefined {
   if (doc.type === 'RPM') {
     // Use modulTopik as the subtitle, not headerProps.subtitle
-    const topik = doc.content?.identitas?.modulTopik;
-    return topik ? topik : undefined;
+    const content = doc.content as DocumentPrintContent | null | undefined;
+    const topik = content?.identitas?.modulTopik;
+    return topik ? String(topik) : undefined;
   }
   return headerProps?.subtitle;
 }
@@ -128,7 +155,8 @@ export function PrintRenderer({
 
   // Unifikasi sumber data: Untuk RPM, sinkronkan dengan content.identitas
   const isRPM = String(document.type || '').toUpperCase() === 'RPM';
-  const identitas = document.content?.identitas;
+  const content = document.content as DocumentPrintContent | null | undefined;
+  const identitas = content?.identitas;
 
   const resolvedSubjectName = isRPM
     ? (identitas?.mataPelajaran || document.subject_name || "-")
@@ -178,7 +206,7 @@ export function PrintRenderer({
   // ── Letterhead URL resolution chain ─────────────────────────────────────
   // Priority: historical snapshot → active global setting → static legacy
   const resolvedLetterheadUrl: string =
-    document.content?.identitas?.letterhead?.url ||
+    identitas?.letterhead?.url ||
     schoolSettings?.active_letterhead_url ||
     "/branding/school-letterhead.png";
 
