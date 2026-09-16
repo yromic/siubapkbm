@@ -36,6 +36,7 @@ import {
   ChevronDown,
   ChevronRight,
   Layout,
+  CalendarCheck,
 } from "lucide-react";
 
 import { UserRole } from "@/lib/api/client";
@@ -91,6 +92,13 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["teacher"],
     category: "utama",
     icon: <PieChart className="w-5 h-5" />,
+  },
+  {
+    name: "Presensi Siswa",
+    href: "/student-attendance",
+    roles: ["administrator", "admin", "teacher"],
+    category: "akademik",
+    icon: <CalendarCheck className="w-5 h-5" />,
   },
   {
     name: "Assessment Trisula",

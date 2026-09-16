@@ -1533,7 +1533,7 @@ export default function DashboardPage() {
                   Input karakter
                 </Link>
                 <Link
-                  href="/presence"
+                  href="/student-attendance"
                   className="flex items-center justify-center gap-1.5 p-3 rounded-xl bg-surface-2 border border-zinc-200 dark:border-zinc-800 hover:bg-brand-emerald-600 hover:text-white hover:border-brand-emerald-600 transition-all text-xs font-bold font-plus-jakarta cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1"
                 >
                   Presensi kelas
