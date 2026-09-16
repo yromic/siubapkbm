@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withAuth } from '@/lib/middleware/withAuth';
 import { withRole } from '@/lib/middleware/withRole';
 import { saveScores, listScoresByAssessment } from '@/lib/services/academicScoreService';
@@ -15,7 +15,7 @@ export async function POST(
     return withRole(['administrator', 'admin', 'teacher'], req, async () => {
       try {
         const { id } = await params;
-        const actorId = (req as any).user?.id;
+        const actorId = (req as unknown as { user?: { id: string } }).user?.id;
         if (!actorId) {
           return errorResponse('Unauthorized', 'ERR_UNAUTHORIZED', 401);
         }
@@ -62,9 +62,42 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher', 'guru'], req, async () => {
       try {
         const { id } = await params;
+        const actorId = (req as unknown as { user?: { id: string } }).user?.id;
+        if (!actorId) {
+          return errorResponse('Unauthorized', 'ERR_UNAUTHORIZED', 401);
+        }
+
+        const actor = await db('users').where('id', actorId).first();
+        const assessment = await db('academic_assessments')
+          .where('id', id)
+          .whereNot('lifecycle_status', 'soft_deleted')
+          .first();
+
+        if (!assessment) {
+          return errorResponse('Assessment not found.', 'ERR_NOT_FOUND', 404);
+        }
+
+        // Ownership check: If teacher, must be owner of assessment or assigned to class
+        if (actor && (actor.role === 'teacher' || actor.role === 'guru') && assessment.teacher_user_id !== actorId) {
+          const isAssigned = await db('class_teacher_assignments')
+            .where({
+              class_id: assessment.class_id,
+              teacher_user_id: actorId,
+              academic_year_id: assessment.academic_year_id,
+              semester_id: assessment.semester_id,
+              status: 'active'
+            })
+            .whereNot('lifecycle_status', 'soft_deleted')
+            .first();
+
+          if (!isAssigned) {
+            return errorResponse('You do not have permission to view scores for this assessment.', 'ERR_FORBIDDEN', 403);
+          }
+        }
+
         const result = await listScoresByAssessment(id);
         return successResponse(result, 'Academic scores list retrieved.');
       } catch (error) {

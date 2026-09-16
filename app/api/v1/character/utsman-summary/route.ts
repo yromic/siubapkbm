@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { withAuth } from "@/lib/middleware/withAuth";
 import { getUTSMANSummary, calculateAndSaveUTSMAN } from "@/lib/services/utsmanCalculationService";
 import { successResponse, errorResponse } from "@/lib/response";
 import { AppError } from "@/lib/errors";
+import { db } from "@/lib/db";
+import type { Knex } from "knex";
 
 export async function GET(req: NextRequest) {
   return withAuth(req, async (req) => {
@@ -17,6 +19,33 @@ export async function GET(req: NextRequest) {
           "ERR_VALIDATION",
           400
         );
+      }
+
+      // Authorization check for teachers: teacher must be assigned to student's class for this semester
+      const actor = (req as unknown as { user?: { id: string; role: string } }).user;
+      const actorId = actor?.id;
+      const actorRole = actor?.role;
+      if (actorRole === 'teacher' || actorRole === 'guru') {
+        const isAuthorized = await db('student_enrollments')
+          .join('class_teacher_assignments', (builder: Knex.JoinClause) => {
+            builder.on('student_enrollments.class_id', '=', 'class_teacher_assignments.class_id')
+              .andOn('student_enrollments.semester_id', '=', 'class_teacher_assignments.semester_id');
+          })
+          .where('student_enrollments.student_id', studentId)
+          .where('student_enrollments.semester_id', semesterId)
+          .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+          .where('class_teacher_assignments.teacher_user_id', actorId)
+          .where('class_teacher_assignments.status', 'active')
+          .whereNot('class_teacher_assignments.lifecycle_status', 'soft_deleted')
+          .first();
+
+        if (!isAuthorized) {
+          return errorResponse(
+            'You do not have permission to view the UTSMAN summary for this student.',
+            'ERR_FORBIDDEN',
+            403
+          );
+        }
       }
 
       // 1. Check existing record

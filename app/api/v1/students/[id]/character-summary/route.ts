@@ -4,6 +4,8 @@ import { withRole } from '@/lib/middleware/withRole';
 import { getUTSMANSummary, calculateAndSaveUTSMAN } from '@/lib/services/utsmanCalculationService';
 import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
+import { db } from '@/lib/db';
+import type { Knex } from 'knex';
 
 /**
  * GET /api/v1/students/:id/character-summary
@@ -19,7 +21,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (req) => {
-    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
+    return withRole(['administrator', 'admin', 'teacher', 'guru'], req, async () => {
       try {
         const { id } = await params;
         const { searchParams } = new URL(req.url);
@@ -28,6 +30,33 @@ export async function GET(
 
         if (!semester_id) {
           return errorResponse('semester_id query parameter is required.', 'ERR_VALIDATION', 400);
+        }
+
+        // Authorization check for teachers: teacher must be assigned to student's class for this semester
+        const actor = (req as unknown as { user?: { id: string; role: string } }).user;
+        const actorId = actor?.id;
+        const actorRole = actor?.role;
+        if (actorRole === 'teacher' || actorRole === 'guru') {
+          const isAuthorized = await db('student_enrollments')
+            .join('class_teacher_assignments', (builder: Knex.JoinClause) => {
+              builder.on('student_enrollments.class_id', '=', 'class_teacher_assignments.class_id')
+                .andOn('student_enrollments.semester_id', '=', 'class_teacher_assignments.semester_id');
+            })
+            .where('student_enrollments.student_id', id)
+            .where('student_enrollments.semester_id', semester_id)
+            .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+            .where('class_teacher_assignments.teacher_user_id', actorId)
+            .where('class_teacher_assignments.status', 'active')
+            .whereNot('class_teacher_assignments.lifecycle_status', 'soft_deleted')
+            .first();
+
+          if (!isAuthorized) {
+            return errorResponse(
+              'You do not have permission to view the character summary for this student.',
+              'ERR_FORBIDDEN',
+              403
+            );
+          }
         }
 
         let result = null;

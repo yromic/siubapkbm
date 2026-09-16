@@ -15,11 +15,11 @@ export const dynamic = 'force-dynamic';
  * - TEACHER: only classes currently assigned to that teacher
  *   (via class_teacher_assignments, status = active)
  *
- * This is the canonical role-scoped class list for KKTP and Trisula
- * landing pages. Never returns unauthorized classes.
+ * This is the canonical role-scoped class list for KKTP, Trisula,
+ * and teacher academic modules. Never returns unauthorized classes.
  *
  * Response format:
- *  { items: [{ id, code, name, level, class_id, class_name, class_level, ... }], total }
+ *   ClassAssignment[] (array wrapped in standard successResponse data)
  *
  * For backwards compat, each item includes both `id` and `class_id` pointing to the class.
  */
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   return withAuth(req, async () => {
     return withRole(['administrator', 'admin', 'teacher', 'guru'], req, async () => {
       try {
-        const user = (req as any).user as { id: string; role: string };
+        const user = (req as unknown as { user: { id: string; role: string } }).user;
         const isAdmin = user.role === 'administrator' || user.role === 'admin';
 
         if (isAdmin) {
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
             .select('id', 'id as class_id', 'code', 'code as class_code', 'name', 'name as class_name', 'level', 'level as class_level', 'status');
 
           return successResponse(
-            { items: classes, total: classes.length, data: classes },
+            classes,
             'Kelas berhasil dimuat.'
           );
         } else {
@@ -76,14 +76,14 @@ export async function GET(req: NextRequest) {
 
           // Deduplicate by class_id
           const seen = new Set<string>();
-          const items = assignments.filter((c: any) => {
+          const items = assignments.filter((c: { class_id: string }) => {
             if (seen.has(c.class_id)) return false;
             seen.add(c.class_id);
             return true;
           });
 
           return successResponse(
-            { items, total: items.length, data: items },
+            items,
             'Assigned classes retrieved.'
           );
         }
