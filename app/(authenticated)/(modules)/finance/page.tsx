@@ -252,7 +252,13 @@ export default function FinancePage() {
     setBulkSubmitLoading(true);
     setBulkSubmitError(null);
     try {
-      const amountNum = parseFloat(bulkAmountPaid) || 0;
+      const amountNum = parseFloat(bulkAmountPaid);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        setBulkSubmitError(UX_COPY.finance.invalidAmount);
+        notify.error(UX_COPY.finance.invalidAmount);
+        setBulkSubmitLoading(false);
+        return;
+      }
       await verifyBulkSppPaymentsApi(token, selectedStudentIds, amountNum, bulkPaymentMethod, bulkNotes, bulkAdvanceMonths);
       notify.success(UX_COPY.finance.bulkVerifySuccess);
       setShowBulkVerifyModal(false);

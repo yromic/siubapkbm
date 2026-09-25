@@ -168,7 +168,7 @@ export async function verifyPayment(
   },
   actorId: string
 ) {
-  if (!input.student_id || !input.amount_paid || !input.payment_method) {
+  if (!input.student_id || input.amount_paid == null || isNaN(Number(input.amount_paid)) || !input.payment_method) {
     throw new AppError('Missing required fields: student_id, amount_paid, and payment_method are required.', 'ERR_VALIDATION', 400);
   }
 
@@ -285,7 +285,7 @@ export async function verifyBulkPayments(
   },
   actorId: string
 ) {
-  if (!input.student_ids || !Array.isArray(input.student_ids) || !input.amount_paid || !input.payment_method) {
+  if (!input.student_ids || !Array.isArray(input.student_ids) || input.student_ids.length === 0 || input.amount_paid == null || isNaN(Number(input.amount_paid)) || !input.payment_method) {
     throw new AppError('Missing required fields.', 'ERR_VALIDATION', 400);
   }
 
