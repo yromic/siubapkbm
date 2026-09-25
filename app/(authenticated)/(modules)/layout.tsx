@@ -109,14 +109,6 @@ const MENU_ITEMS: MenuItem[] = [
     icon: <FileText className="w-5 h-5" />,
   },
   {
-    name: "Bank Modul BLC",
-    href: "/blc",
-
-    roles: ["administrator", "admin", "teacher"],
-    category: "akademik",
-    icon: <BookOpen className="w-5 h-5" />,
-  },
-  {
     name: "Rencana Pemelajaran (RPM)",
     href: "/rpm",
 

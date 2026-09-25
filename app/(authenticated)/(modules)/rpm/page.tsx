@@ -15,7 +15,7 @@ import { PageContainer, PageSection } from "@/components/ui/page-framework";
 import { AIUsageStatus, getAIErrorMessageByReason } from "@/components/ai/AIUsageStatus";
 import {
   Loader2, Plus, Sparkles, ArrowLeft, Printer, CheckCircle,
-  WifiOff, Clock, RefreshCw, Trash2, Share2, ShieldCheck, PenSquare,
+  WifiOff, Clock, RefreshCw, Trash2, ShieldCheck, PenSquare,
   BookOpen, Calculator, HeartHandshake, Database, Layers, FileText,
   Search, X, School, Users, CheckCircle2, ChevronRight, Bookmark, Tag,
   Paperclip, Eye
@@ -372,12 +372,10 @@ export default function RPMPage() {
     const myRpm = user ? documents.filter(d => d.author_id === user.id).length : totalRpm;
     const subjects = new Set<string>();
     const classes = new Set<string>();
-    let sharedCount = 0;
 
     documents.forEach((d) => {
       if (d.content?.identitas?.mataPelajaran) subjects.add(d.content.identitas.mataPelajaran);
       if (d.content?.identitas?.kelasRombel) classes.add(d.content.identitas.kelasRombel);
-      if (d.blc_shared_at) sharedCount++;
     });
 
     return {
@@ -385,16 +383,12 @@ export default function RPMPage() {
       totalRpm,
       totalSubjects: subjects.size,
       totalClasses: classes.size,
-      sharedCount,
     };
   }, [documents, user]);
 
   // Konfirmasi hapus
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-
-  // Berbagi BLC
-  const [sharingId, setSharingId] = useState<string | null>(null);
 
   // Form State
   const [title, setTitle] = useState("");
@@ -1352,28 +1346,6 @@ export default function RPMPage() {
     }
   };
 
-  const handleToggleBLC = async (doc: RPMItem) => {
-    setSharingId(doc.id);
-    const action = doc.blc_shared_at ? "UNSHARE_FROM_BLC" : "SHARE_TO_BLC";
-    try {
-      const res = await fetch(`/api/v1/documents/${doc.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const json = await res.json();
-      if (json.success) {
-        toast.success(action === "SHARE_TO_BLC" ? UX_COPY.rpm.messages.shareSuccess : UX_COPY.rpm.messages.unshareSuccess);
-        fetchRPMDocuments();
-      } else {
-        toast.error(json.message || "Gagal mengubah status berbagi.");
-      }
-    } catch {
-      toast.error("Terjadi kendala saat mengubah status berbagi.");
-    } finally {
-      setSharingId(null);
-    }
-  };
 
   const handleOpenPrint = async (doc: RPMItem) => {
     setActiveDoc(doc);
@@ -3349,16 +3321,11 @@ export default function RPMPage() {
             RPM Saya / Rencana Pembelajaran
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Kelola rancangan pembelajaran aktif semester ini atau temukan modul siap pakai di Bank Modul BLC.
+            Kelola rancangan pembelajaran aktif semester ini secara terstruktur.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          <Link href="/blc">
-            <Button variant="secondary" size="sm" className="min-h-[38px] text-xs border-purple-200 text-purple-700 hover:bg-purple-50 shadow-xs">
-              <Database className="w-4 h-4 mr-1.5 text-purple-600" /> Bank Modul BLC
-            </Button>
-          </Link>
           <Button onClick={handleCreateNew} size="sm" className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs">
             <Plus className="w-4 h-4 mr-1.5" /> Buat RPM Baru
           </Button>
@@ -3397,11 +3364,11 @@ export default function RPMPage() {
 
           <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
             <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span className="font-semibold">Dibagikan ke BLC</span>
-              <Share2 className="w-4 h-4 text-purple-600" />
+              <span className="font-semibold">Total RPM</span>
+              <Layers className="w-4 h-4 text-indigo-600" />
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-purple-700 font-fredoka">{desktopStats.sharedCount}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Modul publik</p>
+            <p className="text-xl sm:text-2xl font-bold text-indigo-700 font-fredoka">{desktopStats.totalRpm}</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">Semua dokumen</p>
           </div>
         </div>
       )}
@@ -3468,18 +3435,13 @@ export default function RPMPage() {
               {rpmSearch
                 ? `Tidak ada RPM yang cocok dengan kata kunci "${rpmSearch}".`
                 : filterTab === 'MY_ACTIVE'
-                ? 'Mulai buat rancangan pembelajaran baru dengan bantuan AI atau temukan modul siap pakai di Bank Modul BLC.'
+                ? 'Mulai buat rancangan pembelajaran baru dengan bantuan AI atau susun secara mandiri.'
                 : 'Buat dokumen Rencana Pembelajaran (RPM) pertama Anda secara terstruktur.'}
             </p>
             <div className="flex justify-center gap-2 pt-2">
               <Button onClick={handleCreateNew} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold text-white">
                 <Plus className="w-4 h-4 mr-1.5" /> Buat RPM Baru
               </Button>
-              <Link href="/blc">
-                <Button variant="secondary" className="min-h-[38px] text-xs border-purple-200 text-purple-700 hover:bg-purple-50">
-                  <Database className="w-3.5 h-3.5 mr-1.5" /> Buka Bank Modul BLC
-                </Button>
-              </Link>
             </div>
           </div>
         </Card>
@@ -3504,7 +3466,6 @@ export default function RPMPage() {
                   {displayedDocs.map((doc, idx) => {
                     const isOwner = user && doc.author_id === user.id;
                     const canDelete = isOwner || isAdmin;
-                    const canShare = isOwner;
 
                     return (
                       <tr key={doc.id} className="hover:bg-gray-50/70 transition-colors">
@@ -3625,18 +3586,6 @@ export default function RPMPage() {
                                 }}
                               >
                                 <PenSquare className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Edit
-                              </Button>
-                            )}
-                            {canShare && (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                className={`h-8 w-8 p-0 ${doc.blc_shared_at ? 'border-purple-400 text-purple-700 hover:bg-purple-50' : 'text-gray-500'}`}
-                                onClick={() => handleToggleBLC(doc)}
-                                disabled={sharingId === doc.id}
-                                title={doc.blc_shared_at ? UX_COPY.rpm.actions.unshareToBLC : UX_COPY.rpm.actions.shareToBLC}
-                              >
-                                {sharingId === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
                               </Button>
                             )}
                             {canDelete && (
@@ -3774,18 +3723,6 @@ export default function RPMPage() {
                         }}
                       >
                         <PenSquare className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
-                    )}
-                    {canShare && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="min-h-[38px] w-10 p-0 text-xs"
-                        onClick={() => handleToggleBLC(doc)}
-                        disabled={sharingId === doc.id}
-                        title={doc.blc_shared_at ? UX_COPY.rpm.actions.unshareToBLC : UX_COPY.rpm.actions.shareToBLC}
-                      >
-                        {sharingId === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5" />}
                       </Button>
                     )}
                     {canDelete && (
