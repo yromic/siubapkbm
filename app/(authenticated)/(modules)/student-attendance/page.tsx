@@ -25,6 +25,7 @@ import {
   formatIndonesianDate,
   isFutureDate,
 } from '@/lib/utils/schoolDate';
+import { PageContainer } from '@/components/ui/page-framework';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function StudentAttendanceContent() {
@@ -149,7 +150,7 @@ function StudentAttendanceContent() {
   const isToday = selectedDate === todayStr;
 
   return (
-    <div className="space-y-6">
+    <PageContainer maxWidth="7xl">
       {/* Page Header */}
       <PageHeader
         title="Presensi Siswa"
@@ -225,7 +226,7 @@ function StudentAttendanceContent() {
           onSelectClass={handleSelectClass}
         />
       )}
-    </div>
+    </PageContainer>
   );
 }
 

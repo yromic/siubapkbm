@@ -13,6 +13,7 @@ import {
 import { AttendanceStatusSelector } from './AttendanceStatusSelector';
 import { formatIndonesianDate } from '@/lib/utils/schoolDate';
 import { LoadingState, ErrorState, EmptyState } from '@/components/ui-states';
+import { PageContainer } from '@/components/ui/page-framework';
 import { notify } from '@/lib/notify';
 import {
   ArrowLeft,
@@ -238,7 +239,7 @@ export function StudentAttendanceSheet({
   const isLocked = !detail.can_edit;
 
   return (
-    <div className="space-y-6 pb-40 md:pb-24">
+    <PageContainer maxWidth="7xl" className="pb-40 md:pb-24">
       {/* 1. Header & Navigation */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-200 dark:border-zinc-800">
         <div className="flex items-center gap-3">
@@ -461,7 +462,7 @@ export function StudentAttendanceSheet({
 
       {/* 4. Sticky Bottom Save Bar */}
       <div className="fixed bottom-16 md:bottom-0 left-0 right-0 z-30 p-3 sm:p-4 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 shadow-xl">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           {/* Real-time Summary Counters */}
           <div className="flex items-center gap-2 md:gap-4 overflow-x-auto w-full sm:w-auto py-1">
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-plus-jakarta text-xs font-bold shrink-0">
@@ -520,6 +521,6 @@ export function StudentAttendanceSheet({
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
