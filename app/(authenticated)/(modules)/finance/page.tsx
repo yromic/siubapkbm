@@ -725,7 +725,7 @@ export default function FinancePage() {
                       <span className="font-semibold text-zinc-950 dark:text-zinc-50">{selectedPayment.student_name}</span>
                     </div>
                     <div className="flex justify-between text-zinc-500">
-                      <span>Periode SPP</span>
+                      <span>Tagihan Dipilih</span>
                       <span className="font-semibold text-zinc-950 dark:text-zinc-50">
                         {months.find((m) => m.value === selectedPayment.month)?.label} {selectedPayment.year}
                       </span>
@@ -738,6 +738,9 @@ export default function FinancePage() {
                       <span>Sudah Dibayar</span>
                       <span className="font-semibold text-zinc-950 dark:text-zinc-50 font-mono">{formatCurrency(selectedPayment.amount_paid)}</span>
                     </div>
+                  </div>
+                  <div className="px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed mb-4">
+                    ⚠️ <strong>Sistem FIFO:</strong> Pembayaran selalu melunasi <strong>tunggakan bulan terlama</strong> terlebih dahulu. Jika siswa memiliki tunggakan sebelum bulan yang dipilih, bulan terlama itulah yang akan dilunasi.
                   </div>
 
                   <form onSubmit={handleVerifySubmit} className="space-y-4">
