@@ -37,6 +37,7 @@ import {
   ChevronRight,
   Layout,
   CalendarCheck,
+  BookOpenCheck,
 } from "lucide-react";
 
 import { UserRole } from "@/lib/api/client";
@@ -130,6 +131,14 @@ const MENU_ITEMS: MenuItem[] = [
     roles: ["administrator", "admin", "teacher"],
     category: "akademik",
     icon: <FileText className="w-5 h-5" />,
+  },
+  {
+    name: "Raport Terpadu",
+    href: "/raport",
+
+    roles: ["administrator", "admin", "teacher"],
+    category: "akademik",
+    icon: <BookOpenCheck className="w-5 h-5" />,
   },
   {
     name: "Siswa",
