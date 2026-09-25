@@ -20,7 +20,8 @@ import {
   Search, X, School, Users, CheckCircle2, ChevronRight, Bookmark, Tag,
   Paperclip, Eye
 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
+const toast = notify;
 import {
   RPMActivityItem,
   RPMActivityInput,

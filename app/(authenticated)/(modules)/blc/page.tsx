@@ -9,7 +9,8 @@ import { Select } from "@/components/ui/select";
 import { PrintRenderer } from "@/components/print/print-renderer";
 import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 import { Loader2, Copy, Search, Printer, BookOpen, Layers, UserCheck, Link2 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
+const toast = notify;
 import { RPMAttachment } from "@/types/rpmAttachment";
 import { fetchRpmAttachments } from "@/lib/api/rpmAttachments";
 import { RPMAttachmentPreviewNotice } from "@/components/rpm/RPMAttachmentPreviewNotice";
@@ -259,9 +260,149 @@ export default function BankModulBLCPage() {
                 }
               </div>
             )}
-            <div className="border p-4 rounded bg-gray-50/50">
-              <h3 className="font-bold text-sm text-gray-700 uppercase mb-2">Pratinjau Isi Dokumen BLC</h3>
-              <pre className="whitespace-pre-wrap font-sans text-xs">{JSON.stringify(activeDoc.content, null, 2)}</pre>
+            {/* Structured Human-Friendly Document Preview */}
+            <div className="space-y-4">
+              {/* Identitas Ringkas */}
+              {activeDoc.content?.identitas && (
+                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/40 space-y-2">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-zinc-700 dark:text-zinc-300">
+                    Informasi & Identitas Modul
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div>
+                      <span className="text-zinc-400 block text-[11px]">Mata Pelajaran</span>
+                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">{activeDoc.content.identitas.mataPelajaran || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block text-[11px]">Kelas / Fase</span>
+                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">{activeDoc.content.identitas.kelasRombel || "-"} ({activeDoc.content.identitas.tingkatFase || "-"})</span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block text-[11px]">Topik / Modul</span>
+                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">{activeDoc.content.identitas.modulTopik || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 block text-[11px]">Alokasi Waktu</span>
+                      <span className="font-semibold text-zinc-800 dark:text-zinc-200">{activeDoc.content.identitas.alokasiWaktu ? `${activeDoc.content.identitas.alokasiWaktu} Menit` : "-"}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Capaian & Tujuan Pembelajaran (RPM) */}
+              {activeDoc.content?.desainPembelajaran && (
+                <div className="space-y-3">
+                  {activeDoc.content.desainPembelajaran.capaianPembelajaran && (
+                    <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                      <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 uppercase tracking-wide mb-1.5">
+                        Capaian Pembelajaran (CP)
+                      </h4>
+                      <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                        {activeDoc.content.desainPembelajaran.capaianPembelajaran}
+                      </p>
+                    </div>
+                  )}
+
+                  {Array.isArray(activeDoc.content.desainPembelajaran.tujuanPembelajaran) && activeDoc.content.desainPembelajaran.tujuanPembelajaran.length > 0 && (
+                    <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                      <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 uppercase tracking-wide mb-2">
+                        Tujuan Pembelajaran (TP)
+                      </h4>
+                      <ul className="space-y-1.5 list-disc list-inside text-xs text-zinc-700 dark:text-zinc-300">
+                        {activeDoc.content.desainPembelajaran.tujuanPembelajaran.map((tp: string, idx: number) => (
+                          <li key={idx} className="leading-relaxed">
+                            {tp}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Skenario Pembelajaran */}
+                  {activeDoc.content.desainPembelajaran.kegiatanPembelajaran && (
+                    <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-3">
+                      <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 uppercase tracking-wide">
+                        Skenario Aktivitas Pembelajaran
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        {/* Awal */}
+                        <div className="p-3 rounded-lg border border-emerald-100 bg-emerald-50/30 text-xs space-y-1.5">
+                          <span className="font-bold text-emerald-800 block text-[11px] uppercase">Kegiatan Awal</span>
+                          {Array.isArray(activeDoc.content.desainPembelajaran.kegiatanPembelajaran.awal) ? (
+                            activeDoc.content.desainPembelajaran.kegiatanPembelajaran.awal.map((act: any, i: number) => (
+                              <p key={i} className="text-zinc-700 text-[11px]">{act.teks || act}</p>
+                            ))
+                          ) : (
+                            <p className="text-zinc-500 text-[11px]">-</p>
+                          )}
+                        </div>
+                        {/* Inti */}
+                        <div className="p-3 rounded-lg border border-blue-100 bg-blue-50/30 text-xs space-y-1.5">
+                          <span className="font-bold text-blue-800 block text-[11px] uppercase">Kegiatan Inti</span>
+                          {Array.isArray(activeDoc.content.desainPembelajaran.kegiatanPembelajaran.inti) ? (
+                            activeDoc.content.desainPembelajaran.kegiatanPembelajaran.inti.map((act: any, i: number) => (
+                              <p key={i} className="text-zinc-700 text-[11px]">{act.teks || act}</p>
+                            ))
+                          ) : (
+                            <p className="text-zinc-500 text-[11px]">-</p>
+                          )}
+                        </div>
+                        {/* Akhir */}
+                        <div className="p-3 rounded-lg border border-amber-100 bg-amber-50/30 text-xs space-y-1.5">
+                          <span className="font-bold text-amber-800 block text-[11px] uppercase">Kegiatan Penutup</span>
+                          {Array.isArray(activeDoc.content.desainPembelajaran.kegiatanPembelajaran.akhir) ? (
+                            activeDoc.content.desainPembelajaran.kegiatanPembelajaran.akhir.map((act: any, i: number) => (
+                              <p key={i} className="text-zinc-700 text-[11px]">{act.teks || act}</p>
+                            ))
+                          ) : (
+                            <p className="text-zinc-500 text-[11px]">-</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Asesmen */}
+                  {activeDoc.content.desainPembelajaran.asesmen && (
+                    <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                      <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 uppercase tracking-wide mb-2">
+                        Rancangan Asesmen
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                        <div className="p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
+                          <span className="font-semibold text-zinc-500 text-[10px] uppercase block">Asesmen Awal</span>
+                          <span className="text-zinc-800 dark:text-zinc-200">{activeDoc.content.desainPembelajaran.asesmen.awal || "-"}</span>
+                        </div>
+                        <div className="p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
+                          <span className="font-semibold text-zinc-500 text-[10px] uppercase block">Asesmen Formatif</span>
+                          <span className="text-zinc-800 dark:text-zinc-200">{activeDoc.content.desainPembelajaran.asesmen.formatif || "-"}</span>
+                        </div>
+                        <div className="p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg">
+                          <span className="font-semibold text-zinc-500 text-[10px] uppercase block">Asesmen Sumatif</span>
+                          <span className="text-zinc-800 dark:text-zinc-200">{activeDoc.content.desainPembelajaran.asesmen.sumatif || "-"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* KKTP Content Fallback */}
+              {activeDoc.type === 'KKTP' && Array.isArray(activeDoc.content?.tpItems) && (
+                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                  <h4 className="font-bold text-xs text-zinc-900 dark:text-zinc-100 uppercase tracking-wide mb-2">
+                    Daftar Kriteria & Tujuan Pembelajaran (KKTP)
+                  </h4>
+                  <ul className="space-y-2 text-xs">
+                    {activeDoc.content.tpItems.map((tp: any, idx: number) => (
+                      <li key={idx} className="p-2.5 bg-zinc-50 dark:bg-zinc-800 rounded-lg border border-zinc-100 dark:border-zinc-700">
+                        <span className="font-bold text-emerald-700 mr-2">TP-{idx + 1}:</span>
+                        <span className="text-zinc-800 dark:text-zinc-200">{tp.teks || tp.tp_text_snapshot || JSON.stringify(tp)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </PrintRenderer>

@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
   LayoutGrid,
   AlertTriangle,
+  AlertCircle,
   X,
   ChevronRight,
   Eye,
@@ -40,7 +41,16 @@ import {
   Clock,
   Layers
 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
+const toast = notify;
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { resolvePhaseByClassLevel, getScoreCategory } from "@/lib/utils/academicUtils";
 import { filterTrisulaNativeCPs, filterTrisulaNativeTPs } from "@/lib/utils/curriculumFilterUtils";
 import { fetchBankCPs, fetchBankTPs } from "@/lib/api/curriculumBankClient";
@@ -121,6 +131,29 @@ export default function TrisulaPage() {
   const [studentSearch, setStudentSearch] = useState<string>("");
   const [savingGradebook, setSavingGradebook] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [showUnsavedPrompt, setShowUnsavedPrompt] = useState(false);
+  const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null);
+
+  // Browser beforeunload protection
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const confirmNavigationIfUnsaved = (action: () => void) => {
+    if (hasUnsavedChanges) {
+      setPendingNavigationAction(() => action);
+      setShowUnsavedPrompt(true);
+    } else {
+      action();
+    }
+  };
 
   // Resolve letterhead URL: historical snapshot version -> global active setting -> default static
   const resolvedLetterheadUrl = useMemo(() => {
@@ -1187,8 +1220,10 @@ export default function TrisulaPage() {
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <button
           onClick={() => {
-            setTrisulaView('CLASS_LIST');
-            fetchClassSummaries();
+            confirmNavigationIfUnsaved(() => {
+              setTrisulaView('CLASS_LIST');
+              fetchClassSummaries();
+            });
           }}
           className="hover:text-emerald-700 font-semibold transition-colors flex items-center gap-1"
         >
@@ -1231,12 +1266,15 @@ export default function TrisulaPage() {
               value={selectedClassId}
               onChange={(e) => {
                 const cid = e.target.value;
-                setSelectedClassId(cid);
-                const found = (Array.isArray(classes) ? classes : []).find((c) => c.id === cid);
-                if (found) {
-                  setSelectedClassName(found.name);
-                  setSelectedClassLevel(found.level || 1);
-                }
+                const switchClass = () => {
+                  setSelectedClassId(cid);
+                  const found = (Array.isArray(classes) ? classes : []).find((c) => c.id === cid);
+                  if (found) {
+                    setSelectedClassName(found.name);
+                    setSelectedClassLevel(found.level || 1);
+                  }
+                };
+                confirmNavigationIfUnsaved(switchClass);
               }}
               className="px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-800 focus:ring-2 focus:ring-emerald-500"
             >
@@ -2606,6 +2644,62 @@ export default function TrisulaPage() {
         }}
       />
 
+      {/* Unsaved Changes Confirmation Dialog */}
+      <Dialog open={showUnsavedPrompt} onOpenChange={setShowUnsavedPrompt}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5 text-amber-600">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <DialogTitle className="text-base font-bold">Simpan Perubahan Nilai Trisula?</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-zinc-500 pt-1 leading-relaxed">
+              Terdapat perubahan nilai santri yang belum disimpan ke database. Jika Anda berpindah kelas atau keluar sekarang, nilai yang baru diubah akan hilang.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowUnsavedPrompt(false);
+                setPendingNavigationAction(null);
+              }}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                setHasUnsavedChanges(false);
+                setShowUnsavedPrompt(false);
+                if (pendingNavigationAction) {
+                  const act = pendingNavigationAction;
+                  setPendingNavigationAction(null);
+                  act();
+                }
+              }}
+            >
+              Keluar Tanpa Menyimpan
+            </Button>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={async () => {
+                await handleSaveGradebook();
+                setShowUnsavedPrompt(false);
+                if (pendingNavigationAction) {
+                  const act = pendingNavigationAction;
+                  setPendingNavigationAction(null);
+                  act();
+                }
+              }}
+            >
+              Simpan & Lanjutkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
         </PageContainer>
       </div>
 

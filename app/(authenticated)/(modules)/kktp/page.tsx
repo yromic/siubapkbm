@@ -13,7 +13,8 @@ import {
   Search, Filter, X, Bookmark, Tag, Users, BarChart3, ClipboardList,
   GraduationCap, CheckCircle2, Clock, HeartHandshake
 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
+const toast = notify;
 import { useAuth } from "@/hooks/useAuth";
 import { PageContainer, PageSection } from "@/components/ui/page-framework";
 import { KPICard } from "@/components/ui/kpi-card";

@@ -23,7 +23,7 @@ import {
   Check,
   BookOpen,
 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
 import { fetchBankTPs as fetchBankTPsClient } from "@/lib/api/curriculumBankClient";
 
 export interface ConfiguredTPItem {
@@ -70,6 +70,18 @@ export function KKTPConfigModal({
   // AI state
   const [aiPrompt, setAiPrompt] = useState("");
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  const handleSafeClose = () => {
+    if (isDirty) {
+      if (window.confirm("Batalkan perubahan konfigurasi TP? Perubahan yang belum disimpan akan hilang.")) {
+        setIsDirty(false);
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -83,6 +95,7 @@ export function KKTPConfigModal({
               }))
             : []
         );
+        setIsDirty(false);
         setActiveTab("LIST");
       }, 0);
       return () => clearTimeout(timer);
@@ -104,7 +117,7 @@ export function KKTPConfigModal({
       );
       setSelectedBankIds(existingBankTpIds);
     } catch {
-      toast.error("Gagal memuat Tujuan Pembelajaran dari Bank TP.");
+      notify.error("Gagal memuat Tujuan Pembelajaran dari Bank TP.");
     } finally {
       setLoadingBank(false);
     }
@@ -149,8 +162,9 @@ export function KKTPConfigModal({
     }));
 
     setTps(combined);
+    setIsDirty(true);
     setActiveTab("LIST");
-    toast.success(`${selectedItems.length} TP dari Bank diterapkan.`);
+    notify.success(`${selectedItems.length} TP dari Bank diterapkan.`);
   };
 
   // Add Manual TP
@@ -166,6 +180,7 @@ export function KKTPConfigModal({
         order_index: nextIndex,
       },
     ]);
+    setIsDirty(true);
   };
 
   const handleUpdateTPText = (index: number, text: string) => {
@@ -174,6 +189,7 @@ export function KKTPConfigModal({
       updated[index] = { ...updated[index], tp_text_snapshot: text };
       return updated;
     });
+    setIsDirty(true);
   };
 
   const handleUpdateTPCode = (index: number, code: string) => {
@@ -182,9 +198,20 @@ export function KKTPConfigModal({
       updated[index] = { ...updated[index], tp_code: code };
       return updated;
     });
+    setIsDirty(true);
   };
 
   const handleRemoveTP = (index: number) => {
+    const targetTp = tps[index];
+    if (
+      targetTp?.id &&
+      !window.confirm(
+        `Hapus "${targetTp.tp_code || 'TP ini'}"? Menghapus TP yang sudah tersimpan dapat menghapus nilai murid terkait saat disimpan.`
+      )
+    ) {
+      return;
+    }
+
     setTps((prev) => {
       const filtered = prev.filter((_, i) => i !== index);
       return filtered.map((t, i) => ({
@@ -193,6 +220,7 @@ export function KKTPConfigModal({
         order_index: i + 1,
       }));
     });
+    setIsDirty(true);
   };
 
   const handleMoveTP = (index: number, direction: "UP" | "DOWN") => {
@@ -210,6 +238,7 @@ export function KKTPConfigModal({
       updated[targetIndex] = temp;
       return updated.map((t, i) => ({ ...t, order_index: i + 1 }));
     });
+    setIsDirty(true);
   };
 
   // AI Generator
@@ -227,7 +256,7 @@ export function KKTPConfigModal({
       });
       const json = await res.json();
       if (!json.success || !Array.isArray(json.data?.saranTP)) {
-        toast.error(json.message || "Gagal menghasilkan saran TP.");
+        notify.error(json.message || "Gagal menghasilkan saran TP.");
         return;
       }
 
@@ -242,10 +271,11 @@ export function KKTPConfigModal({
       }));
 
       setTps((prev) => [...prev, ...newItems]);
+      setIsDirty(true);
       setActiveTab("LIST");
-      toast.success(`${newItems.length} rekomendasi TP ditambahkan${isAi ? " oleh AI" : " (kurikulum nasional)"}.`);
+      notify.success(`${newItems.length} rekomendasi TP ditambahkan${isAi ? " oleh AI" : " (kurikulum nasional)"}.`);
     } catch {
-      toast.error("Gagal terhubung ke layanan AI.");
+      notify.error("Gagal terhubung ke layanan AI.");
     } finally {
       setGeneratingAi(false);
     }
@@ -255,7 +285,7 @@ export function KKTPConfigModal({
   const handleSave = async () => {
     const validTps = tps.filter((t) => t.tp_text_snapshot.trim().length > 0);
     if (validTps.length === 0) {
-      toast.error("Minimal tambahkan 1 Tujuan Pembelajaran (TP) untuk kelas ini.");
+      notify.error("Minimal tambahkan 1 Tujuan Pembelajaran (TP) untuk kelas ini.");
       return;
     }
 
@@ -268,23 +298,35 @@ export function KKTPConfigModal({
       });
       const json = await res.json();
       if (!json.success) {
-        toast.error(json.message || "Gagal menyimpan konfigurasi TP.");
+        notify.error(json.message || "Gagal menyimpan konfigurasi TP.");
         return;
       }
 
-      toast.success("Konfigurasi Tujuan Pembelajaran berhasil disimpan!");
+      setIsDirty(false);
+      notify.success("Konfigurasi Tujuan Pembelajaran berhasil disimpan!");
       onTpsSaved();
       onClose();
     } catch {
-      toast.error("Terjadi kendala saat menyimpan TP.");
+      notify.error("Terjadi kendala saat menyimpan TP.");
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleSafeClose()}>
+      <DialogContent
+        className="max-w-3xl max-h-[85vh] flex flex-col p-0"
+        onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isDirty) {
+            e.preventDefault();
+            handleSafeClose();
+          }
+        }}
+      >
         <DialogHeader className="p-6 pb-2 border-b border-zinc-100 dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <div>
@@ -550,7 +592,7 @@ export function KKTPConfigModal({
         </div>
 
         <DialogFooter className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center sm:justify-between">
-          <Button variant="ghost" size="sm" onClick={onClose} disabled={saving}>
+          <Button variant="ghost" size="sm" onClick={handleSafeClose} disabled={saving}>
             Batal
           </Button>
           <Button

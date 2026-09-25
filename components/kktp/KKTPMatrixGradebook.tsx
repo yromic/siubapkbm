@@ -14,7 +14,15 @@ import {
   AlertCircle,
   FileText,
 } from "lucide-react";
-import { toast } from "sonner";
+import { notify } from "@/lib/notify";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { calculateSubjectScore, getKKTPPredicate } from "@/lib/utils/kktpCalculationUtils";
 import { KKTPConfigModal, ConfiguredTPItem } from "./KKTPConfigModal";
 import { KKTPStudentReportSheet, StudentKKTPReportData } from "./KKTPStudentReportSheet";
@@ -67,6 +75,19 @@ export function KKTPMatrixGradebook({
   const [scoreInputs, setScoreInputs] = useState<Record<string, Record<string, string>>>({});
   const [isDirty, setIsDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [showLeaveConfirmDialog, setShowLeaveConfirmDialog] = useState(false);
+
+  // Browser beforeunload protection
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   // Modals & Print
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -114,7 +135,7 @@ export function KKTPMatrixGradebook({
       });
       const assJson = await assRes.json();
       if (!assJson.success || !assJson.data) {
-        toast.error(assJson.message || "Gagal memuat sesi asesmen KKTP.");
+        notify.error(assJson.message || "Gagal memuat sesi asesmen KKTP.");
         setLoading(false);
         return;
       }
@@ -145,7 +166,7 @@ export function KKTPMatrixGradebook({
         setSaveStatus("idle");
       }
     } catch {
-      toast.error("Terjadi kendala saat memuat matriks KKTP.");
+      notify.error("Terjadi kendala saat memuat matriks KKTP.");
     } finally {
       setLoading(false);
     }
@@ -181,6 +202,32 @@ export function KKTPMatrixGradebook({
     }));
     setIsDirty(true);
     setSaveStatus("idle");
+  };
+
+  // Keyboard navigation for spreadsheet-like efficiency (Enter / ArrowDown to next student)
+  const handleScoreKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    studentIdx: number,
+    tpIdx: number
+  ) => {
+    if (e.key === "Enter" || e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextInput = document.getElementById(`score-cell-${studentIdx + 1}-${tpIdx}`);
+      if (nextInput) (nextInput as HTMLInputElement).focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prevInput = document.getElementById(`score-cell-${studentIdx - 1}-${tpIdx}`);
+      if (prevInput) (prevInput as HTMLInputElement).focus();
+    }
+  };
+
+  // Safe back navigation handler
+  const handleSafeBack = () => {
+    if (isDirty) {
+      setShowLeaveConfirmDialog(true);
+    } else {
+      onBack();
+    }
   };
 
   // Compute live averages & predicates for rows
@@ -237,17 +284,17 @@ export function KKTPMatrixGradebook({
       const json = await res.json();
       if (!json.success) {
         setSaveStatus("error");
-        toast.error(json.message || "Gagal menyimpan nilai matriks KKTP.");
+        notify.error(json.message || "Gagal menyimpan nilai matriks KKTP.");
         return;
       }
 
       setSaveStatus("saved");
       setIsDirty(false);
-      toast.success("Seluruh nilai KKTP kelas berhasil disimpan!");
+      notify.success("Seluruh nilai KKTP kelas berhasil disimpan!");
       loadMatrixData();
     } catch {
       setSaveStatus("error");
-      toast.error("Terjadi kendala saat menyimpan nilai.");
+      notify.error("Terjadi kendala saat menyimpan nilai.");
     }
   };
 
@@ -262,17 +309,17 @@ export function KKTPMatrixGradebook({
       if (json.success && json.data) {
         setPrintData(json.data);
       } else {
-        toast.error(json.message || "Gagal memuat laporan murid.");
+        notify.error(json.message || "Gagal memuat laporan murid.");
       }
     } catch {
-      toast.error("Gagal memuat data cetak murid.");
+      notify.error("Gagal memuat data cetak murid.");
     }
   };
 
   // Batch print all students
   const handleBatchPrint = async () => {
     if (!assessment || students.length === 0) return;
-    const toastId = toast.loading("Menyiapkan dokumen cetak massal...");
+    const toastId = notify.loading("Menyiapkan dokumen cetak massal...");
     try {
       const reports: StudentKKTPReportData[] = [];
       for (const s of students) {
@@ -285,18 +332,18 @@ export function KKTPMatrixGradebook({
         }
       }
 
-      toast.dismiss(toastId);
+      notify.dismiss(toastId);
       if (reports.length > 0) {
         setBatchPrintData(reports);
         setTimeout(() => {
           window.print();
         }, 500);
       } else {
-        toast.error("Tidak ada data murid untuk dicetak.");
+        notify.error("Tidak ada data murid untuk dicetak.");
       }
     } catch {
-      toast.dismiss(toastId);
-      toast.error("Gagal menyiapkan cetak massal.");
+      notify.dismiss(toastId);
+      notify.error("Gagal menyiapkan cetak massal.");
     }
   };
 
@@ -364,7 +411,7 @@ export function KKTPMatrixGradebook({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
         <div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={onBack} className="h-7 w-7 p-0 -ml-1">
+            <Button variant="ghost" size="sm" onClick={handleSafeBack} className="h-7 w-7 p-0 -ml-1">
               ←
             </Button>
             <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
@@ -525,7 +572,7 @@ export function KKTPMatrixGradebook({
                     </td>
 
                     {/* TP Score Input Cells */}
-                    {tps.map((tp) => {
+                    {tps.map((tp, tpIdx) => {
                       const currentVal = scoreInputs[row.student_id]?.[tp.id!] ?? "";
                       const numVal = currentVal !== "" ? Number(currentVal) : null;
                       const isComplete = numVal !== null && numVal >= 76;
@@ -537,6 +584,7 @@ export function KKTPMatrixGradebook({
                         >
                           <div className="flex items-center justify-center">
                             <Input
+                              id={`score-cell-${idx}-${tpIdx}`}
                               type="number"
                               min={0}
                               max={100}
@@ -544,6 +592,7 @@ export function KKTPMatrixGradebook({
                               onChange={(e) =>
                                 handleScoreChange(row.student_id, tp.id!, e.target.value)
                               }
+                              onKeyDown={(e) => handleScoreKeyDown(e, idx, tpIdx)}
                               placeholder="-"
                               className={`h-8 w-16 text-center text-xs font-bold transition-all ${
                                 currentVal === ""
@@ -606,6 +655,51 @@ export function KKTPMatrixGradebook({
           onTpsSaved={loadMatrixData}
         />
       )}
+
+      {/* Unsaved Changes In-App Navigation Guard */}
+      <Dialog open={showLeaveConfirmDialog} onOpenChange={setShowLeaveConfirmDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5 text-amber-600">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <DialogTitle className="text-base font-bold">Simpan Perubahan Nilai?</DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-zinc-500 pt-1 leading-relaxed">
+              Terdapat perubahan nilai murid yang belum disimpan ke database. Jika keluar sekarang, nilai yang baru saja Anda ubah akan hilang.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLeaveConfirmDialog(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                setShowLeaveConfirmDialog(false);
+                onBack();
+              }}
+            >
+              Keluar Tanpa Menyimpan
+            </Button>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={async () => {
+                await handleSaveScores();
+                setShowLeaveConfirmDialog(false);
+                onBack();
+              }}
+            >
+              Simpan & Keluar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
