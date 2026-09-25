@@ -71,11 +71,10 @@ export async function POST(req: NextRequest) {
         }
 
         const result = await autoSaveTPsToBank({
-          tps,
+          tujuanPembelajaran: tps,
           mata_pelajaran_id: body.mata_pelajaran_id || null,
           mata_pelajaran_name: body.mata_pelajaran_name || null,
           fase: body.fase || "Fase C",
-          cp_id: body.cp_id || null,
           userId,
         });
 

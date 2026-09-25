@@ -603,6 +603,48 @@ export async function getClassesAttendanceOverview(
   const { activeSemester } = await getActiveAcademicPeriod();
   const isAdmin = actor.role === 'administrator' || actor.role === 'admin';
 
+  // Subquery 1: Authoritative roster counts per class for the target date and active semester
+  const rosterSubquery = db('student_enrollments as se')
+    .join('students as s', (builder: any) => {
+      builder.on('s.id', '=', 'se.student_id')
+        .andOnNotIn('s.status', ['soft_deleted', 'archived'])
+        .andOnNull('s.deleted_at');
+    })
+    .where('se.semester_id', activeSemester.id)
+    .whereNot('se.lifecycle_status', 'soft_deleted')
+    .where((builder: any) => {
+      builder.where('se.status', 'active').orWhereNotNull('se.withdrawn_at');
+    })
+    .whereRaw('DATE(se.enrolled_at) <= ?', [attendanceDate])
+    .where((builder: any) => {
+      builder.whereNull('se.withdrawn_at').orWhereRaw('DATE(se.withdrawn_at) >= ?', [attendanceDate]);
+    })
+    .groupBy('se.class_id')
+    .select(
+      'se.class_id',
+      db.raw('COUNT(DISTINCT s.id) as roster_count')
+    )
+    .as('roster_sub');
+
+  // Subquery 2: Daily attendance counts per class strictly for target date and active semester
+  const attendanceSubquery = db('student_attendance_sessions as sas')
+    .join('student_attendance_records as sar', 'sar.session_id', 'sas.id')
+    .where('sas.semester_id', activeSemester.id)
+    .where('sas.attendance_date', attendanceDate)
+    .groupBy('sas.class_id', 'sas.id', 'sas.recorded_by')
+    .select(
+      'sas.class_id',
+      'sas.id as session_id',
+      'sas.recorded_by',
+      db.raw('COUNT(sar.id) as recorded_count'),
+      db.raw("SUM(CASE WHEN sar.status = 'hadir' THEN 1 ELSE 0 END) as count_hadir"),
+      db.raw("SUM(CASE WHEN sar.status = 'sakit' THEN 1 ELSE 0 END) as count_sakit"),
+      db.raw("SUM(CASE WHEN sar.status = 'izin' THEN 1 ELSE 0 END) as count_izin"),
+      db.raw("SUM(CASE WHEN sar.status = 'alpa' THEN 1 ELSE 0 END) as count_alpa"),
+      db.raw("SUM(CASE WHEN sar.status = 'terlambat' THEN 1 ELSE 0 END) as count_terlambat")
+    )
+    .as('att_sub');
+
   const query = db('classes')
     .leftJoin('class_teacher_assignments as cta', (builder: any) => {
       builder.on('cta.class_id', '=', 'classes.id')
@@ -611,33 +653,8 @@ export async function getClassesAttendanceOverview(
         .andOn('cta.lifecycle_status', '!=', db.raw('?', ['soft_deleted']));
     })
     .leftJoin('users as teacher', 'teacher.id', 'cta.teacher_user_id')
-    .leftJoin('student_attendance_sessions as sas', (builder: any) => {
-      builder.on('sas.class_id', '=', 'classes.id')
-        .andOn('sas.semester_id', '=', db.raw('?', [activeSemester.id]))
-        .andOn('sas.attendance_date', '=', db.raw('?', [attendanceDate]));
-    })
-    .leftJoin('student_attendance_records as sar', 'sar.session_id', 'sas.id')
-    .leftJoin('student_enrollments as se', (builder: any) => {
-      builder.on('se.class_id', '=', 'classes.id')
-        .andOn('se.semester_id', '=', db.raw('?', [activeSemester.id]))
-        .andOn('se.lifecycle_status', '!=', db.raw('?', ['soft_deleted']))
-        .andOn((subBuilder: any) => {
-          subBuilder.on('se.status', '=', db.raw('?', ['active'])).orOnNotNull(
-            'se.withdrawn_at'
-          );
-        })
-        .andOn(db.raw('DATE(se.enrolled_at) <= ?', [attendanceDate]))
-        .andOn((subBuilder: any) => {
-          subBuilder.onNull('se.withdrawn_at').orOn(
-            db.raw('DATE(se.withdrawn_at) >= ?', [attendanceDate])
-          );
-        });
-    })
-    .leftJoin('students as s', (builder: any) => {
-      builder.on('s.id', '=', 'se.student_id')
-        .andOnNotIn('s.status', ['soft_deleted', 'archived'])
-        .andOnNull('s.deleted_at');
-    })
+    .leftJoin(rosterSubquery, 'roster_sub.class_id', 'classes.id')
+    .leftJoin(attendanceSubquery, 'att_sub.class_id', 'classes.id')
     .where('classes.status', 'active')
     .andWhere('classes.lifecycle_status', '!=', 'soft_deleted');
 
@@ -653,26 +670,15 @@ export async function getClassesAttendanceOverview(
       'classes.level',
       'teacher.id as wali_kelas_id',
       'teacher.name as wali_kelas_name',
-      'sas.id as session_id',
-      'sas.recorded_by',
-      db.raw('COUNT(DISTINCT s.id) as roster_count'),
-      db.raw('COUNT(DISTINCT sar.id) as recorded_count'),
-      db.raw("SUM(CASE WHEN sar.status = 'hadir' THEN 1 ELSE 0 END) as count_hadir"),
-      db.raw("SUM(CASE WHEN sar.status = 'sakit' THEN 1 ELSE 0 END) as count_sakit"),
-      db.raw("SUM(CASE WHEN sar.status = 'izin' THEN 1 ELSE 0 END) as count_izin"),
-      db.raw("SUM(CASE WHEN sar.status = 'alpa' THEN 1 ELSE 0 END) as count_alpa"),
-      db.raw(
-        "SUM(CASE WHEN sar.status = 'terlambat' THEN 1 ELSE 0 END) as count_terlambat"
-      )
-    )
-    .groupBy(
-      'classes.id',
-      'classes.name',
-      'classes.level',
-      'teacher.id',
-      'teacher.name',
-      'sas.id',
-      'sas.recorded_by'
+      'att_sub.session_id',
+      'att_sub.recorded_by',
+      db.raw('COALESCE(roster_sub.roster_count, 0) as roster_count'),
+      db.raw('COALESCE(att_sub.recorded_count, 0) as recorded_count'),
+      db.raw('COALESCE(att_sub.count_hadir, 0) as count_hadir'),
+      db.raw('COALESCE(att_sub.count_sakit, 0) as count_sakit'),
+      db.raw('COALESCE(att_sub.count_izin, 0) as count_izin'),
+      db.raw('COALESCE(att_sub.count_alpa, 0) as count_alpa'),
+      db.raw('COALESCE(att_sub.count_terlambat, 0) as count_terlambat')
     )
     .orderBy('classes.level', 'asc')
     .orderBy('classes.name', 'asc');
@@ -681,9 +687,10 @@ export async function getClassesAttendanceOverview(
 
   return rows.map((row: any) => {
     const hasSubmitted = Boolean(row.session_id);
-    const studentCount = hasSubmitted
-      ? Number(row.recorded_count || 0)
-      : Number(row.roster_count || 0);
+    const rosterCount = Number(row.roster_count || 0);
+    const recordedCount = Number(row.recorded_count || 0);
+    const studentCount = hasSubmitted ? recordedCount : rosterCount;
+    const isAttendanceEligible = rosterCount > 0;
 
     return {
       class_id: row.class_id,
@@ -692,6 +699,9 @@ export async function getClassesAttendanceOverview(
       wali_kelas_id: row.wali_kelas_id || null,
       wali_kelas_name: row.wali_kelas_name || null,
       student_count: studentCount,
+      roster_count: rosterCount,
+      recorded_count: recordedCount,
+      attendance_eligible: isAttendanceEligible,
       session_id: row.session_id || null,
       has_submitted: hasSubmitted,
       recorded_by: row.recorded_by || null,
@@ -730,6 +740,7 @@ export async function getAdminDashboardOverview(
 
   let submittedClasses = 0;
   let unsubmittedClasses = 0;
+  let eligibleClasses = 0;
   let totalStudentsRecorded = 0;
 
   const totals: AttendanceCounts = {
@@ -741,21 +752,30 @@ export async function getAdminDashboardOverview(
   };
 
   for (const c of classes) {
+    const isEligible = c.attendance_eligible ?? (c.student_count > 0);
+    if (isEligible) {
+      eligibleClasses++;
+      if (c.has_submitted) {
+        submittedClasses++;
+      } else {
+        unsubmittedClasses++;
+      }
+    }
+
     if (c.has_submitted) {
-      submittedClasses++;
       totals.hadir += c.counts.hadir;
       totals.sakit += c.counts.sakit;
       totals.izin += c.counts.izin;
       totals.alpa += c.counts.alpa;
       totals.terlambat += c.counts.terlambat;
-      totalStudentsRecorded +=
+      const recorded = c.recorded_count != null ? c.recorded_count : (
         c.counts.hadir +
         c.counts.sakit +
         c.counts.izin +
         c.counts.alpa +
-        c.counts.terlambat;
-    } else {
-      unsubmittedClasses++;
+        c.counts.terlambat
+      );
+      totalStudentsRecorded += recorded;
     }
   }
 
@@ -783,6 +803,7 @@ export async function getAdminDashboardOverview(
     },
     overview: {
       total_classes: classes.length,
+      eligible_classes: eligibleClasses,
       submitted_classes: submittedClasses,
       unsubmitted_classes: unsubmittedClasses,
       total_students_recorded: totalStudentsRecorded,

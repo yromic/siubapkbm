@@ -9,12 +9,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async () => {
     return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
-        const id = params.id;
+        const { id } = await context.params;
         const result = await getCPById(id);
         if (!result) {
           return errorResponse("Capaian Pembelajaran (CP) tidak ditemukan.", "ERR_NOT_FOUND", 404);
@@ -36,12 +36,12 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (authenticatedReq: any) => {
     return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
-        const id = params.id;
+        const { id } = await context.params;
         const body = await req.json();
         const user = authenticatedReq.user;
 
@@ -76,12 +76,12 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (authenticatedReq: any) => {
     return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
-        const id = params.id;
+        const { id } = await context.params;
         const user = authenticatedReq.user;
 
         const result = await deleteBankCP(id, user);

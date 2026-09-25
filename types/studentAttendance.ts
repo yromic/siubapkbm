@@ -91,6 +91,9 @@ export interface StudentAttendanceClassItem {
   wali_kelas_id?: string | null;
   wali_kelas_name?: string | null;
   student_count: number;
+  roster_count?: number;
+  recorded_count?: number;
+  attendance_eligible?: boolean;
   session_id: string | null;
   has_submitted: boolean;
   recorded_by?: string | null;
@@ -110,6 +113,7 @@ export interface StudentAttendanceDashboardOverview {
   };
   overview: {
     total_classes: number;
+    eligible_classes?: number;
     submitted_classes: number;
     unsubmitted_classes: number;
     total_students_recorded: number;

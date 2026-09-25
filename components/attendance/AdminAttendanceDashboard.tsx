@@ -41,7 +41,7 @@ export function AdminAttendanceDashboard({
               {overview.submitted_classes}
             </span>
             <span className="text-xs md:text-sm font-medium text-zinc-500">
-              / {overview.total_classes} Kelas
+              / {overview.eligible_classes ?? overview.total_classes} Kelas Wajib
             </span>
           </div>
           <div className="mt-2 text-xs flex items-center gap-2">
@@ -218,6 +218,11 @@ export function AdminAttendanceDashboard({
                           Sudah Presensi
                         </span>
                       </div>
+                    ) : cls.student_count === 0 ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 shrink-0">
+                        <Users className="w-3.5 h-3.5 text-zinc-400" />
+                        Belum Ada Murid
+                      </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
                         <Clock className="w-3.5 h-3.5" />

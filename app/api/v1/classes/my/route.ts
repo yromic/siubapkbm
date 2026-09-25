@@ -31,7 +31,20 @@ export async function GET(req: NextRequest) {
         const isAdmin = user.role === 'administrator' || user.role === 'admin';
 
         if (isAdmin) {
-          // Admin: all active classes
+          // Admin: all active classes enriched with active academic year and semester
+          const activeSemester = await db('semesters')
+            .join('academic_years', 'semesters.academic_year_id', 'academic_years.id')
+            .where('semesters.is_active', true)
+            .whereNot('semesters.lifecycle_status', 'soft_deleted')
+            .whereNot('academic_years.lifecycle_status', 'soft_deleted')
+            .select(
+              'semesters.id as semester_id',
+              'semesters.name as semester_name',
+              'academic_years.id as academic_year_id',
+              'academic_years.name as academic_year_name'
+            )
+            .first();
+
           const classes = await db('classes')
             .where('status', 'active')
             .whereNot('lifecycle_status', 'soft_deleted')
@@ -39,8 +52,16 @@ export async function GET(req: NextRequest) {
             .orderBy('code', 'asc')
             .select('id', 'id as class_id', 'code', 'code as class_code', 'name', 'name as class_name', 'level', 'level as class_level', 'status');
 
+          const enrichedClasses = classes.map((c: any) => ({
+            ...c,
+            academic_year_id: activeSemester?.academic_year_id || null,
+            academic_year_name: activeSemester?.academic_year_name || null,
+            semester_id: activeSemester?.semester_id || null,
+            semester_name: activeSemester?.semester_name || null,
+          }));
+
           return successResponse(
-            classes,
+            enrichedClasses,
             'Kelas berhasil dimuat.'
           );
         } else {

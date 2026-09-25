@@ -145,24 +145,26 @@ function getExpectedCultureDates(start_date: string, end_date: string, todayOver
   if (end > now) end = now;
   if (end < start) return { expected_dates: [], expected_days: 0 };
 
-  const schoolDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-  const dates: string[] = [];
+  // Canonical Culture storage is 1 weekly record per student per week_start_date (Monday)
+  const mondayDates: string[] = [];
   const cursor = new Date(start.getTime());
+
+  // Align cursor to the first Monday on or after start
+  const dayOfWeek = cursor.getDay();
+  const diffToMonday = dayOfWeek === 1 ? 0 : (dayOfWeek === 0 ? 1 : 8 - dayOfWeek);
+  cursor.setDate(cursor.getDate() + diffToMonday);
+
   while (cursor <= end) {
-    const dayName = dayNames[cursor.getDay()];
-    if (schoolDays.includes(dayName)) {
-      dates.push(formatDateString(cursor));
-    }
-    cursor.setDate(cursor.getDate() + 1);
+    mondayDates.push(formatDateString(cursor));
+    cursor.setDate(cursor.getDate() + 7);
   }
 
   return {
-    expected_dates: dates,
-    expected_days: dates.length
+    expected_dates: mondayDates,
+    expected_days: mondayDates.length
   };
 }
+
 
 export async function getTeacherCompleteness(
   academicYearId: string,

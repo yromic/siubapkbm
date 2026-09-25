@@ -9,13 +9,12 @@ export const dynamic = "force-dynamic";
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (authenticatedReq: any) => {
     return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
-        const resolvedParams = await params;
-        const id = resolvedParams.id;
+        const { id } = await context.params;
         const body = await req.json();
         const user = authenticatedReq.user;
 
@@ -48,13 +47,12 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } | Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> }
 ) {
   return withAuth(req, async (authenticatedReq: any) => {
     return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
-        const resolvedParams = await params;
-        const id = resolvedParams.id;
+        const { id } = await context.params;
         const user = authenticatedReq.user;
 
         await deleteBankTP(id, { id: user.id, role: user.role });

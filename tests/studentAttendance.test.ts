@@ -42,6 +42,7 @@ describe('Student Attendance (Presensi Siswa) MVP Test Suite', () => {
     await db('student_attendance_sessions')
       .where({ class_id: class1Id, attendance_date: testAttendanceDate })
       .del();
+    await db.destroy();
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -381,4 +382,147 @@ describe('Student Attendance (Presensi Siswa) MVP Test Suite', () => {
       }
     });
   });
+
+  // ─────────────────────────────────────────────────────────────
+  // 7. CARTESIAN REGRESSION & ATTENDANCE ELIGIBILITY
+  // ─────────────────────────────────────────────────────────────
+  describe('Cartesian Aggregation Regression & Attendance Eligibility', () => {
+    const multiStatusDate = '2026-09-11';
+
+    before(async () => {
+      await db('student_attendance_sessions')
+        .where({ class_id: class1Id, attendance_date: multiStatusDate })
+        .del();
+    });
+
+    after(async () => {
+      await db('student_attendance_sessions')
+        .where({ class_id: class1Id, attendance_date: multiStatusDate })
+        .del();
+    });
+
+    it('eliminates Cartesian multiplication for all-Hadir class session (10 H, NOT 100 H)', async () => {
+      const overview = await getAdminDashboardOverview('2026-09-17');
+      const cls1 = overview.classes.find((c) => c.class_id === class1Id);
+      assert.ok(cls1, 'Class 1 must be present in overview');
+
+      assert.strictEqual(cls1.student_count, 10);
+      assert.strictEqual(cls1.roster_count, 10);
+      assert.strictEqual(cls1.recorded_count, 10);
+      assert.strictEqual(cls1.counts.hadir, 10);
+      assert.strictEqual(cls1.counts.sakit, 0);
+      assert.strictEqual(cls1.counts.izin, 0);
+      assert.strictEqual(cls1.counts.alpa, 0);
+      assert.strictEqual(cls1.counts.terlambat, 0);
+
+      // MANDATORY ANTI-CARTESIAN ASSERTION: must not multiply by roster size
+      assert.notStrictEqual(
+        cls1.counts.hadir,
+        100,
+        'CRITICAL DEFECT: Cartesian product produced 100 H instead of 10 H'
+      );
+
+      const cls2 = overview.classes.find((c) => c.class_name === '2');
+      if (cls2 && cls2.has_submitted) {
+        assert.strictEqual(cls2.student_count, 6);
+        assert.strictEqual(cls2.counts.hadir, 6);
+        assert.notStrictEqual(
+          cls2.counts.hadir,
+          36,
+          'CRITICAL DEFECT: Cartesian product produced 36 H instead of 6 H'
+        );
+      }
+    });
+
+    it('computes exact multi-status counts and rate without Cartesian inflation (8 H, 1 S, 1 T => 90%)', async () => {
+      const initial = await getClassAttendance(class1Id, multiStatusDate, {
+        id: teacherFarisId,
+        role: 'teacher',
+      });
+
+      // Submit 8 Hadir, 1 Sakit, 1 Terlambat
+      const records = initial.records.map((r, idx) => {
+        if (idx === 0) return { student_id: r.student_id, status: 'sakit' as const, note: 'Sakit flu' };
+        if (idx === 1) return { student_id: r.student_id, status: 'terlambat' as const, note: 'Macet' };
+        return { student_id: r.student_id, status: 'hadir' as const, note: null };
+      });
+
+      await saveClassAttendance(
+        class1Id,
+        { attendance_date: multiStatusDate, records },
+        { id: teacherFarisId, role: 'teacher', name: 'Faris Achmad' }
+      );
+
+      const overview = await getAdminDashboardOverview(multiStatusDate);
+      const cls1 = overview.classes.find((c) => c.class_id === class1Id);
+      assert.ok(cls1, 'Class 1 must exist');
+
+      assert.strictEqual(cls1.student_count, 10);
+      assert.strictEqual(cls1.counts.hadir, 8);
+      assert.strictEqual(cls1.counts.sakit, 1);
+      assert.strictEqual(cls1.counts.izin, 0);
+      assert.strictEqual(cls1.counts.alpa, 0);
+      assert.strictEqual(cls1.counts.terlambat, 1);
+
+      // ANTI-CARTESIAN ASSERTIONS
+      assert.notStrictEqual(cls1.counts.hadir, 80, 'Must not multiply Hadir by 10');
+      assert.notStrictEqual(cls1.counts.sakit, 10, 'Must not multiply Sakit by 10');
+      assert.notStrictEqual(cls1.counts.terlambat, 10, 'Must not multiply Terlambat by 10');
+
+      const expectedRate = Number((((8 + 1) / 10) * 100).toFixed(1));
+      assert.strictEqual(expectedRate, 90);
+    });
+
+    it('excludes zero-student classes from unsubmitted_classes and marks them attendance_eligible = false', async () => {
+      const overview = await getAdminDashboardOverview('2026-09-17');
+
+      const emptyClasses = overview.classes.filter((c) => c.student_count === 0);
+      assert.ok(emptyClasses.length > 0, 'Should have empty classes in test DB');
+
+      for (const ec of emptyClasses) {
+        assert.strictEqual(ec.attendance_eligible, false, `Class ${ec.class_name} must have attendance_eligible = false`);
+        assert.strictEqual(ec.has_submitted, false);
+      }
+
+      // Empty classes must NOT increment unsubmitted_classes
+      assert.strictEqual(
+        overview.overview.eligible_classes,
+        overview.overview.submitted_classes + overview.overview.unsubmitted_classes,
+        'eligible_classes invariant must hold'
+      );
+      assert.strictEqual(
+        overview.overview.unsubmitted_classes,
+        0,
+        'On 2026-09-17, all eligible classes have submitted, so unsubmitted must be 0'
+      );
+    });
+
+    it('separates wali assignment from attendance eligibility (students > 0 without wali is eligible)', async () => {
+      const overview = await getAdminDashboardOverview('2026-09-17');
+      for (const cls of overview.classes) {
+        if (cls.student_count > 0) {
+          assert.strictEqual(cls.attendance_eligible, true, 'Classes with students must be attendance_eligible');
+        } else {
+          assert.strictEqual(cls.attendance_eligible, false, 'Classes with 0 students must not be attendance_eligible');
+        }
+      }
+    });
+
+    it('maintains daily date isolation between 2026-09-16 and 2026-09-17 without historical leakage', async () => {
+      const overview16 = await getAdminDashboardOverview('2026-09-16');
+      const overview17 = await getAdminDashboardOverview('2026-09-17');
+
+      const cls1_16 = overview16.classes.find((c) => c.class_id === class1Id);
+      const cls1_17 = overview17.classes.find((c) => c.class_id === class1Id);
+
+      assert.ok(cls1_16 && cls1_17);
+      assert.strictEqual(cls1_16.counts.hadir, 10);
+      assert.strictEqual(cls1_17.counts.hadir, 10);
+
+      // Must NOT sum historical dates (10 + 10 = 20)
+      assert.strictEqual(overview17.overview.total_students_recorded, 16);
+      assert.strictEqual(overview17.overview.counts.hadir, 16);
+    });
+  });
 });
+
