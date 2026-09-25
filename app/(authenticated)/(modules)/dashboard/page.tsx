@@ -292,26 +292,26 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-5 gap-1.5 text-center">
-                    <div className="p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/20">
-                      <span className="text-[10px] text-zinc-400 block font-plus-jakarta">Hadir</span>
-                      <span className="text-sm font-bold font-fredoka text-emerald-600">{adminData.today.student_attendance.counts.hadir}</span>
+                  <div className="grid grid-cols-5 gap-1 sm:gap-1.5 text-center">
+                    <div className="p-1.5 sm:p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/40">
+                      <span className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400 block font-plus-jakarta truncate">Hadir</span>
+                      <span className="text-xs sm:text-sm font-bold font-fredoka text-emerald-600 mt-0.5 block">{adminData.today.student_attendance.counts.hadir}</span>
                     </div>
-                    <div className="p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/20">
-                      <span className="text-[10px] text-zinc-400 block font-plus-jakarta">Terlambat</span>
-                      <span className="text-sm font-bold font-fredoka text-blue-500">{adminData.today.student_attendance.counts.terlambat}</span>
+                    <div className="p-1.5 sm:p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/40">
+                      <span className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400 block font-plus-jakarta truncate" title="Terlambat">Telat</span>
+                      <span className="text-xs sm:text-sm font-bold font-fredoka text-blue-500 mt-0.5 block">{adminData.today.student_attendance.counts.terlambat}</span>
                     </div>
-                    <div className="p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/20">
-                      <span className="text-[10px] text-zinc-400 block font-plus-jakarta">Sakit</span>
-                      <span className="text-sm font-bold font-fredoka text-amber-500">{adminData.today.student_attendance.counts.sakit}</span>
+                    <div className="p-1.5 sm:p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/40">
+                      <span className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400 block font-plus-jakarta truncate">Sakit</span>
+                      <span className="text-xs sm:text-sm font-bold font-fredoka text-amber-500 mt-0.5 block">{adminData.today.student_attendance.counts.sakit}</span>
                     </div>
-                    <div className="p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/20">
-                      <span className="text-[10px] text-zinc-400 block font-plus-jakarta">Izin</span>
-                      <span className="text-sm font-bold font-fredoka text-indigo-500">{adminData.today.student_attendance.counts.izin}</span>
+                    <div className="p-1.5 sm:p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/40">
+                      <span className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400 block font-plus-jakarta truncate">Izin</span>
+                      <span className="text-xs sm:text-sm font-bold font-fredoka text-indigo-500 mt-0.5 block">{adminData.today.student_attendance.counts.izin}</span>
                     </div>
-                    <div className="p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/20">
-                      <span className="text-[10px] text-zinc-400 block font-plus-jakarta">Alpa</span>
-                      <span className="text-sm font-bold font-fredoka text-red-500">{adminData.today.student_attendance.counts.alpa}</span>
+                    <div className="p-1.5 sm:p-2 bg-surface-2 rounded-lg border border-zinc-100 dark:border-zinc-800/40">
+                      <span className="text-[9px] sm:text-[10px] text-zinc-500 dark:text-zinc-400 block font-plus-jakarta truncate">Alpa</span>
+                      <span className="text-xs sm:text-sm font-bold font-fredoka text-red-500 mt-0.5 block">{adminData.today.student_attendance.counts.alpa}</span>
                     </div>
                   </div>
                 </div>
@@ -677,7 +677,18 @@ export default function DashboardPage() {
                             <Cell key={`cell-${index}`} fill={COLORS_PRIMARY[index % COLORS_PRIMARY.length]} />
                           ))}
                         </Pie>
-                        <Tooltip />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+                            const item = payload[0];
+                            return (
+                              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 rounded-xl shadow-lg text-xs">
+                                <span className="font-bold text-zinc-900 dark:text-zinc-100">{item.name}: </span>
+                                <span className="text-zinc-600 dark:text-zinc-300 font-semibold">{item.value}</span>
+                              </div>
+                            );
+                          }}
+                        />
                         <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: 10 }} />
                       </ReChartsPieChart>
                     </ReChartsResponsiveContainer>
@@ -697,10 +708,25 @@ export default function DashboardPage() {
                   ) : (
                     <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
                       <ReChartsLineChart data={statsData.sppChartData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                        <XAxis dataKey="name" fontSize={10} tickLine={false} />
-                        <YAxis fontSize={10} tickLine={false} tickFormatter={(val) => `${val}%`} />
-                        <Tooltip formatter={(value) => [`${value}%`, undefined]} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+                        <XAxis dataKey="name" fontSize={10} tickLine={false} stroke="currentColor" className="text-zinc-400 dark:text-zinc-500" />
+                        <YAxis fontSize={10} tickLine={false} tickFormatter={(val) => `${val}%`} stroke="currentColor" className="text-zinc-400 dark:text-zinc-500" />
+                        <Tooltip
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            return (
+                              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2.5 rounded-xl shadow-lg text-xs">
+                                <p className="font-bold text-zinc-900 dark:text-zinc-100 mb-1">{label}</p>
+                                {payload.map((entry, idx) => (
+                                  <div key={idx} className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
+                                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                                    <span>{entry.name}: <strong className="text-zinc-900 dark:text-zinc-100">{entry.value}%</strong></span>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          }}
+                        />
                         <Legend />
                         <Line type="monotone" dataKey="Lunas" stroke="#468432" strokeWidth={2} />
                         <Line type="monotone" dataKey="Belum" stroke="#ef4444" strokeWidth={2} />
@@ -1078,10 +1104,22 @@ export default function DashboardPage() {
                     <div className="h-64">
                       <ReChartsResponsiveContainer width="100%" height="100%" minWidth={0}>
                         <ReChartsBarChart data={teacherData.class_overview.grade_distribution}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                          <XAxis dataKey="name" fontSize={10} tickLine={false} />
-                          <YAxis fontSize={10} tickLine={false} allowDecimals={false} />
-                          <Tooltip />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" className="text-zinc-200 dark:text-zinc-800" />
+                          <XAxis dataKey="name" fontSize={10} tickLine={false} stroke="currentColor" className="text-zinc-400 dark:text-zinc-500" />
+                          <YAxis fontSize={10} tickLine={false} allowDecimals={false} stroke="currentColor" className="text-zinc-400 dark:text-zinc-500" />
+                          <Tooltip
+                            content={({ active, payload, label }) => {
+                              if (!active || !payload?.length) return null;
+                              return (
+                                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 rounded-xl shadow-lg text-xs">
+                                  <p className="font-bold text-zinc-900 dark:text-zinc-100 mb-0.5">Rentang: {label}</p>
+                                  <p className="text-zinc-600 dark:text-zinc-300">
+                                    Jumlah: <strong className="text-brand-emerald-600 dark:text-brand-emerald-400">{payload[0]?.value} siswa</strong>
+                                  </p>
+                                </div>
+                              );
+                            }}
+                          />
                           <Bar dataKey="count" fill="#468432" radius={[6, 6, 0, 0]} />
                         </ReChartsBarChart>
                       </ReChartsResponsiveContainer>

@@ -321,14 +321,14 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-[#0a0a0a] text-zinc-900 dark:text-zinc-50 font-sans">
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 font-sans">
       {/* Topbar - Header Section */}
-      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-[#171717]/90 backdrop-blur-md print:hidden">
+      <header className="sticky top-0 z-40 w-full border-b border-zinc-200 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md print:hidden">
         <div className="flex h-16 items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 -ml-2 rounded-[12px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-[#262626] md:hidden cursor-pointer"
+              className="p-2 -ml-2 rounded-[12px] text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 md:hidden cursor-pointer"
             >
               <Menu className="w-6 h-6" />
             </button>
@@ -344,14 +344,14 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
             </div>
             <Link
               href="/profile/change-password"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-[#262626] transition-colors text-zinc-700 dark:text-zinc-300"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors text-zinc-700 dark:text-zinc-300"
             >
               <KeyRound className="w-4 h-4 text-zinc-400" />
               <span className="hidden sm:inline">Ganti Password</span>
             </Link>
             <button
               onClick={() => setConfirmLogoutOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-[#262626] transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-[12px] border border-zinc-200 dark:border-zinc-800 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4 text-red-500" />
               <span className="hidden sm:inline">Keluar</span>
@@ -362,11 +362,11 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
 
       <div className="flex-1 flex">
         {/* Desktop Sidebar - Surface 1 */}
-        <aside className="hidden md:flex flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#171717] shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-hidden print:hidden">
+        <aside className="hidden md:flex flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shrink-0 sticky top-16 h-[calc(100vh-4rem)] overflow-hidden print:hidden">
           <nav className="flex-1 overflow-y-auto space-y-4 px-3 py-6 pr-2">
             <Link
               href="/portal"
-              className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-[12px] text-sm font-semibold transition-all border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-[#262626] text-zinc-700 dark:text-zinc-300"
+              className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-[12px] text-sm font-semibold transition-all border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
             >
               <ArrowLeft className="w-5 h-5 text-zinc-400" />
               Kembali ke Portal
@@ -383,7 +383,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                   {/* Category Header Button */}
                   <button
                     onClick={() => toggleCategory(catKey)}
-                    className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:bg-zinc-100/60 dark:hover:bg-[#262626]/40 rounded-[12px] transition-all text-left cursor-pointer select-none"
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 rounded-[12px] transition-all text-left cursor-pointer select-none"
                   >
                     <span>{catName}</span>
                     {isOpen ? (
@@ -412,7 +412,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                             href={item.href}
                             className={`flex items-center gap-3 px-3 py-2 rounded-[12px] text-sm font-medium transition-all ${active
                               ? "bg-emerald-50/60 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-950/20"
-                              : "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#262626] hover:text-zinc-900 dark:hover:text-zinc-200"
+                              : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200"
                               }`}
                           >
                             <span className={active ? "text-[#468432] dark:text-emerald-400" : "text-zinc-400"}>
@@ -444,7 +444,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
         {/* Mobile Sidebar overlay */}
         {sidebarOpen && (
           <div className="fixed inset-0 z-50 flex md:hidden bg-zinc-900/40 backdrop-blur-sm print:hidden">
-            <div className="w-72 bg-white dark:bg-[#171717] p-6 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-800 animate-fadeIn">
+            <div className="w-72 bg-white dark:bg-zinc-900 p-6 flex flex-col h-full border-r border-zinc-200 dark:border-zinc-800 animate-fadeIn">
               <div className="flex items-center justify-between pb-6 border-b border-zinc-100 dark:border-zinc-800 mb-6">
                 <div>
                   <h3 className="font-bold text-zinc-950 dark:text-zinc-50">{user.name}</h3>
@@ -460,7 +460,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                 </div>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="p-1 rounded-[12px] hover:bg-zinc-100 dark:hover:bg-[#262626]"
+                  className="p-1 rounded-[12px] hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -471,7 +471,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                 <Link
                   href="/portal"
                   onClick={() => setSidebarOpen(false)}
-                  className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-[12px] text-sm font-semibold transition-all border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-[#262626] text-zinc-700 dark:text-zinc-300"
+                  className="flex items-center gap-3 px-3 py-2.5 mb-2 rounded-[12px] text-sm font-semibold transition-all border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
                 >
                   <ArrowLeft className="w-5 h-5 text-zinc-400" />
                   Kembali ke Portal
@@ -488,7 +488,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                       {/* Mobile Category Header Button */}
                       <button
                         onClick={() => toggleCategory(catKey)}
-                        className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:bg-zinc-100/60 dark:hover:bg-[#262626]/40 rounded-[12px] transition-all text-left cursor-pointer select-none"
+                        className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40 rounded-[12px] transition-all text-left cursor-pointer select-none"
                       >
                         <span>{catName}</span>
                         {isOpen ? (
@@ -518,7 +518,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
                                 onClick={() => setSidebarOpen(false)}
                                 className={`flex items-center gap-3 px-3 py-2 rounded-[12px] text-sm font-medium transition-all ${active
                                   ? "bg-emerald-50/60 dark:bg-emerald-950/20 text-[#468432] dark:text-emerald-400 border border-emerald-100/50 dark:border-emerald-950/20"
-                                  : "text-zinc-650 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-[#262626] hover:text-zinc-900 dark:hover:text-zinc-200"
+                                  : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200"
                                   }`}
                               >
                                 <span className={active ? "text-[#468432] dark:text-emerald-400" : "text-zinc-400"}>
@@ -563,7 +563,7 @@ export default function AuthenticatedLayout({ children }: { children: React.Reac
       </div>
 
       {/* Bottom Navigation Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-[#171717]/95 backdrop-blur-md md:hidden flex justify-around items-center px-2 print:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md md:hidden flex justify-around items-center px-2 print:hidden">
         {userMenuItems.slice(0, 4).map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
