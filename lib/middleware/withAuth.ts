@@ -7,7 +7,13 @@ export async function withAuth(
   req: NextRequest,
   handler: (req: NextRequest, context: any) => Promise<NextResponse>
 ) {
-  const token = req.cookies.get('staff_session_token')?.value;
+  let token = req.cookies.get('staff_session_token')?.value;
+  if (!token) {
+    const authHeader = req.headers.get('authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.substring(7).trim();
+    }
+  }
   if (!token) {
     return errorResponse('Session expired', 'SESSION_EXPIRED', 401);
   }

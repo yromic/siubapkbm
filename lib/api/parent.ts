@@ -36,8 +36,10 @@ export async function getParentProfileApi(token: string): Promise<ParentProfile>
 
 export interface ParentDashboardData {
   student: {
+    id?: string;
     full_name: string;
     nisn: string;
+    gender?: string;
     class_name: string | null;
     academic_year_name: string | null;
     semester_name: string | null;
@@ -49,16 +51,26 @@ export interface ParentDashboardData {
     latest_assessment_date: string | null;
   };
   character_summary: {
-    f: number | null;
-    i: number | null;
+    u: number | null;
     t: number | null;
-    r: number | null;
+    s: number | null;
+    m: number | null;
     a: number | null;
-    h: number | null;
+    n: number | null;
     overall_average: number | null;
-    days_counted: number;
     period_label: string;
+    days_counted?: number;
+  } | null;
+  student_attendance: {
+    hadir: number;
+    sakit: number;
+    izin: number;
+    alpa: number;
+    terlambat: number;
+    total_days: number;
+    attendance_rate: number | null;
   };
+  spp_this_month?: string | null;
 }
 
 export async function getParentDashboardApi(token: string): Promise<ParentDashboardData> {
@@ -66,6 +78,7 @@ export async function getParentDashboardApi(token: string): Promise<ParentDashbo
 }
 
 export interface ParentCharacterDimension {
+  code: string;
   key: string;
   name: string;
   score: number | null;
@@ -75,6 +88,7 @@ export interface ParentCharacterDimension {
 
 export interface ParentCharacterData {
   student: {
+    id?: string;
     full_name: string;
     nisn: string;
     class_name: string | null;
@@ -82,59 +96,61 @@ export interface ParentCharacterData {
     semester_name: string | null;
   };
   period: {
-    mode: "semester" | "month";
+    academic_year_id?: string;
+    academic_year_name: string | null;
+    semester_id?: string;
+    semester_name: string | null;
     label: string;
-    days_counted: number;
   };
-  fitrah: {
-    f: number | null;
-    i: number | null;
+  utsman: {
+    u: number | null;
     t: number | null;
-    r: number | null;
+    s: number | null;
+    m: number | null;
     a: number | null;
-    h: number | null;
+    n: number | null;
     overall_average: number | null;
   };
   dimensions: ParentCharacterDimension[];
   interpretation: {
     strongest_dimension: {
-      key: string;
+      code: string;
       name: string;
       score: number;
     } | null;
     strengthening_area: {
-      key: string;
+      code: string;
       name: string;
       score: number;
     } | null;
+    available_count: number;
+    has_data: boolean;
     completeness_notice: string | null;
   };
 }
 
 export interface GetParentCharacterPayload {
   parent_access_token: string;
-  period_mode?: "semester" | "month";
-  month?: number;
-  year?: number;
+  academic_year_id?: string;
+  semester_id?: string;
 }
 
 export async function getParentCharacterSummaryApi(
   token: string,
-  periodMode: "semester" | "month",
-  month?: number,
-  year?: number
+  academicYearId?: string,
+  semesterId?: string
 ): Promise<ParentCharacterData> {
   return apiRequest<ParentCharacterData>(
     "parent_get_character_summary",
     {
       parent_access_token: token,
-      period_mode: periodMode,
-      month,
-      year
+      academic_year_id: academicYearId,
+      semester_id: semesterId,
     },
     token
   );
 }
+
 
 export interface ParentAcademicSummary {
   student: {

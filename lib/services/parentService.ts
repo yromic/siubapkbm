@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 import bcrypt from 'bcryptjs';
 import { generateSessionToken, hashToken } from '@/lib/auth/tokenUtils';
-import { getStudentAcademicSummary } from './academicScoreService';
 import { getUTSMANSummary } from './utsmanCalculationService';
 import { getSecuritySettingNum } from '@/lib/auth/securityUtils';
 import { logAuthenticationEvent } from './auditService';
@@ -282,6 +281,9 @@ export async function getParentDashboard(studentId: string) {
     }
   }
 
+  // Student Attendance aggregate calculation (semester-scoped)
+  const student_attendance = await getParentStudentAttendanceSummary(studentId, enrollment?.semester_id);
+
   return {
     student: {
       id: student.id,
@@ -294,12 +296,79 @@ export async function getParentDashboard(studentId: string) {
     },
     academic_summary,
     character_summary,
+    student_attendance,
     enrollment,
     spp_this_month: sppStatus
   };
 }
 
+export async function getParentStudentAttendanceSummary(studentId: string, semesterId?: string) {
+  let targetSemesterId = semesterId;
+  if (!targetSemesterId) {
+    const enrollment = await db('student_enrollments')
+      .where({ student_id: studentId, status: 'active' })
+      .whereNot('lifecycle_status', 'soft_deleted')
+      .first();
+    targetSemesterId = enrollment?.semester_id;
+  }
+
+  if (!targetSemesterId) {
+    return {
+      hadir: 0,
+      sakit: 0,
+      izin: 0,
+      alpa: 0,
+      terlambat: 0,
+      total_days: 0,
+      attendance_rate: null,
+    };
+  }
+
+  const records = await db('student_attendance_records as sar')
+    .join('student_attendance_sessions as sas', 'sar.session_id', 'sas.id')
+    .where('sar.student_id', studentId)
+    .where('sas.semester_id', targetSemesterId)
+    .select('sar.status');
+
+  let hadir = 0;
+  let sakit = 0;
+  let izin = 0;
+  let alpa = 0;
+  let terlambat = 0;
+
+  for (const r of records) {
+    const s = String(r.status || '').toLowerCase().trim();
+    if (s === 'hadir') hadir++;
+    else if (s === 'sakit') sakit++;
+    else if (s === 'izin') izin++;
+    else if (s === 'alpa') alpa++;
+    else if (s === 'terlambat') terlambat++;
+  }
+
+  const total_days = hadir + sakit + izin + alpa + terlambat;
+  const attendance_rate = total_days > 0 ? Math.round(((hadir + terlambat) / total_days) * 100) : null;
+
+  return {
+    hadir,
+    sakit,
+    izin,
+    alpa,
+    terlambat,
+    total_days,
+    attendance_rate,
+  };
+}
+
 export async function getParentAcademicSummary(studentId: string, academicYearId?: string, semesterId?: string) {
+  const student = await db('students')
+    .where('id', studentId)
+    .whereNot('status', 'soft_deleted')
+    .first();
+
+  if (!student) {
+    throw new AppError('Student not found.', 'ERR_NOT_FOUND', 404);
+  }
+
   // Get enrollment to find current period
   let yearId = academicYearId;
   let semId = semesterId;
@@ -307,6 +376,7 @@ export async function getParentAcademicSummary(studentId: string, academicYearId
   if (!yearId || !semId) {
     const enrollment = await db('student_enrollments')
       .where({ student_id: studentId, status: 'active' })
+      .whereNot('lifecycle_status', 'soft_deleted')
       .first();
     if (enrollment) {
       yearId = yearId || enrollment.academic_year_id;
@@ -328,44 +398,393 @@ export async function getParentAcademicSummary(studentId: string, academicYearId
     throw new AppError('Unauthorized: Student is not enrolled in the requested period.', 'ERR_VALIDATION', 403);
   }
 
-  return await getStudentAcademicSummary(studentId, yearId, semId, true);
+  const year = await db('academic_years').where('id', yearId).first();
+  const semester = await db('semesters').where('id', semId).first();
+
+  const classAssessments = await db('academic_assessments')
+    .where({
+      class_id: validEnrollment.class_id,
+      academic_year_id: yearId,
+      semester_id: semId,
+    })
+    .whereIn('status', ['published', 'locked'])
+    .whereNot('lifecycle_status', 'soft_deleted');
+
+  const classSubjects = await db('class_subjects')
+    .join('subjects', 'class_subjects.subject_id', 'subjects.id')
+    .where({
+      'class_subjects.class_id': validEnrollment.class_id,
+      'class_subjects.semester_id': semId,
+    })
+    .whereNot('class_subjects.lifecycle_status', 'soft_deleted')
+    .whereNot('subjects.lifecycle_status', 'soft_deleted')
+    .select(
+      'subjects.id as subject_id',
+      'subjects.code as subject_code',
+      'subjects.name as subject_name'
+    );
+
+  const subjectMap = new Map<string, {
+    subject_id: string;
+    subject_code: string;
+    subject_name: string;
+    sum: number;
+    count: number;
+    assessment_count: number;
+  }>();
+
+  for (const cs of classSubjects) {
+    subjectMap.set(cs.subject_id, {
+      subject_id: cs.subject_id,
+      subject_code: cs.subject_code,
+      subject_name: cs.subject_name,
+      sum: 0,
+      count: 0,
+      assessment_count: 0,
+    });
+  }
+
+  const missingSubjectIds = classAssessments
+    .map((a: any) => a.subject_id)
+    .filter((id: string) => !subjectMap.has(id));
+
+  if (missingSubjectIds.length > 0) {
+    const extraSubjects = await db('subjects').whereIn('id', missingSubjectIds);
+    for (const es of extraSubjects) {
+      subjectMap.set(es.id, {
+        subject_id: es.id,
+        subject_code: es.code,
+        subject_name: es.name,
+        sum: 0,
+        count: 0,
+        assessment_count: 0,
+      });
+    }
+  }
+
+  const assessmentIds = classAssessments.map((a: any) => a.id);
+  const studentScores = assessmentIds.length > 0
+    ? await db('academic_scores')
+        .whereIn('assessment_id', assessmentIds)
+        .where('student_id', studentId)
+        .whereNot('lifecycle_status', 'soft_deleted')
+    : [];
+
+  const scoreMap = new Map<string, number>();
+  for (const s of studentScores) {
+    if (s.score !== null && s.score !== undefined && s.score !== '') {
+      scoreMap.set(s.assessment_id, Number(s.score));
+    }
+  }
+
+  let totalScoreSum = 0;
+  let totalScoreCount = 0;
+
+  for (const a of classAssessments) {
+    const sSummary = subjectMap.get(a.subject_id);
+    if (sSummary) {
+      sSummary.assessment_count++;
+      const scoreVal = scoreMap.get(a.id);
+      if (scoreVal !== undefined && scoreVal !== null) {
+        sSummary.sum += scoreVal;
+        sSummary.count++;
+        totalScoreSum += scoreVal;
+        totalScoreCount++;
+      }
+    }
+  }
+
+  const subject_averages = Array.from(subjectMap.values()).map((s) => ({
+    subject_code: s.subject_code,
+    subject_name: s.subject_name,
+    average_score: s.count > 0 ? parseFloat((s.sum / s.count).toFixed(2)) : null,
+    assessment_count: s.assessment_count,
+  }));
+
+  const overall_average = totalScoreCount > 0
+    ? parseFloat((totalScoreSum / totalScoreCount).toFixed(2))
+    : null;
+
+  return {
+    student: {
+      full_name: student.full_name,
+      nisn: student.nisn,
+    },
+    period: {
+      academic_year_name: year?.name || '',
+      semester_name: semester?.name || '',
+    },
+    overall_average,
+    total_assessments: classAssessments.length,
+    completed_assessments: totalScoreCount,
+    subject_averages,
+  };
+}
+
+export async function getParentAcademicDetail(studentId: string, subjectCode: string) {
+  if (!subjectCode) {
+    throw new AppError('subject_code is required.', 'ERR_VALIDATION', 400);
+  }
+
+  const enrollment = await db('student_enrollments')
+    .where({ student_id: studentId, status: 'active' })
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .first();
+
+  if (!enrollment) {
+    throw new AppError('No active enrollment found for this student.', 'ERR_VALIDATION', 400);
+  }
+
+  let subject = await db('subjects')
+    .where((qb: any) => {
+      qb.where('code', subjectCode).orWhere('id', subjectCode).orWhere('name', subjectCode);
+    })
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .first();
+
+  if (!subject) {
+    // Fallback: historical subject definition lookup
+    subject = await db('subjects')
+      .where((qb: any) => {
+        qb.where('code', subjectCode).orWhere('id', subjectCode).orWhere('name', subjectCode);
+      })
+      .first();
+  }
+
+  if (!subject) {
+    throw new AppError('Subject not found.', 'ERR_NOT_FOUND', 404);
+  }
+
+  const assessments = await db('academic_assessments')
+    .where({
+      class_id: enrollment.class_id,
+      academic_year_id: enrollment.academic_year_id,
+      semester_id: enrollment.semester_id,
+      subject_id: subject.id,
+    })
+    .whereIn('status', ['published', 'locked'])
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .orderBy('assessment_date', 'asc');
+
+  const assessmentIds = assessments.map((a: any) => a.id);
+  const scores = assessmentIds.length > 0
+    ? await db('academic_scores')
+        .whereIn('assessment_id', assessmentIds)
+        .where('student_id', studentId)
+        .whereNot('lifecycle_status', 'soft_deleted')
+    : [];
+
+  const scoreMap = new Map<string, any>(scores.map((s: any) => [s.assessment_id, s.score]));
+
+  const assessmentItems = assessments.map((a: any) => {
+    const rawScore = scoreMap.get(a.id);
+    const scoreVal = rawScore !== undefined && rawScore !== null && rawScore !== '' ? Number(rawScore) : null;
+    return {
+      assessment_title: a.title,
+      assessment_date: a.assessment_date
+        ? new Date(a.assessment_date).toISOString().split('T')[0]
+        : '',
+      score_min: Number(a.score_min || 0),
+      score_max: Number(a.score_max || 100),
+      score: scoreVal,
+      assessment_status: a.status as 'published' | 'locked',
+    };
+  });
+
+  return {
+    subject_code: subject.code,
+    subject_name: subject.name,
+    assessments: assessmentItems,
+  };
 }
 
 export async function getParentCharacterSummary(studentId: string, academicYearId?: string, semesterId?: string) {
   let yearId = academicYearId;
   let semId = semesterId;
 
-  if (!yearId || !semId) {
-    const enrollment = await db('student_enrollments')
-      .where({ student_id: studentId, status: 'active' })
-      .first();
-    if (enrollment) {
-      yearId = yearId || enrollment.academic_year_id;
-      semId = semId || enrollment.semester_id;
-    }
-  }
-
-  if (!yearId || !semId) {
-    throw new AppError('No active enrollment found.', 'ERR_VALIDATION', 400);
-  }
-
-  // Validate student is actually enrolled in requested period
-  const validEnrollment = await db('student_enrollments')
-    .where({ student_id: studentId, academic_year_id: yearId, semester_id: semId })
-    .whereNot('lifecycle_status', 'soft_deleted')
+  const student = await db('students')
+    .where({ id: studentId })
+    .whereNot('status', 'soft_deleted')
     .first();
 
-  if (!validEnrollment) {
-    throw new AppError('Unauthorized: Student is not enrolled in the requested period.', 'ERR_VALIDATION', 403);
+  if (!student) {
+    throw new AppError('Student not found.', 'ERR_NOT_FOUND', 404);
   }
 
-  try {
-    return await getUTSMANSummary(studentId, semId) ||
-      { message: 'No character summary data yet.', u_score: 0, t_score: 0, s_score: 0, m_score: 0, a_score: 0, n_score: 0 };
-  } catch (e) {
-    return { message: 'No character summary data yet.', u_score: 0, t_score: 0, s_score: 0, m_score: 0, a_score: 0, n_score: 0 };
+  let enrollment = null;
+
+  if (!yearId || !semId) {
+    enrollment = await db('student_enrollments')
+      .join('classes', 'student_enrollments.class_id', 'classes.id')
+      .join('semesters', 'student_enrollments.semester_id', 'semesters.id')
+      .join('academic_years', 'student_enrollments.academic_year_id', 'academic_years.id')
+      .where({ 'student_enrollments.student_id': studentId, 'student_enrollments.status': 'active' })
+      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+      .select(
+        'student_enrollments.class_id',
+        'classes.name as class_name',
+        'student_enrollments.academic_year_id',
+        'academic_years.name as academic_year_name',
+        'student_enrollments.semester_id',
+        'semesters.name as semester_name'
+      )
+      .first();
+
+    if (enrollment) {
+      yearId = enrollment.academic_year_id;
+      semId = enrollment.semester_id;
+    }
+  } else {
+    enrollment = await db('student_enrollments')
+      .join('classes', 'student_enrollments.class_id', 'classes.id')
+      .join('semesters', 'student_enrollments.semester_id', 'semesters.id')
+      .join('academic_years', 'student_enrollments.academic_year_id', 'academic_years.id')
+      .where({
+        'student_enrollments.student_id': studentId,
+        'student_enrollments.academic_year_id': yearId,
+        'student_enrollments.semester_id': semId,
+      })
+      .whereNot('student_enrollments.lifecycle_status', 'soft_deleted')
+      .select(
+        'student_enrollments.class_id',
+        'classes.name as class_name',
+        'student_enrollments.academic_year_id',
+        'academic_years.name as academic_year_name',
+        'student_enrollments.semester_id',
+        'semesters.name as semester_name'
+      )
+      .first();
   }
+
+  if (!yearId || !semId || !enrollment) {
+    throw new AppError('No active enrollment found for the requested period.', 'ERR_VALIDATION', 400);
+  }
+
+  // Get UTSMAN summary from canonical table
+  const utsmanRow = await getUTSMANSummary(studentId, semId).catch(() => null);
+
+  const u = utsmanRow && utsmanRow.u_score !== null ? Number(utsmanRow.u_score) : null;
+  const t = utsmanRow && utsmanRow.t_score !== null ? Number(utsmanRow.t_score) : null;
+  const s = utsmanRow && utsmanRow.s_score !== null ? Number(utsmanRow.s_score) : null;
+  const m = utsmanRow && utsmanRow.m_score !== null ? Number(utsmanRow.m_score) : null;
+  const a = utsmanRow && utsmanRow.a_score !== null ? Number(utsmanRow.a_score) : null;
+  const n = utsmanRow && utsmanRow.n_score !== null ? Number(utsmanRow.n_score) : null;
+
+  const validScores = [u, t, s, m, a, n].filter((v): v is number => v !== null);
+  const overall_average = validScores.length > 0
+    ? parseFloat((validScores.reduce((sum, v) => sum + v, 0) / validScores.length).toFixed(2))
+    : null;
+
+  const dimensions = [
+    {
+      code: 'U',
+      key: 'u',
+      name: 'Ulet & Unggul',
+      score: u,
+      description: 'Kegigihan belajar, pantang menyerah, dan tekad berprestasi.',
+      parent_explanation: 'Menunjukkan seberapa gigih ananda dalam mengaji, belajar, dan menghasilkan karya terbaik.'
+    },
+    {
+      code: 'T',
+      key: 't',
+      name: "Ta'at & Tangguh",
+      score: t,
+      description: 'Ketaatan ibadah, kedisiplinan aturan, dan ketangguhan pribadi.',
+      parent_explanation: 'Menunjukkan ketertiban ibadah dan ketangguhan sikap ananda saat menghadapi tantangan.'
+    },
+    {
+      code: 'S',
+      key: 's',
+      name: 'Santun & Empati',
+      score: s,
+      description: 'Kesantunan bertutur kata, senyum, sapa, dan kepedulian sesama.',
+      parent_explanation: 'Menunjukkan adab mulia ananda kepada guru, orang tua, dan teman sebaya.'
+    },
+    {
+      code: 'M',
+      key: 'm',
+      name: 'Mandiri & Rapi',
+      score: m,
+      description: 'Kemandirian mengurus diri, kerapian barang, dan menjaga kebersihan.',
+      parent_explanation: 'Menunjukkan inisiatif ananda dalam menjaga kebersihan diri dan merapikan perlengkapannya.'
+    },
+    {
+      code: 'A',
+      key: 'a',
+      name: 'Amanah & Jujur',
+      score: a,
+      description: 'Kejujuran kata dan perbuatan, amanah terhadap tugas sekolah.',
+      parent_explanation: 'Menunjukkan integritas ananda dalam berbicara jujur dan menepati komitmen belajar.'
+    },
+    {
+      code: 'N',
+      key: 'n',
+      name: 'Nalar & Inisiatif',
+      score: n,
+      description: 'Daya nalar kritis, gemar bertanya, dan inisiatif tolong menolong.',
+      parent_explanation: 'Menunjukkan keaktifan ananda dalam berpikir logis serta suka menolong sesama.'
+    },
+  ];
+
+  // Determine strongest and strengthening areas from observed dimensions
+  let strongest_dimension = null;
+  let strengthening_area = null;
+
+  const observedDimensions = dimensions.filter((d) => d.score !== null);
+  if (observedDimensions.length > 0) {
+    const sorted = [...observedDimensions].sort((x, y) => (y.score ?? 0) - (x.score ?? 0));
+    strongest_dimension = {
+      code: sorted[0].code,
+      name: sorted[0].name,
+      score: sorted[0].score as number,
+    };
+    strengthening_area = {
+      code: sorted[sorted.length - 1].code,
+      name: sorted[sorted.length - 1].name,
+      score: sorted[sorted.length - 1].score as number,
+    };
+  }
+
+  return {
+    student: {
+      id: student.id,
+      full_name: student.full_name,
+      nisn: student.nisn,
+      class_name: enrollment.class_name || null,
+      academic_year_name: enrollment.academic_year_name || null,
+      semester_name: enrollment.semester_name || null,
+    },
+    period: {
+      academic_year_id: yearId,
+      academic_year_name: enrollment.academic_year_name || null,
+      semester_id: semId,
+      semester_name: enrollment.semester_name || null,
+      label: enrollment.semester_name || 'Semester Aktif',
+    },
+    utsman: {
+      u,
+      t,
+      s,
+      m,
+      a,
+      n,
+      overall_average,
+    },
+    dimensions,
+    interpretation: {
+      strongest_dimension,
+      strengthening_area,
+      available_count: observedDimensions.length,
+      has_data: observedDimensions.length > 0,
+      completeness_notice: observedDimensions.length === 6
+        ? 'Semua dimensi karakter telah dinilai lengkap pada semester ini.'
+        : observedDimensions.length > 0
+        ? `Terdapat ${observedDimensions.length} dari 6 dimensi yang telah terobservasi.`
+        : 'Belum ada observasi karakter untuk semester ini.',
+    },
+  };
 }
+
 
 export async function getParentSppStatus(studentId: string) {
   const enrollments = await db('student_enrollments')

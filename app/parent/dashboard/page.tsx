@@ -7,7 +7,7 @@ import { ResponsiveContainer } from "@/components/ui-states";
 import { getParentDashboardApi, ParentDashboardData } from "@/lib/api/parent";
 import { ApiError } from "@/lib/api/client";
 import SppBanner from "@/components/parent/SppBanner";
-import { Loader2, AlertTriangle, LogOut, ChevronRight, FileText } from "lucide-react";
+import { Loader2, AlertTriangle, LogOut, ChevronRight, FileText, Calendar } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UX_COPY } from "@/lib/ux-copy";
 
@@ -76,10 +76,11 @@ export default function ParentDashboard() {
   }
 
   const student = data?.student;
+  const attendance = data?.student_attendance;
   const academic = data?.academic_summary;
   const character = data?.character_summary;
 
-  const showCompletenessWarning = character && character.days_counted < 10;
+  const showCompletenessWarning = character && character.days_counted !== undefined && character.days_counted < 10;
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 dark:bg-[#0a0a0a] text-zinc-900 dark:text-zinc-50 animate-fadeIn">
@@ -102,10 +103,7 @@ export default function ParentDashboard() {
       {/* Main Content */}
       <main className="flex-1 max-w-lg mx-auto w-full px-4 py-6 space-y-6">
         
-        {/* SPP Payment Alert Banner */}
-        <SppBanner />
-
-        {/* Child Header Card */}
+        {/* 1. Child Header Card (Identitas Anak) */}
         {student && (
           <div className="bg-white dark:bg-[#171717] p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
             <div>
@@ -132,10 +130,75 @@ export default function ParentDashboard() {
           </div>
         )}
 
-        {/* Academic Summary Card */}
+        {/* 2. Student Attendance Card (Kehadiran Semester Ini) */}
         <div className="bg-white dark:bg-[#171717] p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-850 pb-3">
-            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Ringkasan Akademik</h3>
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Kehadiran Semester Ini</h3>
+            <span className="text-[10px] font-semibold text-[#468432] dark:text-emerald-400 bg-emerald-50/20 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
+              Presensi
+            </span>
+          </div>
+
+          {attendance && attendance.total_days > 0 ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Tingkat Kehadiran</span>
+                  <span className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-550 block mt-1 font-data">
+                    {attendance.attendance_rate !== null ? `${attendance.attendance_rate}%` : "-"}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Pertemuan Tercatat</span>
+                  <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 block mt-1 font-data">
+                    {attendance.total_days} <span className="font-sans font-normal text-zinc-400 text-xs">hari</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Attendance Status Breakdown */}
+              <div className="grid grid-cols-5 gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-center">
+                <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-2 rounded-xl">
+                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 block">Hadir</span>
+                  <span className="text-sm font-bold text-emerald-800 dark:text-emerald-300 block mt-0.5 font-data">{attendance.hadir}</span>
+                </div>
+                <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 p-2 rounded-xl">
+                  <span className="text-[10px] font-semibold text-blue-700 dark:text-blue-400 block">Terlambat</span>
+                  <span className="text-sm font-bold text-blue-800 dark:text-blue-300 block mt-0.5 font-data">{attendance.terlambat}</span>
+                </div>
+                <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 p-2 rounded-xl">
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 block">Sakit</span>
+                  <span className="text-sm font-bold text-amber-800 dark:text-amber-300 block mt-0.5 font-data">{attendance.sakit}</span>
+                </div>
+                <div className="bg-purple-50/60 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/30 p-2 rounded-xl">
+                  <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-400 block">Izin</span>
+                  <span className="text-sm font-bold text-purple-800 dark:text-purple-300 block mt-0.5 font-data">{attendance.izin}</span>
+                </div>
+                <div className="bg-rose-50/60 dark:bg-rose-950/20 border border-rose-100 dark:border-rose-900/30 p-2 rounded-xl">
+                  <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-400 block">Alpa</span>
+                  <span className="text-sm font-bold text-rose-800 dark:text-rose-300 block mt-0.5 font-data">{attendance.alpa}</span>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 italic">
+                * Kehadiran dihitung berdasarkan pertemuan kelas yang telah dikonfirmasi dan disubmit oleh wali kelas.
+              </p>
+            </div>
+          ) : (
+            <div className="py-6 text-center">
+              <Calendar className="w-8 h-8 text-zinc-300 dark:text-zinc-700 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Belum Ada Data Presensi</p>
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-1 max-w-xs mx-auto">
+                Catatan kehadiran semester ini akan tampil setelah wali kelas mencatat dan mengonfirmasi presensi harian.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 3. Academic Summary Card (Perkembangan Belajar) */}
+        <div className="bg-white dark:bg-[#171717] p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-850 pb-3">
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Perkembangan Belajar</h3>
             <span className="text-[10px] font-semibold text-[#468432] dark:text-emerald-400 bg-emerald-50/20 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
               Akademik
             </span>
@@ -145,13 +208,13 @@ export default function ParentDashboard() {
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Rata-rata Akademik</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Rata-rata Nilai</span>
                   <span className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-550 block mt-1 font-data">
                     {academic.average_score !== null ? academic.average_score : "-"}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Penilaian</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Evaluasi Belajar</span>
                   <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 block mt-1 font-data">
                     {academic.completed_assessments} <span className="font-sans font-normal text-zinc-400 text-xs">dari</span> {academic.total_assessments} <span className="font-sans font-normal text-zinc-400 text-xs">selesai</span>
                   </span>
@@ -167,7 +230,7 @@ export default function ParentDashboard() {
                   href="/parent/academic"
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#468432] dark:text-emerald-400 hover:underline"
                 >
-                  Lihat Detail Akademik
+                  Lihat Rincian Nilai Mata Pelajaran
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -182,7 +245,7 @@ export default function ParentDashboard() {
                   Nilai Belum Dipublikasikan
                 </h4>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-xs mt-1">
-                  Nilai semester ini akan muncul setelah dipublikasikan oleh pihak sekolah.
+                  Evaluasi belajar semester ini akan tampil setelah difinalisasi dan dipublikasikan oleh pihak sekolah.
                 </p>
               </div>
               <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
@@ -190,7 +253,7 @@ export default function ParentDashboard() {
                   href="/parent/academic"
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#468432] dark:text-emerald-400 hover:underline"
                 >
-                  Lihat Detail Akademik
+                  Lihat Daftar Mata Pelajaran
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -198,54 +261,55 @@ export default function ParentDashboard() {
           )}
         </div>
 
-        {/* Character Summary Card */}
+        {/* 4. Character Summary Card (Perkembangan Karakter UTSMAN) */}
         <div className="bg-white dark:bg-[#171717] p-5 rounded-[20px] border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-5">
           <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-850 pb-3">
-            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Perkembangan Karakter</h3>
+            <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-200">Perkembangan Karakter (UTSMAN)</h3>
             <span className="text-[10px] font-semibold text-[#468432] dark:text-emerald-400 bg-emerald-50/20 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">
               Karakter
             </span>
           </div>
 
-          {character && (character.days_counted > 0 || character.overall_average !== null) ? (
+          {character && (character.overall_average !== null || [character.u, character.t, character.s, character.m, character.a, character.n].some(v => v !== null && v !== undefined)) ? (
             <div className="space-y-5">
               <div className="flex items-center gap-4">
                 <div className="flex-1">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Rata-rata FITRAH</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Rata-rata Dimensi Karakter</span>
                   <span className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-550 block mt-1 font-data">
                     {character.overall_average !== null ? character.overall_average : "-"}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Hari Input</span>
-                  <span className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 block mt-1 font-data">
-                    {character.days_counted} <span className="font-sans font-normal text-zinc-400 text-xs">hari aktif</span>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Periode</span>
+                  <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mt-1 font-data">
+                    {character.period_label || "Semester Ini"}
                   </span>
                 </div>
               </div>
 
-              {/* Mini FITRAH aspect indicators */}
+              {/* 6 Dimensi UTSMAN */}
               <div className="space-y-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">Detail Aspek FITRAH</span>
+                <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">6 Dimensi Karakter Siswa</span>
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   {[
-                    { label: "Fathonah", val: character.f },
-                    { label: "Istiqamah", val: character.i },
-                    { label: "Tanggung Jawab", val: character.t },
-                    { label: "Ramah", val: character.r },
-                    { label: "Amanah", val: character.a },
-                    { label: "Harmonis", val: character.h },
+                    { label: "Ulet", sub: "Ketangguhan Belajar", val: character.u },
+                    { label: "Tekun", sub: "Disiplin & Konsistensi", val: character.t },
+                    { label: "Santun", sub: "Adab & Budi Pekerti", val: character.s },
+                    { label: "Mandiri", sub: "Inisiatif & Tanggung Jawab", val: character.m },
+                    { label: "Amanah", sub: "Integritas & Kejujuran", val: character.a },
+                    { label: "Nalar", sub: "Refleksi & Berpikir Kritis", val: character.n },
                   ].map((aspect) => (
                     <div key={aspect.label} className="flex justify-between items-center bg-zinc-50 dark:bg-[#262626]/40 border border-zinc-100 dark:border-zinc-800/20 px-3 py-2 rounded-[12px] text-xs">
-                      <span className="font-medium text-zinc-500 dark:text-zinc-400">{aspect.label}</span>
-                      <span className="font-bold text-zinc-950 dark:text-zinc-50 font-data">{aspect.val !== null ? aspect.val : "-"}</span>
+                      <div>
+                        <span className="font-semibold text-zinc-800 dark:text-zinc-200 block">{aspect.label}</span>
+                        <span className="text-[9px] text-zinc-400 dark:text-zinc-500 block">{aspect.sub}</span>
+                      </div>
+                      <span className="font-bold text-zinc-950 dark:text-zinc-50 font-data text-sm">
+                        {aspect.val !== null && aspect.val !== undefined ? aspect.val : "-"}
+                      </span>
                     </div>
                   ))}
                 </div>
-              </div>
-
-              <div className="text-xs text-zinc-400 dark:text-zinc-500">
-                Berdasarkan data input budaya pada {character.period_label || "semester ini"}.
               </div>
 
               <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-end">
@@ -260,27 +324,13 @@ export default function ParentDashboard() {
             </div>
           ) : (
             <p className="text-sm text-zinc-500 dark:text-zinc-400 py-2">
-              Belum ada data karakter yang tersedia.
+              Belum ada rekapitulasi nilai karakter untuk semester ini.
             </p>
           )}
         </div>
 
-        {/* Data Completeness Notice */}
-        {showCompletenessWarning && (
-          <div className="flex gap-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 p-4 rounded-[20px] text-xs text-amber-800 dark:text-amber-350 leading-relaxed">
-            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-            <p>
-              Data karakter pada periode ini masih terbatas sehingga ringkasan perlu dibaca dengan hati-hati.
-            </p>
-          </div>
-        )}
-
-        {/* Future Navigation Placeholder */}
-        <div className="bg-zinc-100/50 dark:bg-[#171717]/30 border border-zinc-200/50 dark:border-zinc-800/40 p-4 rounded-[12px] text-center">
-          <p className="text-xs text-zinc-450 dark:text-zinc-500 leading-relaxed">
-            Informasi lengkap mengenai perkembangan belajar dan analisis karakter terperinci akan tersedia di menu laporan selanjutnya.
-          </p>
-        </div>
+        {/* 5. SPP Payment Alert Banner (Administrasi & Iuran) */}
+        <SppBanner />
 
       </main>
 

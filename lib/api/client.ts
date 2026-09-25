@@ -207,6 +207,10 @@ const ACTION_MAP: Record<string, { method: string; path: string; idField?: strin
   // My Class (Teacher)
   'get_my_classes':                { method: 'GET',  path: '/api/v1/classes/my' },
 
+  // Dashboards
+  'get_admin_dashboard_aggregate':   { method: 'GET',  path: '/api/v1/dashboards/admin' },
+  'get_teacher_dashboard_aggregate': { method: 'GET',  path: '/api/v1/dashboards/teacher' },
+
   // Lifecycle
   'mutate_lifecycle_status':       { method: 'POST', path: '/api/v1/lifecycle/mutate' },
 

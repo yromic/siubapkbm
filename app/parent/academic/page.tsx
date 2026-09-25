@@ -125,7 +125,7 @@ export default function ParentAcademicPage() {
   const period = summaryData?.period;
   const hasAcademicData =
     summaryData &&
-    summaryData.subject_averages &&
+    Array.isArray(summaryData.subject_averages) &&
     summaryData.subject_averages.length > 0;
 
   return (
@@ -194,7 +194,7 @@ export default function ParentAcademicPage() {
                   Rata-rata Akademik
                 </span>
                 <span className="text-xl font-black text-zinc-900 dark:text-zinc-50 mt-1 block font-data">
-                  {summaryData.overall_average !== null
+                  {typeof summaryData.overall_average === "number" && !isNaN(summaryData.overall_average)
                     ? summaryData.overall_average.toFixed(1)
                     : "Belum ada nilai"}
                 </span>
@@ -204,7 +204,7 @@ export default function ParentAcademicPage() {
                   Total Evaluasi
                 </span>
                 <span className="text-xl font-black text-zinc-900 dark:text-zinc-50 mt-1 block font-data">
-                  {summaryData.completed_assessments} <span className="font-sans font-normal text-zinc-400 text-xs">dari</span> {summaryData.total_assessments}
+                  {summaryData.completed_assessments ?? 0} <span className="font-sans font-normal text-zinc-400 text-xs">dari</span> {summaryData.total_assessments ?? 0}
                 </span>
               </div>
             </div>
@@ -263,7 +263,7 @@ export default function ParentAcademicPage() {
                             Rata-rata
                           </span>
                           <span className="text-sm font-black text-zinc-900 dark:text-zinc-50 block mt-0.5 font-data">
-                            {subject.average_score !== null
+                            {typeof subject.average_score === "number" && !isNaN(subject.average_score)
                               ? subject.average_score.toFixed(1)
                               : "Belum ada nilai"}
                           </span>
