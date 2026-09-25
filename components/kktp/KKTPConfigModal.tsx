@@ -222,27 +222,28 @@ export function KKTPConfigModal({
         body: JSON.stringify({
           mataPelajaran: subjectName,
           tingkatFase: fase,
-          topik: aiPrompt.trim() || undefined,
+          topikMateri: aiPrompt.trim() || undefined,
         }),
       });
       const json = await res.json();
-      if (!json.success || !Array.isArray(json.data?.tpSuggestions)) {
+      if (!json.success || !Array.isArray(json.data?.saranTP)) {
         toast.error(json.message || "Gagal menghasilkan saran TP.");
         return;
       }
 
-      const suggestions: string[] = json.data.tpSuggestions;
+      const suggestions: string[] = json.data.saranTP;
+      const isAi: boolean = json.data.source === "GEMINI";
       const newItems: ConfiguredTPItem[] = suggestions.map((text, idx) => ({
         tp_id: null,
         tp_code: `TP-${String(tps.length + idx + 1).padStart(2, "0")}`,
         tp_text_snapshot: text,
-        source_type: "AI_GENERATED",
+        source_type: isAi ? "AI_GENERATED" : "MANUAL",
         order_index: tps.length + idx + 1,
       }));
 
       setTps((prev) => [...prev, ...newItems]);
       setActiveTab("LIST");
-      toast.success(`${newItems.length} rekomendasi TP ditambahkan.`);
+      toast.success(`${newItems.length} rekomendasi TP ditambahkan${isAi ? " oleh AI" : " (kurikulum nasional)"}.`);
     } catch {
       toast.error("Gagal terhubung ke layanan AI.");
     } finally {

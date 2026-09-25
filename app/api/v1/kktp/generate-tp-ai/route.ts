@@ -11,16 +11,8 @@ export async function POST(req: NextRequest) {
       try {
         const body = await req.json();
 
-        if (!body.topikMateri || !body.topikMateri.trim()) {
-          return errorResponse(
-            "Topik atau materi pembelajaran wajib diisi.",
-            "ERR_VALIDATION",
-            400
-          );
-        }
-
         const result = await generateTPSuggestionsWithAI({
-          topikMateri: body.topikMateri,
+          topikMateri: body.topikMateri?.trim() || body.topik?.trim() || "",
           mataPelajaran: body.mataPelajaran || "Mata Pelajaran Umum",
           tingkatFase: body.tingkatFase || "Fase C",
           cpTeks: body.cpTeks || body.cpText || undefined,
