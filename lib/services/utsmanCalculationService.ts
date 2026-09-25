@@ -3,9 +3,16 @@ import { UTSMAN_FORMULA, SahabatScores, UtsmanResult } from "@/lib/config/charac
 import { CharacterUtsmanSemesterSummaryModel } from "@/types/character";
 import { v4 as uuidv4 } from "uuid";
 
-function roundHalfUp(num: number, decimals: number = 2): number {
+function roundHalfUpOrNull(num: number | null, decimals: number = 2): number | null {
+  if (num === null || isNaN(num)) return null;
   const factor = Math.pow(10, decimals);
   return Math.round((num + Number.EPSILON) * factor) / factor;
+}
+
+function parseScore(val: unknown): number | null {
+  if (val === null || val === undefined) return null;
+  const n = Number(val);
+  return isNaN(n) ? null : n;
 }
 
 /**
@@ -36,24 +43,25 @@ export async function calculateAndSaveUTSMAN(
     .first();
 
   const avgScores: SahabatScores = {
-    sss: Number(avgResult?.avg_sss ?? 0),
-    am: Number(avgResult?.avg_am ?? 0),
-    hb: Number(avgResult?.avg_hb ?? 0),
-    asm: Number(avgResult?.avg_asm ?? 0),
-    br: Number(avgResult?.avg_br ?? 0),
-    ak: Number(avgResult?.avg_ak ?? 0),
-    tm: Number(avgResult?.avg_tm ?? 0),
+    sss: parseScore(avgResult?.avg_sss),
+    am: parseScore(avgResult?.avg_am),
+    hb: parseScore(avgResult?.avg_hb),
+    asm: parseScore(avgResult?.avg_asm),
+    br: parseScore(avgResult?.avg_br),
+    ak: parseScore(avgResult?.avg_ak),
+    tm: parseScore(avgResult?.avg_tm),
   };
 
   // 2. Calculate UTSMAN scores using formulas
   const utsmanScores: UtsmanResult = {
-    u_score: roundHalfUp(UTSMAN_FORMULA.calculateU(avgScores), 2),
-    t_score: roundHalfUp(UTSMAN_FORMULA.calculateT(avgScores), 2),
-    s_score: roundHalfUp(UTSMAN_FORMULA.calculateS(avgScores), 2),
-    m_score: roundHalfUp(UTSMAN_FORMULA.calculateM(avgScores), 2),
-    a_score: roundHalfUp(UTSMAN_FORMULA.calculateA(avgScores), 2),
-    n_score: roundHalfUp(UTSMAN_FORMULA.calculateN(avgScores), 2),
+    u_score: roundHalfUpOrNull(UTSMAN_FORMULA.calculateU(avgScores), 2),
+    t_score: roundHalfUpOrNull(UTSMAN_FORMULA.calculateT(avgScores), 2),
+    s_score: roundHalfUpOrNull(UTSMAN_FORMULA.calculateS(avgScores), 2),
+    m_score: roundHalfUpOrNull(UTSMAN_FORMULA.calculateM(avgScores), 2),
+    a_score: roundHalfUpOrNull(UTSMAN_FORMULA.calculateA(avgScores), 2),
+    n_score: roundHalfUpOrNull(UTSMAN_FORMULA.calculateN(avgScores), 2),
   };
+
 
   // Check existing record to update or insert
   const existing = await db("character_utsman_semester_summary")

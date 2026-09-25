@@ -36,18 +36,21 @@ interface UtsmanRadarChartProps {
 }
 
 export function UtsmanRadarChart({ data, onSelectDimension }: UtsmanRadarChartProps) {
-  const isFullyNull =
-    !data ||
-    (data.u_score === 0 &&
-      data.t_score === 0 &&
-      data.s_score === 0 &&
-      data.m_score === 0 &&
-      data.a_score === 0 &&
-      data.n_score === 0);
+  const scores = [
+    { code: "U" as const, subject: "U (Ulet)", fullLabel: UTSMAN_DIMENSIONS_CONFIG.U.label, value: data?.u_score !== null && data?.u_score !== undefined ? Number(data.u_score) : null },
+    { code: "T" as const, subject: "T (Ta'at)", fullLabel: UTSMAN_DIMENSIONS_CONFIG.T.label, value: data?.t_score !== null && data?.t_score !== undefined ? Number(data.t_score) : null },
+    { code: "S" as const, subject: "S (Santun)", fullLabel: UTSMAN_DIMENSIONS_CONFIG.S.label, value: data?.s_score !== null && data?.s_score !== undefined ? Number(data.s_score) : null },
+    { code: "M" as const, subject: "M (Mandiri)", fullLabel: UTSMAN_DIMENSIONS_CONFIG.M.label, value: data?.m_score !== null && data?.m_score !== undefined ? Number(data.m_score) : null },
+    { code: "A" as const, subject: "A (Amanah)", fullLabel: UTSMAN_DIMENSIONS_CONFIG.A.label, value: data?.a_score !== null && data?.a_score !== undefined ? Number(data.a_score) : null },
+    { code: "N" as const, subject: "N (Nalar)", fullLabel: UTSMAN_DIMENSIONS_CONFIG.N.label, value: data?.n_score !== null && data?.n_score !== undefined ? Number(data.n_score) : null },
+  ];
 
-  if (isFullyNull) {
+  const observedScores = scores.filter((s) => s.value !== null);
+
+  // 1. NO OBSERVATIONS: Clean empty state
+  if (observedScores.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-6 bg-zinc-50/50 dark:bg-zinc-950/20 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-center min-h-[260px]">
+      <div className="flex flex-col items-center justify-center p-6 bg-zinc-50/50 dark:bg-zinc-950/20 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl text-center min-h-[260px] w-full">
         <svg
           className="w-8 h-8 text-zinc-400 dark:text-zinc-600 mb-2 shrink-0"
           fill="none"
@@ -62,29 +65,77 @@ export function UtsmanRadarChart({ data, onSelectDimension }: UtsmanRadarChartPr
           />
         </svg>
         <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 font-plus-jakarta">
-          Tidak ada penilaian karakter semester ini.
+          Belum ada observasi karakter semester ini.
         </span>
         <span className="text-[11px] text-zinc-400 mt-1">
-          Data radar profil UTSMAN akan otomatis terbentuk setelah asesmen minggu pertama diisi.
+          Data radar profil UTSMAN akan otomatis terbentuk setelah asesmen indikator budaya diisi.
         </span>
       </div>
     );
   }
 
-  const chartData = [
-    { code: "U", subject: "U (Ulet & Unggul)", value: Number(data.u_score || 0), fullLabel: UTSMAN_DIMENSIONS_CONFIG.U.label },
-    { code: "T", subject: "T (Ta'at & Tangguh)", value: Number(data.t_score || 0), fullLabel: UTSMAN_DIMENSIONS_CONFIG.T.label },
-    { code: "S", subject: "S (Santun & Empati)", value: Number(data.s_score || 0), fullLabel: UTSMAN_DIMENSIONS_CONFIG.S.label },
-    { code: "M", subject: "M (Mandiri & Rapi)", value: Number(data.m_score || 0), fullLabel: UTSMAN_DIMENSIONS_CONFIG.M.label },
-    { code: "A", subject: "A (Amanah & Jujur)", value: Number(data.a_score || 0), fullLabel: UTSMAN_DIMENSIONS_CONFIG.A.label },
-    { code: "N", subject: "N (Nalar & Inisiatif)", value: Number(data.n_score || 0), fullLabel: UTSMAN_DIMENSIONS_CONFIG.N.label },
-  ];
+  // 2. INSUFFICIENT DIMENSIONS (< 3 observed): Truthful card presentation rather than deceptive zero-polygon
+  if (observedScores.length < 3) {
+    return (
+      <div className="flex flex-col items-center justify-center p-5 bg-zinc-50/60 dark:bg-zinc-950/30 border border-emerald-100 dark:border-emerald-950/40 rounded-xl w-full min-h-[260px]">
+        <div className="text-center mb-3">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+            Observasi Parsial ({observedScores.length} dari 6 Dimensi)
+          </span>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1.5 max-w-sm mx-auto">
+            Radar spider chart memerlukan minimal 3 dimensi terobservasi untuk membentuk polygon. Dimensi yang telah terobservasi:
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 w-full max-w-xs mb-3">
+          {scores.map((s) => (
+            <div
+              key={s.code}
+              onClick={() => onSelectDimension && onSelectDimension(s.code)}
+              className={`p-2.5 rounded-lg border text-center cursor-pointer transition-all ${
+                s.value !== null
+                  ? "bg-white dark:bg-zinc-900 border-emerald-200 dark:border-emerald-800 shadow-sm"
+                  : "bg-zinc-100/60 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 opacity-60"
+              }`}
+            >
+              <div className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                {s.code} — {s.fullLabel}
+              </div>
+              <div className="text-sm font-extrabold mt-1">
+                {s.value !== null ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">{s.value.toFixed(2)}</span>
+                ) : (
+                  <span className="text-[11px] font-normal text-zinc-400">Belum ada data</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-[10px] text-zinc-400 text-center">
+          Dimensi lainnya akan otomatis terisi saat indikator terkait diobservasi.
+        </p>
+      </div>
+    );
+  }
+
+  // 3. FULL OR SUFFICIENT (>= 3 observed): Render Radar Chart
+  const chartData = scores.map((s) => ({
+    code: s.code,
+    subject: s.subject,
+    value: s.value !== null ? s.value : 0,
+    isObserved: s.value !== null,
+    displayValue: s.value !== null ? `${s.value.toFixed(2)} / 4.00` : "Belum ada data",
+    fullLabel: s.fullLabel,
+  }));
+
+  const hasUnobserved = observedScores.length < 6;
 
   return (
     <div className="relative w-full flex flex-col items-center justify-center p-2">
-      <div className="w-full flex items-center justify-center" style={{ minHeight: "280px" }}>
+      <div className="w-full flex items-center justify-center max-w-[420px]" style={{ minHeight: "280px" }}>
         <ResponsiveContainer width="100%" height={280}>
-          <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+          <RadarChart cx="50%" cy="50%" outerRadius="68%" data={chartData}>
             <PolarGrid stroke="#e4e4e7" className="dark:stroke-zinc-800" />
             <PolarAngleAxis
               dataKey="subject"
@@ -120,11 +171,22 @@ export function UtsmanRadarChart({ data, onSelectDimension }: UtsmanRadarChartPr
                 color: "#f8fafc",
                 fontSize: "11px",
               }}
-              formatter={(value: any) => [`${value} / 4.00`, "Skor Dimensi"]}
+              formatter={(_value: any, _name: any, item: any) => [
+                item?.payload?.displayValue || `${_value} / 4.00`,
+                "Skor Dimensi",
+              ]}
             />
           </RadarChart>
         </ResponsiveContainer>
       </div>
+
+      {hasUnobserved && (
+        <div className="mb-2 text-center">
+          <span className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800">
+            {6 - observedScores.length} dimensi belum diobservasi
+          </span>
+        </div>
+      )}
 
       <p className="mt-1 text-[10px] text-zinc-400 text-center font-plus-jakarta">
         Tip: Klik nama dimensi di atas atau kartu di bawah untuk membuka drill-down breakdown indikator SAHABAT & FITRAH.

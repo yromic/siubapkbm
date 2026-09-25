@@ -1,16 +1,16 @@
 /**
- * Character Rule Configuration (Sprint 2)
+ * Character Rule Configuration (Sprint 2 & Post-Audit Correctness)
  * Terpusat untuk pemetaan SAHABAT ke FITRAH dan rumus UTSMAN.
  */
 
 export interface SahabatScores {
-  sss: number; // Salam, Sapa, Senyum, Santun
-  am: number;  // Al-Qur'an & Ibadah
-  hb: number;  // Hubungan Baik / Harmonis
-  asm: number; // Amanah & Jujur
-  br: number;  // Bersih, Rapi, Sehat
-  ak: number;  // Aktif & Adaptif / Akal
-  tm: number;  // Tanggung Jawab
+  sss: number | null; // Salam, Sapa, Senyum, Santun
+  am: number | null;  // Al-Qur'an & Ibadah
+  hb: number | null;  // Hubungan Baik / Harmonis
+  asm: number | null; // Amanah & Jujur
+  br: number | null;  // Bersih, Rapi, Sehat
+  ak: number | null;  // Aktif & Adaptif / Akal
+  tm: number | null;  // Tanggung Jawab
 }
 
 export interface FitrahResult {
@@ -23,45 +23,74 @@ export interface FitrahResult {
 }
 
 export interface UtsmanResult {
-  u_score: number; // U - Ulet & Unggul (AM + AK) / 2
-  t_score: number; // T - Ta'at & Tangguh (AK)
-  s_score: number; // S - Santun & Empati (SSS + HB) / 2
-  m_score: number; // M - Mandiri & Rapi (BR)
-  a_score: number; // A - Amanah & Jujur (AM + ASM) / 2
-  n_score: number; // N - Nalar & Inisiatif (HB + TM) / 2
+  u_score: number | null; // U - Ulet & Unggul: mean(AM, AK)
+  t_score: number | null; // T - Ta'at & Tangguh: AK
+  s_score: number | null; // S - Santun & Empati: mean(SSS, HB)
+  m_score: number | null; // M - Mandiri & Rapi: BR
+  a_score: number | null; // A - Amanah & Jujur: mean(AM, ASM)
+  n_score: number | null; // N - Nalar & Inisiatif: mean(HB, TM)
 }
 
 /**
- * Pemetaan Indikator SAHABAT ke Dimensi FITRAH
+ * Calculates arithmetic mean strictly over observed (non-null, non-undefined, valid) numeric values.
+ * Returns null if all input values are null/unobserved.
+ */
+export function meanObserved(values: (number | null | undefined)[]): number | null {
+  const observed = values.filter((v): v is number => v !== null && v !== undefined && !isNaN(v));
+  if (observed.length === 0) return null;
+  const sum = observed.reduce((acc, curr) => acc + curr, 0);
+  return sum / observed.length;
+}
+
+/**
+ * Pemetaan Indikator SAHABAT ke Dimensi FITRAH (Legacy auxiliary)
  */
 export const SAHABAT_TO_FITRAH = {
-  fathonah: (s: SahabatScores): number => (s.ak + s.asm) / 2,
-  istiqamah: (s: SahabatScores): number => s.am,
-  tanggungJawab: (s: SahabatScores): number => s.tm,
-  rahmah: (s: SahabatScores): number => (s.sss + s.hb) / 2,
-  amanah: (s: SahabatScores): number => (s.am + s.hb) / 2,
-  harmonis: (s: SahabatScores): number => (s.sss + s.hb) / 2,
+  fathonah: (s: SahabatScores): number => meanObserved([s.ak, s.asm]) ?? 0,
+  istiqamah: (s: SahabatScores): number => s.am ?? 0,
+  tanggungJawab: (s: SahabatScores): number => s.tm ?? 0,
+  rahmah: (s: SahabatScores): number => meanObserved([s.sss, s.hb]) ?? 0,
+  amanah: (s: SahabatScores): number => meanObserved([s.am, s.hb]) ?? 0,
+  harmonis: (s: SahabatScores): number => meanObserved([s.sss, s.hb]) ?? 0,
 };
 
 /**
- * Rumus Profil UTSMAN Semester Summary
+ * Rumus Profil UTSMAN Semester Summary (Canonical Correctness)
+ * Operates only on observed indicators. Unobserved indicator does NOT depress score.
+ * Completely unobserved dimension returns null.
  */
 export const UTSMAN_FORMULA = {
-  /** U - Ulet & Unggul: (AM + AK) / 2 */
-  calculateU: (s: SahabatScores): number => (s.am + s.ak) / 2,
+  /** U - Ulet & Unggul: mean(AM, AK) */
+  calculateU: (s: SahabatScores): number | null => meanObserved([s.am, s.ak]),
 
   /** T - Ta'at & Tangguh: AK */
-  calculateT: (s: SahabatScores): number => s.ak,
+  calculateT: (s: SahabatScores): number | null => (s.ak !== null && s.ak !== undefined && !isNaN(s.ak) ? s.ak : null),
 
-  /** S - Santun & Empati: (SSS + HB) / 2 */
-  calculateS: (s: SahabatScores): number => (s.sss + s.hb) / 2,
+  /** S - Santun & Empati: mean(SSS, HB) */
+  calculateS: (s: SahabatScores): number | null => meanObserved([s.sss, s.hb]),
 
   /** M - Mandiri & Rapi: BR */
-  calculateM: (s: SahabatScores): number => s.br,
+  calculateM: (s: SahabatScores): number | null => (s.br !== null && s.br !== undefined && !isNaN(s.br) ? s.br : null),
 
-  /** A - Amanah & Jujur: (AM + ASM) / 2 */
-  calculateA: (s: SahabatScores): number => (s.am + s.asm) / 2,
+  /** A - Amanah & Jujur: mean(AM, ASM) */
+  calculateA: (s: SahabatScores): number | null => meanObserved([s.am, s.asm]),
 
-  /** N - Nalar & Inisiatif: (HB + TM) / 2 */
-  calculateN: (s: SahabatScores): number => (s.hb + s.tm) / 2,
+  /** N - Nalar & Inisiatif: mean(HB, TM) */
+  calculateN: (s: SahabatScores): number | null => meanObserved([s.hb, s.tm]),
 };
+
+/**
+ * Calculates overall UTSMAN average using strictly observed UTSMAN dimensions.
+ * Example: U=4, A=4, others null -> overall=4, NOT (4+0+0+0+4+0)/6 = 1.33.
+ */
+export function calculateUtsmanOverallAverage(scores: UtsmanResult): number | null {
+  return meanObserved([
+    scores.u_score,
+    scores.t_score,
+    scores.s_score,
+    scores.m_score,
+    scores.a_score,
+    scores.n_score,
+  ]);
+}
+

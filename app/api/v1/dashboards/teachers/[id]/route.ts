@@ -6,10 +6,21 @@ import { successResponse, errorResponse } from '@/lib/response';
 import { AppError } from '@/lib/errors';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  return withAuth(req, async (req) => {
-    return withRole(['administrator', 'admin', 'teacher'], req, async () => {
+  return withAuth(req, async (authenticatedReq) => {
+    return withRole(['administrator', 'admin', 'teacher'], authenticatedReq, async () => {
       try {
         const { id } = await params;
+        const currentUser = (authenticatedReq as any).user;
+
+        // Security check (SEC-DASH-01): Teachers can only access their own dashboard
+        if (currentUser?.role === 'teacher' && currentUser?.id !== id) {
+          return errorResponse(
+            'Anda tidak memiliki akses untuk melihat dashboard guru lain.',
+            'ERR_FORBIDDEN',
+            403
+          );
+        }
+
         const data = await getTeacherDashboard(id);
         return successResponse(data, 'Teacher dashboard retrieved.');
       } catch (error) {

@@ -277,10 +277,14 @@ function DailyCulturePageContent() {
         }
       });
 
-      // 4. Build local state rows
+      // 4. Build local state rows:
+      // Canonical Rule:
+      // Persisted DB score > 0 -> preserve and display DB score.
+      // Missing/unobserved score in DB -> initialize UI score = 4 (default), but keep originalScores = null (unobserved).
+      // This allows immediate one-click Save without mutating persisted state on load.
       const initialRows: ScoreRow[] = roster.map((student) => {
         const existing = scoreMap.get(student.id);
-        const itemScores: Record<IndicatorKey, number | null> = {
+        const persistedScores: Record<IndicatorKey, number | null> = {
           sss: dbScoreToUi(existing?.sss_score),
           am: dbScoreToUi(existing?.am_score),
           hb: dbScoreToUi(existing?.hb_score),
@@ -290,12 +294,22 @@ function DailyCulturePageContent() {
           tm: dbScoreToUi(existing?.tm_score),
         };
 
+        const uiScores: Record<IndicatorKey, number | null> = {
+          sss: persistedScores.sss !== null ? persistedScores.sss : 4,
+          am: persistedScores.am !== null ? persistedScores.am : 4,
+          hb: persistedScores.hb !== null ? persistedScores.hb : 4,
+          asm: persistedScores.asm !== null ? persistedScores.asm : 4,
+          br: persistedScores.br !== null ? persistedScores.br : 4,
+          ak: persistedScores.ak !== null ? persistedScores.ak : 4,
+          tm: persistedScores.tm !== null ? persistedScores.tm : 4,
+        };
+
         const note = existing?.observation_note || "";
 
         return {
           student,
-          scores: { ...itemScores },
-          originalScores: { ...itemScores },
+          scores: { ...uiScores },
+          originalScores: { ...persistedScores },
           observationNote: note,
           originalObservationNote: note,
         };
@@ -329,23 +343,32 @@ function DailyCulturePageContent() {
     });
   }, [rows]);
 
-  // Completion metrics
+  // Completion metrics: differentiate persisted DB completeness from form readiness
   const completionStats = useMemo(() => {
     const total = rows.length;
-    let started = 0;
-    let complete = 0;
+    let persistedComplete = 0;
+    let readyComplete = 0;
 
     rows.forEach((row) => {
-      const filledCount = INDICATORS.filter((ind) => row.scores[ind.key] !== null).length;
-      if (filledCount > 0) started++;
-      if (filledCount === 7) complete++;
+      const persistedCount = INDICATORS.filter((ind) => row.originalScores[ind.key] !== null).length;
+      if (persistedCount === 7) persistedComplete++;
+
+      const readyCount = INDICATORS.filter((ind) => row.scores[ind.key] !== null).length;
+      if (readyCount === 7) readyComplete++;
     });
 
-    const startedPercentage = total > 0 ? Number(((started / total) * 100).toFixed(1)) : 0;
-    const completePercentage = total > 0 ? Number(((complete / total) * 100).toFixed(1)) : 0;
+    const persistedPercentage = total > 0 ? Number(((persistedComplete / total) * 100).toFixed(1)) : 0;
+    const readyPercentage = total > 0 ? Number(((readyComplete / total) * 100).toFixed(1)) : 0;
 
-    return { total, started, complete, startedPercentage, completePercentage };
+    return {
+      total,
+      persistedComplete,
+      persistedPercentage,
+      readyComplete,
+      readyPercentage,
+    };
   }, [rows]);
+
 
   // Action update score indicator for student
   const updateScoreValue = (studentId: string, key: IndicatorKey, value: number | null) => {
@@ -441,8 +464,9 @@ function DailyCulturePageContent() {
 
       notify.success(UX_COPY.culture.saveSuccess);
 
-      // Evaluate 100% weekly culture completion
-      const isHundredPercent = completionStats.total > 0 && completionStats.complete === completionStats.total;
+      // Evaluate 100% weekly culture completion upon successful save
+      const isHundredPercent = completionStats.total > 0 && completionStats.readyComplete === completionStats.total;
+
 
       if (isHundredPercent) {
         triggerAppreciation({
@@ -581,7 +605,7 @@ function DailyCulturePageContent() {
         />
       )}
 
-      {/* Completion Metrics Section */}
+      {/* Completion Metrics Section: Differentiates DB Persisted from Form Readiness */}
       {!loading && !error && rows.length > 0 && (
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4" aria-label="Statistik pengisian budaya mingguan">
           <Card padding="md">
@@ -591,29 +615,30 @@ function DailyCulturePageContent() {
 
           <Card padding="md">
             <div className="flex items-center justify-between">
-              <ColumnLabel>Mulai Diisi (Min. 1)</ColumnLabel>
-              <NumericDisplay className="font-bold text-brand-emerald-600 dark:text-brand-emerald-400">
-                {completionStats.started} ({completionStats.startedPercentage}%)
+              <ColumnLabel>Tersimpan di Database</ColumnLabel>
+              <NumericDisplay className="font-bold text-emerald-600 dark:text-emerald-400">
+                {completionStats.persistedComplete} / {completionStats.total} ({completionStats.persistedPercentage}%)
               </NumericDisplay>
             </div>
             <div className="mt-3.5 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-              <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${completionStats.startedPercentage}%` }} />
+              <div className="h-full rounded-full bg-emerald-500 transition-all duration-300" style={{ width: `${completionStats.persistedPercentage}%` }} />
             </div>
           </Card>
 
           <Card padding="md">
             <div className="flex items-center justify-between">
-              <ColumnLabel>Lengkap (7/7)</ColumnLabel>
+              <ColumnLabel>Siap Disimpan</ColumnLabel>
               <NumericDisplay className="font-bold text-blue-600 dark:text-blue-400">
-                {completionStats.complete} ({completionStats.completePercentage}%)
+                {completionStats.readyComplete} / {completionStats.total} ({completionStats.readyPercentage}%)
               </NumericDisplay>
             </div>
             <div className="mt-3.5 h-2 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
-              <div className="h-full rounded-full bg-blue-500 transition-all duration-300" style={{ width: `${completionStats.completePercentage}%` }} />
+              <div className="h-full rounded-full bg-blue-500 transition-all duration-300" style={{ width: `${completionStats.readyPercentage}%` }} />
             </div>
           </Card>
         </section>
       )}
+
 
       {/* Main Content Area */}
       {loading && <LoadingState message="Memuat roster & nilai budaya mingguan..." />}

@@ -264,8 +264,28 @@ export async function getBestCultureClassAverage(
       .groupBy('student_enrollments.class_id')
       .select(
         'student_enrollments.class_id',
-        db.raw('AVG((character_utsman_semester_summary.u_score + character_utsman_semester_summary.t_score + character_utsman_semester_summary.s_score + character_utsman_semester_summary.m_score + character_utsman_semester_summary.a_score + character_utsman_semester_summary.n_score) / 6.0) as culture_avg')
+        db.raw(`
+          AVG(
+            (COALESCE(character_utsman_semester_summary.u_score, 0) +
+             COALESCE(character_utsman_semester_summary.t_score, 0) +
+             COALESCE(character_utsman_semester_summary.s_score, 0) +
+             COALESCE(character_utsman_semester_summary.m_score, 0) +
+             COALESCE(character_utsman_semester_summary.a_score, 0) +
+             COALESCE(character_utsman_semester_summary.n_score, 0))
+            /
+            NULLIF(
+              (CASE WHEN character_utsman_semester_summary.u_score IS NOT NULL THEN 1 ELSE 0 END +
+               CASE WHEN character_utsman_semester_summary.t_score IS NOT NULL THEN 1 ELSE 0 END +
+               CASE WHEN character_utsman_semester_summary.s_score IS NOT NULL THEN 1 ELSE 0 END +
+               CASE WHEN character_utsman_semester_summary.m_score IS NOT NULL THEN 1 ELSE 0 END +
+               CASE WHEN character_utsman_semester_summary.a_score IS NOT NULL THEN 1 ELSE 0 END +
+               CASE WHEN character_utsman_semester_summary.n_score IS NOT NULL THEN 1 ELSE 0 END),
+              0
+            )
+          ) as culture_avg
+        `)
       )
+
       .orderBy('culture_avg', 'desc')
       .limit(1);
 

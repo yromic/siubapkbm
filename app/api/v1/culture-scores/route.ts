@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   return withAuth(req, async (req) => {
-    return withRole(["administrator", "teacher"], req, async () => {
+    return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
         const body = await req.json();
         const actorId = (req as any).user?.id;
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   return withAuth(req, async (req) => {
-    return withRole(["administrator", "teacher"], req, async () => {
+    return withRole(["administrator", "admin", "teacher"], req, async () => {
       try {
         const { searchParams } = new URL(req.url);
         const week_start_date = searchParams.get("week_start_date") || searchParams.get("score_date");

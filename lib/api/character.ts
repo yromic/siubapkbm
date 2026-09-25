@@ -89,14 +89,15 @@ export async function getStudentWatchlist(
 export interface UtsmanSummaryRecord {
   student_id: string;
   semester_id: string;
-  u_score: number;
-  t_score: number;
-  s_score: number;
-  m_score: number;
-  a_score: number;
-  n_score: number;
-  calculation_version: string;
+  u_score: number | null;
+  t_score: number | null;
+  s_score: number | null;
+  m_score: number | null;
+  a_score: number | null;
+  n_score: number | null;
+  calculation_version?: string | null;
 }
+
 
 export interface FitrahSummaryRecord {
   fathonah: number;

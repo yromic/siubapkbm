@@ -26,7 +26,7 @@ import { FitrahRadarChart } from "@/components/character/fitrah-radar-chart";
 import { UtsmanRadarChart, UtsmanDimensionCode, UTSMAN_DIMENSIONS_CONFIG } from "@/components/character/utsman-radar-chart";
 import { UtsmanDrilldownModal } from "@/components/character/utsman-drilldown-modal";
 import { UtsmanCompletenessWidget } from "@/components/character/utsman-completeness-widget";
-import { StudentGrowth } from "@/components/character/student-growth";
+
 import {
   CharacterPeriodFilter,
   CharacterPeriodMode,
@@ -55,7 +55,7 @@ const FITRAH_DIMENSIONS: FitrahConfig[] = [
   { code: "H", name: "Harmonis", description: "Empati & Peduli Sosial", indicators: ["Tolong Menolong (TM)"] },
 ];
 
-export const UTSMAN_DIMENSIONS_LIST: { code: UtsmanDimensionCode; key: "u" | "t" | "s" | "m" | "a" | "n"; name: string; fullLabel: string }[] = [
+const UTSMAN_DIMENSIONS_LIST: { code: UtsmanDimensionCode; key: "u" | "t" | "s" | "m" | "a" | "n"; name: string; fullLabel: string }[] = [
   { code: "U", key: "u", name: "Ulet & Unggul", fullLabel: "U — Ulet & Unggul" },
   { code: "T", key: "t", name: "Ta'at & Tangguh", fullLabel: "T — Ta'at & Tangguh" },
   { code: "S", key: "s", name: "Santun & Empati", fullLabel: "S — Santun & Empati" },
@@ -64,13 +64,14 @@ export const UTSMAN_DIMENSIONS_LIST: { code: UtsmanDimensionCode; key: "u" | "t"
   { code: "N", key: "n", name: "Nalar & Inisiatif", fullLabel: "N — Nalar & Inisiatif" },
 ];
 
-export const getUtsmanPredicate = (val: number | null): string => {
+const getUtsmanPredicate = (val: number | null): string => {
   if (val === null || val === undefined || isNaN(val) || val === 0) return "Belum ada data";
   if (val >= 3.5) return "Sangat Baik";
   if (val >= 3.0) return "Baik";
   if (val >= 2.0) return "Cukup";
   return "Perlu Penguatan";
 };
+
 
 export default function CharacterRecapPage() {
   const { token, user } = useAuth();
@@ -95,15 +96,8 @@ export default function CharacterRecapPage() {
   const [studentSummaries, setStudentSummaries] = useState<StudentCharacterSummary[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  // Tab & Growth monitoring states
-  const [activeTab, setActiveTab] = useState<"summary" | "growth">("summary");
-  const [growthDataCache, setGrowthDataCache] = useState<
-    Record<string, { month: number; year: number; data: IndividualCharacterSummary }[]>
-  >({});
-  const [growthLoading, setGrowthLoading] = useState(false);
-  const [growthError, setGrowthError] = useState<string | null>(null);
-
   // Status states
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -191,15 +185,9 @@ export default function CharacterRecapPage() {
     }
   }, [selectedClassId, periodFilter, selectedAssignment, loadData]);
 
-  // Clear growth cache when class changes
+  // Load UTSMAN summary when selected student changes
   useEffect(() => {
-    setGrowthDataCache({});
-  }, [selectedClassId]);
 
-  // Reset tab to summary when selected student changes and load UTSMAN summary
-  useEffect(() => {
-    setActiveTab("summary");
-    setGrowthError(null);
 
     if (!selectedStudent || !selectedAssignment || !token) {
       setSelectedStudentUtsman(null);
@@ -252,62 +240,7 @@ export default function CharacterRecapPage() {
     };
   }, [selectedStudentUtsman]);
 
-  const loadStudentGrowth = useCallback(
-    async (studentId: string) => {
-      if (growthDataCache[studentId]) return;
-
-      setGrowthLoading(true);
-      setGrowthError(null);
-
-      try {
-        const today = new Date();
-        const periods: { month: number; year: number }[] = [];
-        for (let i = 0; i < 6; i++) {
-          const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-          periods.push({
-            month: d.getMonth() + 1,
-            year: d.getFullYear(),
-          });
-        }
-
-        const { academic_year_id, semester_id } = selectedAssignment!;
-
-        // Parallel requests
-        const results = await Promise.all(
-          periods.map(async (p) => {
-            const summary = await getStudentCharacterSummary(token!, {
-              student_id: studentId,
-              academic_year_id,
-              semester_id,
-              month: p.month,
-              year: p.year,
-            });
-            return {
-              month: p.month,
-              year: p.year,
-              data: summary,
-            };
-          })
-        );
-
-        setGrowthDataCache((prev) => ({
-          ...prev,
-          [studentId]: results,
-        }));
-      } catch (err: unknown) {
-        setGrowthError(err instanceof Error ? err.message : "Gagal memuat data perkembangan.");
-      } finally {
-        setGrowthLoading(false);
-      }
-    },
-    [token, selectedAssignment, growthDataCache]
-  );
-
-  useEffect(() => {
-    if (activeTab === "growth" && selectedStudentId) {
-      loadStudentGrowth(selectedStudentId);
-    }
-  }, [activeTab, selectedStudentId, loadStudentGrowth]);
+  // Compute class averages (UTSMAN)
 
   // Compute class averages (UTSMAN)
   const classAverages = useMemo(() => {
@@ -865,36 +798,9 @@ export default function CharacterRecapPage() {
               </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-zinc-150 dark:border-zinc-800 shrink-0 px-5 bg-surface-1">
-              <button
-                type="button"
-                onClick={() => setActiveTab("summary")}
-                className={`py-3 px-4 border-b-2 text-xs font-bold transition-all ${
-                  activeTab === "summary"
-                    ? "border-emerald-500 text-[#468432] dark:text-emerald-450"
-                    : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                Ringkasan
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("growth")}
-                className={`py-3 px-4 border-b-2 text-xs font-bold transition-all ${
-                  activeTab === "growth"
-                    ? "border-emerald-500 text-[#468432] dark:text-emerald-450"
-                    : "border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-                }`}
-              >
-                Perkembangan
-              </button>
-            </div>
-
             {/* Scrollable details */}
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
-              {activeTab === "summary" && (
-                <>
+              <>
                   {/* 1. Completeness Widget */}
                   {selectedAssignment && (
                     <UtsmanCompletenessWidget
@@ -1022,45 +928,9 @@ export default function CharacterRecapPage() {
                     </div>
                   </div>
                 </>
-              )}
-
-              {activeTab === "growth" && (
-                <>
-                  {growthLoading && (
-                    <div className="flex flex-col items-center justify-center p-12 text-center space-y-3">
-                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs font-semibold text-zinc-550 dark:text-zinc-400">Memuat data perkembangan...</span>
-                    </div>
-                  )}
-
-                  {!growthLoading && growthError && (
-                    <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-zinc-50/50 dark:bg-zinc-955/20 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-[20px] min-h-[220px]">
-                      <svg className="w-10 h-10 text-rose-500 mb-1 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                      </svg>
-                      <span className="text-sm font-bold text-zinc-800 dark:text-zinc-200">
-                        Gagal memuat data perkembangan.
-                      </span>
-                      <span className="text-xs text-zinc-500 max-w-[280px]">
-                        {growthError}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => loadStudentGrowth(selectedStudent.student_id)}
-                        className="px-4 py-2 mt-2 bg-[#468432] hover:bg-[#3A6F2B] text-white text-xs font-bold rounded-[12px] transition-colors"
-                      >
-                        Coba Lagi
-                      </button>
-                    </div>
-                  )}
-
-                  {!growthLoading && !growthError && (
-                    <StudentGrowth historicalData={growthDataCache[selectedStudent.student_id] || []} />
-                  )}
-                </>
-              )}
             </div>
           </div>
+
           <div className="flex-1" onClick={() => setSelectedStudentId(null)} />
         </div>
       )}
