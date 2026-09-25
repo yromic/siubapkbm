@@ -153,9 +153,27 @@ body {
   [data-radix-popper-content-wrapper],
   [role="dialog"],
   button:not(.print-include),
-  .sticky:not(.print-engine-container),
-  div[class*="backdrop-blur"] {
+  .sticky:not(.print-engine-container) {
     display: none !important;
+  }
+
+  /* 1b. Sembunyikan overlay backdrop/blur (mobile sidebar overlay, modal overlay) - hanya fixed/absolute positioning */
+  div[class*="backdrop-blur"][class*="fixed"],
+  div[class*="backdrop-blur"][class*="absolute"],
+  div[class*="backdrop-blur"][class*="inset-0"] {
+    display: none !important;
+  }
+
+  /* 1c. Sembunyikan layout chrome: top navigation wrappers, bottom nav mobile, sidebar footer copyright */
+  [class*="bottom-0"][class*="fixed"],
+  [class*="z-40"][class*="fixed"],
+  [class*="z-50"][class*="fixed"] {
+    display: none !important;
+  }
+
+  /* 1d. Collapse the flex layout wrapper so main fills the full print width */
+  body > div > div[class*="flex-1"][class*="flex"] {
+    display: block !important;
   }
 
   /* 2. Reset canvas cetak murni ke latar belakang putih */
@@ -298,6 +316,55 @@ body {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+
+  /* 11. KKTP report sheet — clean document flow, no overflow clipping */
+  .kktp-report-sheet {
+    display: block !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
+  /* 12. Raport Terpadu academic summary sheet — same treatment as KKTP */
+  .raport-academic-sheet {
+    display: block !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+
+  /* 13. Raport Terpadu document wrapper — no spacing between sections */
+  .raport-terpadu-document {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  /* 14. Kill all overflow:hidden wrappers that could clip document content */
+  div[class*="overflow-hidden"] {
+    overflow: visible !important;
   }
 }
 

@@ -1854,7 +1854,7 @@ export default function KKTPPage() {
     const schoolSub = schoolSettings.school_sub_header || '[Alamat & izin operasional belum dikonfigurasi]';
 
     return (
-      <div className="space-y-4 max-w-4xl mx-auto p-4 print:p-0">
+      <div className="space-y-4 max-w-4xl mx-auto p-4 print:p-0 print:max-w-none print:mx-0">
         {/* Toolbar */}
         <div className="flex justify-between items-center print:hidden border-b pb-4">
           <Button variant="secondary" onClick={handleBackFromPrint} size="sm" className="min-h-[38px] text-xs">

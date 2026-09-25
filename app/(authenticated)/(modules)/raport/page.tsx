@@ -156,7 +156,7 @@ export default function RaportTerpaduPage() {
   });
 
   return (
-    <div className="min-h-screen bg-zinc-50/60 pb-16">
+    <div className="min-h-screen bg-zinc-50/60 pb-16 print:bg-white print:min-h-0 print:pb-0">
       {/* ─── Header ─────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-zinc-200 px-4 sm:px-6 lg:px-8 py-5 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -187,7 +187,7 @@ export default function RaportTerpaduPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:p-0 print:m-0 print:max-w-none">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 print:p-0 print:m-0 print:max-w-none print:space-y-0">
         {/* ─── Selection Bar ────────────────────────────────────────── */}
         <div className="bg-white p-4 rounded-xl border border-zinc-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 print:hidden">
           <div className="flex flex-wrap items-center gap-3">
@@ -428,7 +428,7 @@ export default function RaportTerpaduPage() {
 
         {/* ─── Lembar 1 Preview Modal / Sheet Section ────────────────── */}
         {selectedStudent && (
-          <div className="bg-white rounded-xl border border-zinc-200 shadow-lg overflow-hidden mt-8 print:shadow-none print:border-none print:m-0 print:p-0">
+          <div className="bg-white rounded-xl border border-zinc-200 shadow-lg overflow-hidden mt-8 print:shadow-none print:border-none print:m-0 print:p-0 print:overflow-visible print:rounded-none print:bg-transparent">
             {/* Top Toolbar */}
             <div className="bg-zinc-900 text-white px-5 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 print:hidden">
               <div className="flex items-center gap-2.5">
@@ -475,7 +475,7 @@ export default function RaportTerpaduPage() {
             </div>
 
             {/* Document Render Area */}
-            <div className="p-4 sm:p-8 bg-zinc-100/50 print:bg-white print:p-0">
+            <div className="p-4 sm:p-8 bg-zinc-100/50 print:bg-transparent print:p-0 print:m-0">
               {isLoadingReport ? (
                 <div className="p-16 text-center text-zinc-500">
                   <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-3 text-emerald-600" />
