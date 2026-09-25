@@ -15,6 +15,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { notify } from "@/lib/notify";
 import { RaportTerpaduDocument } from "@/components/raport/RaportTerpaduDocument";
 import { RaportTutorNoteModal } from "@/components/raport/RaportTutorNoteModal";
@@ -52,6 +53,10 @@ export default function RaportTerpaduPage() {
   const [selectedStudent, setSelectedStudent] = useState<StudentClassReadinessItem | null>(null);
   const [reportData, setReportData] = useState<RaportAcademicSummaryReport | null>(null);
   const [isLoadingReport, setIsLoadingReport] = useState(false);
+
+  // Batch Print Class Reports
+  const [batchReportData, setBatchReportData] = useState<RaportAcademicSummaryReport[] | null>(null);
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false);
 
   // Note Modal
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -143,6 +148,47 @@ export default function RaportTerpaduPage() {
     setReportData(null);
   };
 
+  // 4. Batch Print All Students in Class
+  const handleBatchPrint = async () => {
+    const studentsToPrint = readinessData?.students || [];
+    if (studentsToPrint.length === 0) {
+      notify.warning("Tidak ada santri untuk dicetak.");
+      return;
+    }
+
+    const toastId = notify.loading(`Menyiapkan cetak seluruh raport kelas (0/${studentsToPrint.length})...`);
+    setIsBatchPrinting(true);
+    try {
+      const reports: RaportAcademicSummaryReport[] = [];
+      for (const s of studentsToPrint) {
+        let url = `/api/v1/raport/academic-summary?student_id=${encodeURIComponent(s.student_id)}`;
+        if (selectedAcademicYearId) url += `&academic_year_id=${encodeURIComponent(selectedAcademicYearId)}`;
+        if (selectedSemesterId) url += `&semester_id=${encodeURIComponent(selectedSemesterId)}`;
+
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.success && json.data) {
+          reports.push(json.data);
+        }
+      }
+
+      notify.dismiss(toastId);
+      if (reports.length > 0) {
+        setBatchReportData(reports);
+        setTimeout(() => {
+          window.print();
+        }, 500);
+      } else {
+        notify.error("Tidak ada data raport santri yang berhasil dimuat.");
+      }
+    } catch {
+      notify.dismiss(toastId);
+      notify.error("Gagal menyiapkan cetak massal raport kelas.");
+    } finally {
+      setIsBatchPrinting(false);
+    }
+  };
+
   // Filtered Students
   const filteredStudents = (readinessData?.students || []).filter((s) => {
     const matchesSearch =
@@ -175,6 +221,16 @@ export default function RaportTerpaduPage() {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleBatchPrint}
+              disabled={isBatchPrinting || !readinessData || (readinessData.students || []).length === 0}
+              className="text-xs font-semibold"
+            >
+              <Printer className="w-3.5 h-3.5 mr-1.5 text-zinc-500" />
+              Cetak Raport Kelas ({readinessData?.students?.length || 0})
+            </Button>
             <button
               onClick={() => loadClassReadiness()}
               disabled={isLoadingReadiness}
@@ -521,6 +577,20 @@ export default function RaportTerpaduPage() {
             }
           }}
         />
+      )}
+
+      {/* ─── Batch Print Class Reports ─────────────────────────────── */}
+      {batchReportData && (
+        <div className="hidden print:block print:w-full print:m-0 print:p-0">
+          {batchReportData.map((rep, idx) => (
+            <div key={rep.student.id} className={idx < batchReportData.length - 1 ? "page-break-after" : ""}>
+              <RaportTerpaduDocument
+                report={rep}
+                sections={{ academic: true }}
+              />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

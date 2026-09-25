@@ -1410,7 +1410,7 @@ export default function TrisulaPage() {
             <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gray-50/40">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-bold text-gray-900 font-plus-jakarta">
-                  Daftar Nilai Santri ({gradebook.length} Murid)
+                  Daftar Nilai Santri ({gradebook.length} Santri)
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                   {completedStudentsCount}/{gradebook.length} Lengkap
