@@ -25,11 +25,12 @@ import { deriveKKTPStatusFromDoc, getKKTPStatusBadge, type KKTPDocStatus } from 
 
 import { OfficialSchoolLetterhead } from "@/components/print/OfficialSchoolLetterhead";
 import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
+import { KKTPMatrixGradebook } from "@/components/kktp/KKTPMatrixGradebook";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type WizardStep = 'SELECT_CLASS' | 'SELECT_SUBJECT' | 'SELECT_STUDENT' | 'FORM_KKTP';
-type PageView = 'CLASS_LIST' | 'SUBJECT_LIST' | 'STUDENT_LIST' | 'LIST' | 'WIZARD' | 'PRINT';
+type PageView = 'CLASS_LIST' | 'SUBJECT_LIST' | 'STUDENT_LIST' | 'GRADEBOOK' | 'LIST' | 'WIZARD' | 'PRINT';
 
 interface KKTPClassSubjectSummary {
   subject_id: string;
@@ -446,8 +447,7 @@ export default function KKTPPage() {
     setSelectedSubjectId(subjectId);
     setSelectedSubjectName(subjectName);
     setStudentSearch('');
-    setView('STUDENT_LIST');
-    fetchStudentsForSubject(activeClass.id, subjectId);
+    setView('GRADEBOOK');
   };
 
   const handleStartCreateForStudent = async (student: KKTPStudentSummary) => {
@@ -1399,6 +1399,68 @@ export default function KKTPPage() {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // LEVEL 3: GRADEBOOK MATRIX VIEW (Canonical Class-Wide KKTP Assessment)
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (view === 'GRADEBOOK' && activeClass && activeSubject) {
+    return (
+      <PageContainer maxWidth="7xl" className="space-y-6">
+        {/* Breadcrumb & Switcher */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium flex-wrap">
+            <button
+              onClick={() => {
+                setView('CLASS_LIST');
+                setActiveClass(null);
+                setActiveSubject(null);
+              }}
+              className="hover:text-emerald-600 transition-colors"
+            >
+              KKTP
+            </button>
+            <ChevronRight className="w-3 h-3 text-gray-400" />
+            <button
+              onClick={() => {
+                setView('SUBJECT_LIST');
+                setActiveSubject(null);
+                fetchClassSubjects(activeClass.id);
+              }}
+              className="hover:text-emerald-600 transition-colors"
+            >
+              {activeClass.name}
+            </button>
+            <ChevronRight className="w-3 h-3 text-gray-400" />
+            <span className="font-bold text-gray-900">{activeSubject.name}</span>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-zinc-500 hover:text-zinc-700"
+            onClick={() => {
+              setView('STUDENT_LIST');
+              fetchStudentsForSubject(activeClass.id, activeSubject.id);
+            }}
+          >
+            <FileText className="w-3.5 h-3.5 mr-1 text-zinc-400" /> Mode Dokumen Satuan (Arsip Legacy)
+          </Button>
+        </div>
+
+        <KKTPMatrixGradebook
+          classId={activeClass.id}
+          className={activeClass.name}
+          subjectId={activeSubject.id}
+          subjectName={activeSubject.name}
+          onBack={() => {
+            setView('SUBJECT_LIST');
+            setActiveSubject(null);
+            fetchClassSubjects(activeClass.id);
+          }}
+        />
+      </PageContainer>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // LEVEL 3: STUDENT_LIST VIEW (Responsive Dual-Presentation: Table on Desktop, Cards on Mobile)
   // ═══════════════════════════════════════════════════════════════════════════
   if (view === 'STUDENT_LIST' && activeClass && activeSubject) {
@@ -1407,6 +1469,28 @@ export default function KKTPPage() {
 
     return (
       <PageContainer maxWidth="7xl" className="space-y-6">
+        {/* Modern Gradebook Switcher Callout */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+              <ClipboardList className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-950">Gradebook Matriks KKTP Tersedia</p>
+              <p className="text-xs text-emerald-800">
+                Gunakan Gradebook Matriks untuk mengonfigurasi TP sekali per kelas dan menilai seluruh murid sekaligus dalam tabel matriks.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0"
+            onClick={() => setView('GRADEBOOK')}
+          >
+            Buka Gradebook Matriks
+          </Button>
+        </div>
+
         {/* Bulk print modal */}
         {bulkPrintModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs animate-in fade-in duration-150">
