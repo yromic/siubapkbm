@@ -7,7 +7,7 @@ import { AppError } from "@/lib/errors";
 
 export async function POST(req: NextRequest) {
   return withAuth(req, async () => {
-    return withRole(["administrator", "admin", "teacher"], req, async () => {
+    return withRole(["administrator", "admin", "teacher", "guru"], req, async () => {
       try {
         const body = await req.json();
 

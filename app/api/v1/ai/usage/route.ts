@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   return withAuth(req, async () => {
-    return withRole(["administrator", "admin", "teacher"], req, async () => {
+    return withRole(["administrator", "admin", "teacher", "guru"], req, async () => {
       try {
         const snapshot = await getAIUsageSnapshot();
         return successResponse(snapshot, "Ringkasan estimasi penggunaan AI lokal berhasil diambil.");
