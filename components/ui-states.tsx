@@ -150,6 +150,8 @@ export interface PageHeaderProps {
   statusBadge?: React.ReactNode;
   /** Optional back-navigation button rendered above the title */
   backHref?: string;
+  /** Optional back-navigation click handler for state-based views */
+  onBack?: () => void;
   /** Label for the back button (default: "Kembali") */
   backLabel?: string;
   /** Show a skeleton loading state instead of real content */
@@ -164,6 +166,7 @@ export function PageHeader({
   secondaryActions,
   statusBadge,
   backHref,
+  onBack,
   backLabel = "Kembali",
   loading = false,
 }: PageHeaderProps) {
@@ -207,15 +210,26 @@ export function PageHeader({
       )}
 
       {/* Back Button */}
-      {backHref && (
+      {(backHref || onBack) && (
         <div className="mb-1">
-          <Link
-            href={backHref}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold font-plus-jakarta text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1 rounded"
-          >
-            <ChevronRight className="w-3.5 h-3.5 rotate-180" aria-hidden="true" />
-            {backLabel}
-          </Link>
+          {backHref ? (
+            <Link
+              href={backHref}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold font-plus-jakarta text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1 rounded"
+            >
+              <ChevronRight className="w-3.5 h-3.5 rotate-180" aria-hidden="true" />
+              {backLabel}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold font-plus-jakarta text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors focus-visible:ring-2 focus-visible:ring-brand-emerald-500 focus-visible:ring-offset-1 rounded cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5 rotate-180" aria-hidden="true" />
+              {backLabel}
+            </button>
+          )}
         </div>
       )}
 
@@ -225,7 +239,17 @@ export function PageHeader({
           <h1 className="text-2xl font-bold font-fredoka text-zinc-950 dark:text-zinc-50 tracking-tight leading-tight">
             {title}
           </h1>
-          {statusBadge && <div className="flex-shrink-0">{statusBadge}</div>}
+          {statusBadge && (
+            <div className="flex-shrink-0">
+              {typeof statusBadge === "string" ? (
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  {statusBadge}
+                </span>
+              ) : (
+                statusBadge
+              )}
+            </div>
+          )}
         </div>
 
         {/* Actions */}

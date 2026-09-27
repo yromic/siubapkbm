@@ -12,6 +12,7 @@ import { PrintRenderer } from "@/components/print/print-renderer";
 import { PrintSectionHeader } from "@/components/print/PrintSectionHeader";
 import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 import { PageContainer, PageSection } from "@/components/ui/page-framework";
+import { PageHeader } from "@/components/ui-states";
 import { AIUsageStatus, getAIErrorMessageByReason } from "@/components/ai/AIUsageStatus";
 import {
   Loader2, Plus, Sparkles, ArrowLeft, Printer, CheckCircle,
@@ -1407,17 +1408,18 @@ export default function RPMPage() {
     );
 
     return (
-      <div className="space-y-4 max-w-4xl mx-auto p-4 print:p-0">
-        <div className="flex justify-between items-center print:hidden border-b pb-4">
-          <Button variant="secondary" onClick={() => setView(returnView)} className="min-h-[38px] text-xs">
-            <ArrowLeft className="w-4 h-4 mr-2" /> {returnView === 'WIZARD' ? 'Kembali ke Editor' : 'Kembali ke Daftar'}
-          </Button>
-          <Button onClick={handlePrint} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
-            <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen
-          </Button>
-        </div>
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 p-4 print:p-0 print:bg-white">
+        <div className="space-y-4 max-w-4xl mx-auto print:max-w-none print:p-0">
+          <div className="flex justify-between items-center print:hidden border-b border-zinc-200 dark:border-zinc-800 pb-4">
+            <Button variant="secondary" onClick={() => setView(returnView)} className="min-h-[38px] text-xs">
+              <ArrowLeft className="w-4 h-4 mr-2" /> {returnView === 'WIZARD' ? 'Kembali ke Editor' : 'Kembali ke Daftar'}
+            </Button>
+            <Button onClick={handlePrint} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
+              <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen
+            </Button>
+          </div>
 
-        <PrintBrowserHint />
+          <PrintBrowserHint />
 
         <RPMAttachmentPreviewNotice
           count={activeDocAttachments.length}
@@ -1902,6 +1904,7 @@ export default function RPMPage() {
             </div>
           </div>
         </PrintRenderer>
+        </div>
       </div>
     );
   }
@@ -1911,27 +1914,28 @@ export default function RPMPage() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (view === 'WIZARD') {
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
-        {/* Indikator auto-save & Step Navigation */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200/80 pb-4">
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" size="sm" onClick={() => setView('LIST')} className="min-h-[36px] text-xs font-semibold">
-              <ArrowLeft className="w-4 h-4 mr-1.5" /> Batal
-            </Button>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700">
-              <span className={`px-2.5 py-1 rounded-full ${step === 1 ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                1. Topik & Identitas
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-              <span className={`px-2.5 py-1 rounded-full ${step === 2 ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                2. Desain & Aktivitas
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
-              <span className={`px-2.5 py-1 rounded-full ${step === 3 ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                3. Simpan
-              </span>
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6">
+          {/* Indikator auto-save & Step Navigation */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200/80 dark:border-zinc-800 pb-4">
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" size="sm" onClick={() => setView('LIST')} className="min-h-[36px] text-xs font-semibold">
+                <ArrowLeft className="w-4 h-4 mr-1.5" /> Batal
+              </Button>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-zinc-300">
+                <span className={`px-2.5 py-1 rounded-full ${step === 1 ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-400'}`}>
+                  1. Topik & Identitas
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-600" />
+                <span className={`px-2.5 py-1 rounded-full ${step === 2 ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-400'}`}>
+                  2. Desain & Aktivitas
+                </span>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-400 dark:text-zinc-600" />
+                <span className={`px-2.5 py-1 rounded-full ${step === 3 ? 'bg-emerald-600 text-white' : 'bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-400'}`}>
+                  3. Simpan
+                </span>
+              </div>
             </div>
-          </div>
 
           <div className="flex items-center gap-2 text-xs font-medium text-gray-500">
             {autoSaveStatus === 'saving' && (
@@ -3270,7 +3274,8 @@ export default function RPMPage() {
             </div>
           </div>
         )}
-      </PageContainer>
+        </PageContainer>
+      </div>
     );
   }
 
@@ -3278,110 +3283,102 @@ export default function RPMPage() {
   // RENDER: LIST VIEW (Responsive Desktop Table & Mobile Cards)
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <PageContainer maxWidth="7xl" className="space-y-6">
-      {/* Modal konfirmasi hapus */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-gray-200">
-            <h3 className="text-base font-bold text-gray-900">{UX_COPY.rpm.messages.deleteConfirm}</h3>
-            <p className="text-xs text-gray-600">Dokumen yang dihapus tidak dapat dikembalikan lagi.</p>
-            <div className="flex gap-3 pt-2">
-              <Button
-                variant="secondary"
-                className="flex-1 min-h-[38px] text-xs"
-                onClick={() => setConfirmDeleteId(null)}
-                disabled={deleting}
-              >
-                Batal
-              </Button>
-              <Button
-                className="flex-1 min-h-[38px] bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
-                onClick={() => handleDeleteRPM(confirmDeleteId)}
-                disabled={deleting}
-              >
-                {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Trash2 className="w-4 h-4 mr-1.5" />}
-                Hapus
-              </Button>
+    <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+      <PageContainer maxWidth="7xl" className="space-y-6">
+        {/* Modal konfirmasi hapus */}
+        {confirmDeleteId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-gray-200 dark:border-zinc-800">
+              <h3 className="text-base font-bold text-gray-900 dark:text-zinc-100">{UX_COPY.rpm.messages.deleteConfirm}</h3>
+              <p className="text-xs text-gray-600 dark:text-zinc-400">Dokumen yang dihapus tidak dapat dikembalikan lagi.</p>
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="secondary"
+                  className="flex-1 min-h-[38px] text-xs"
+                  onClick={() => setConfirmDeleteId(null)}
+                  disabled={deleting}
+                >
+                  Batal
+                </Button>
+                <Button
+                  className="flex-1 min-h-[38px] bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
+                  onClick={() => handleDeleteRPM(confirmDeleteId)}
+                  disabled={deleting}
+                >
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Trash2 className="w-4 h-4 mr-1.5" />}
+                  Hapus
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Header matching SIUBA Dashboard */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Modul Pembelajaran
+        {/* Standardized PageHeader */}
+        <PageHeader
+          title="RPM Saya / Rencana Pembelajaran"
+          description="Kelola rancangan pembelajaran aktif semester ini secara terstruktur."
+          statusBadge={
+            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+              Kurikulum Merdeka
             </span>
-            <span className="text-xs text-gray-400">&bull;</span>
-            <span className="text-xs text-gray-500 font-medium">Kurikulum Merdeka</span>
-          </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">
-            RPM Saya / Rencana Pembelajaran
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Kelola rancangan pembelajaran aktif semester ini secara terstruktur.
-          </p>
-        </div>
+          }
+          actions={
+            <Button onClick={handleCreateNew} size="sm" className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs">
+              <Plus className="w-4 h-4 mr-1.5" /> Buat RPM Baru
+            </Button>
+          }
+        />
 
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <Button onClick={handleCreateNew} size="sm" className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs">
-            <Plus className="w-4 h-4 mr-1.5" /> Buat RPM Baru
-          </Button>
-        </div>
-      </div>
-
-      {/* Desktop Aggregate Strip */}
-      {!loading && documents.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span className="font-semibold">RPM Saya</span>
-              <FileText className="w-4 h-4 text-emerald-600" />
+        {/* Desktop Aggregate Strip */}
+        {!loading && documents.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200/80 dark:border-zinc-800 shadow-xs">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400 mb-1">
+                <span className="font-semibold">RPM Saya</span>
+                <FileText className="w-4 h-4 text-emerald-600" />
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-zinc-100 font-fredoka">{desktopStats.myRpm}</p>
+              <p className="text-[11px] text-gray-400 dark:text-zinc-500 mt-0.5">Dokumen aktif</p>
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.myRpm}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Dokumen aktif</p>
-          </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span className="font-semibold">Mata Pelajaran</span>
-              <BookOpen className="w-4 h-4 text-blue-600" />
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200/80 dark:border-zinc-800 shadow-xs">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400 mb-1">
+                <span className="font-semibold">Mata Pelajaran</span>
+                <BookOpen className="w-4 h-4 text-blue-600" />
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-zinc-100 font-fredoka">{desktopStats.totalSubjects}</p>
+              <p className="text-[11px] text-gray-400 dark:text-zinc-500 mt-0.5">Mapel terpetakan</p>
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalSubjects}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Mapel terpetakan</p>
-          </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span className="font-semibold">Kelas / Rombel</span>
-              <School className="w-4 h-4 text-amber-600" />
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200/80 dark:border-zinc-800 shadow-xs">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400 mb-1">
+                <span className="font-semibold">Kelas / Rombel</span>
+                <School className="w-4 h-4 text-amber-600" />
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-zinc-100 font-fredoka">{desktopStats.totalClasses}</p>
+              <p className="text-[11px] text-gray-400 dark:text-zinc-500 mt-0.5">Kelas terjangkau</p>
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalClasses}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Kelas terjangkau</p>
-          </div>
 
-          <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-            <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-              <span className="font-semibold">Total RPM</span>
-              <Layers className="w-4 h-4 text-indigo-600" />
+            <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200/80 dark:border-zinc-800 shadow-xs">
+              <div className="flex items-center justify-between text-xs text-gray-500 dark:text-zinc-400 mb-1">
+                <span className="font-semibold">Total RPM</span>
+                <Layers className="w-4 h-4 text-indigo-600" />
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-indigo-700 dark:text-indigo-400 font-fredoka">{desktopStats.totalRpm}</p>
+              <p className="text-[11px] text-gray-400 dark:text-zinc-500 mt-0.5">Semua dokumen</p>
             </div>
-            <p className="text-xl sm:text-2xl font-bold text-indigo-700 font-fredoka">{desktopStats.totalRpm}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">Semua dokumen</p>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Tabs & Search Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-200/70">
-        <div className="flex gap-1 bg-white p-1 rounded-lg border border-gray-200/70 shrink-0">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-gray-50/60 dark:bg-zinc-900/60 p-2.5 rounded-xl border border-gray-200/70 dark:border-zinc-800">
+        <div className="flex gap-1 bg-white dark:bg-zinc-800 p-1 rounded-lg border border-gray-200/70 dark:border-zinc-700 shrink-0">
           <button
             onClick={() => setFilterTab('MY_ACTIVE')}
             className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${
               filterTab === 'MY_ACTIVE'
                 ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900'
+                : 'text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100'
             }`}
           >
             <FileText className="w-3.5 h-3.5" /> RPM Saya
@@ -3391,7 +3388,7 @@ export default function RPMPage() {
             className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all flex items-center gap-1.5 ${
               filterTab === 'ALL'
                 ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900'
+                : 'text-gray-600 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-zinc-100'
             }`}
           >
             <Layers className="w-3.5 h-3.5" /> Semua RPM ({documents.length})
@@ -3399,16 +3396,16 @@ export default function RPMPage() {
         </div>
 
         <div className="relative flex-1 sm:max-w-xs">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-gray-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Cari topik, judul, atau mapel..."
             value={rpmSearch}
             onChange={(e) => setRpmSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg bg-white text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-xs text-gray-800 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
           />
           {rpmSearch && (
-            <button onClick={() => setRpmSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => setRpmSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
@@ -3418,20 +3415,20 @@ export default function RPMPage() {
       {loading ? (
         <div className="flex flex-col justify-center items-center p-20 space-y-3">
           <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-          <p className="text-xs text-gray-500 font-medium">Memuat dokumen RPM...</p>
+          <p className="text-xs text-gray-500 dark:text-zinc-400 font-medium">Memuat dokumen RPM...</p>
         </div>
       ) : displayedDocs.length === 0 ? (
-        <Card className="text-center p-12 bg-white">
+        <Card className="text-center p-12 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
           <div className="space-y-3 py-6 max-w-md mx-auto">
             <Sparkles className="w-12 h-12 mx-auto text-emerald-600" />
-            <h3 className="font-bold text-base text-gray-800">
+            <h3 className="font-bold text-base text-gray-800 dark:text-zinc-100">
               {rpmSearch
                 ? 'RPM Tidak Ditemukan'
                 : filterTab === 'MY_ACTIVE'
                 ? 'Belum Ada RPM Semester Ini'
                 : 'Belum Ada Dokumen RPM'}
             </h3>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-zinc-400">
               {rpmSearch
                 ? `Tidak ada RPM yang cocok dengan kata kunci "${rpmSearch}".`
                 : filterTab === 'MY_ACTIVE'
@@ -3448,10 +3445,10 @@ export default function RPMPage() {
       ) : (
         <>
           {/* ── DESKTOP VIEW: Tabular List (hidden md:block) ── */}
-          <div className="hidden md:block bg-white rounded-2xl border border-gray-200/90 shadow-xs overflow-hidden">
+          <div className="hidden md:block bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200/90 dark:border-zinc-800 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-gray-50/80 border-b border-gray-200/80 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                <thead className="bg-gray-50/80 dark:bg-zinc-800/60 border-b border-gray-200/80 dark:border-zinc-800 text-[11px] font-bold text-gray-500 dark:text-zinc-400 uppercase tracking-wider">
                   <tr>
                     <th className="py-3.5 px-4 w-12 text-center">No</th>
                     <th className="py-3.5 px-4">Judul & Topik RPM</th>
@@ -3462,51 +3459,51 @@ export default function RPMPage() {
                     <th className="py-3.5 px-4 w-48 text-right">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
                   {displayedDocs.map((doc, idx) => {
                     const isOwner = user && doc.author_id === user.id;
                     const canDelete = isOwner || isAdmin;
 
                     return (
-                      <tr key={doc.id} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="py-3.5 px-4 text-center font-medium text-gray-400">
+                      <tr key={doc.id} className="hover:bg-gray-50/70 dark:hover:bg-zinc-800/40 transition-colors">
+                        <td className="py-3.5 px-4 text-center font-medium text-gray-400 dark:text-zinc-500">
                           {idx + 1}
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-bold text-gray-900 text-sm truncate max-w-xs">{doc.title}</p>
+                            <p className="font-bold text-gray-900 dark:text-zinc-100 text-sm truncate max-w-xs">{doc.title}</p>
                             {Number(doc.attachment_count || 0) > 0 && (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 shrink-0" title={`${doc.attachment_count} Lampiran`}>
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800/60 shrink-0" title={`${doc.attachment_count} Lampiran`}>
                                 <Paperclip className="w-2.5 h-2.5" /> {doc.attachment_count}
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-gray-500 truncate max-w-xs mt-0.5">
+                          <p className="text-[11px] text-gray-500 dark:text-zinc-400 truncate max-w-xs mt-0.5">
                             {doc.content?.identitas?.modulTopik || 'Topik Umum'} &bull; {doc.content?.identitas?.alokasiWaktu || 0} Menit
                           </p>
                         </td>
                         <td className="py-3.5 px-4">
-                          <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold inline-block">
+                          <span className="text-[11px] px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-bold inline-block">
                             {doc.content?.identitas?.mataPelajaran || '-'}
                           </span>
                         </td>
                         <td className="py-3.5 px-4">
-                          <p className="font-semibold text-gray-800">{doc.content?.identitas?.kelasRombel || '-'}</p>
-                          <p className="text-[10px] text-gray-400">{doc.content?.identitas?.tingkatFase || '-'}</p>
+                          <p className="font-semibold text-gray-800 dark:text-zinc-200">{doc.content?.identitas?.kelasRombel || '-'}</p>
+                          <p className="text-[10px] text-gray-400 dark:text-zinc-500">{doc.content?.identitas?.tingkatFase || '-'}</p>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="flex flex-wrap gap-1">
-                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-emerald-100 text-emerald-800 border-emerald-200">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60">
                               Siap
                             </span>
                             {doc.blc_shared_at && (
-                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-purple-100 text-purple-800 border-purple-200">
+                              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800/60">
                                 BLC
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-gray-600 font-medium">
+                        <td className="py-3.5 px-4 text-gray-600 dark:text-zinc-400 font-medium">
                           {doc.author_name || '-'}
                         </td>
                         <td className="py-3.5 px-4 text-right">
@@ -3517,7 +3514,7 @@ export default function RPMPage() {
                               className="h-8 text-xs font-semibold"
                               onClick={() => handleOpenPrint(doc)}
                             >
-                              <Printer className="w-3.5 h-3.5 mr-1 text-gray-600" /> Cetak
+                              <Printer className="w-3.5 h-3.5 mr-1 text-gray-600 dark:text-zinc-400" /> Cetak
                             </Button>
                             {isOwner && (
                               <Button
@@ -3618,36 +3615,36 @@ export default function RPMPage() {
               return (
                 <div
                   key={doc.id}
-                  className="bg-white rounded-2xl border border-gray-200/90 p-4 shadow-xs space-y-3"
+                  className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200/90 dark:border-zinc-800 p-4 shadow-xs space-y-3"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap gap-1 mb-1">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-emerald-100 text-emerald-800 border-emerald-200">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60">
                           {UX_COPY.rpm.status.ready}
                         </span>
                         {doc.blc_shared_at && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-purple-100 text-purple-800 border-purple-200">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800/60">
                             BLC
                           </span>
                         )}
                         {Number(doc.attachment_count || 0) > 0 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-blue-50 text-blue-700 border-blue-200 inline-flex items-center gap-1">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold border bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60 inline-flex items-center gap-1">
                             <Paperclip className="w-2.5 h-2.5" /> {doc.attachment_count}
                           </span>
                         )}
                       </div>
-                      <h3 className="text-sm font-bold text-gray-900 line-clamp-2">{doc.title}</h3>
+                      <h3 className="text-sm font-bold text-gray-900 dark:text-zinc-100 line-clamp-2">{doc.title}</h3>
                     </div>
                   </div>
 
-                  <div className="text-xs text-gray-600 space-y-1 bg-gray-50/70 p-3 rounded-xl border border-gray-100">
-                    <p><span className="font-semibold text-gray-500">Topik:</span> {doc.content?.identitas?.modulTopik || "-"}</p>
-                    <p><span className="font-semibold text-gray-500">Mapel:</span> {doc.content?.identitas?.mataPelajaran || "-"}</p>
-                    <p><span className="font-semibold text-gray-500">Kelas:</span> {doc.content?.identitas?.kelasRombel || "-"}</p>
+                  <div className="text-xs text-gray-600 dark:text-zinc-300 space-y-1 bg-gray-50/70 dark:bg-zinc-800/60 p-3 rounded-xl border border-gray-100 dark:border-zinc-700/60">
+                    <p><span className="font-semibold text-gray-500 dark:text-zinc-400">Topik:</span> {doc.content?.identitas?.modulTopik || "-"}</p>
+                    <p><span className="font-semibold text-gray-500 dark:text-zinc-400">Mapel:</span> {doc.content?.identitas?.mataPelajaran || "-"}</p>
+                    <p><span className="font-semibold text-gray-500 dark:text-zinc-400">Kelas:</span> {doc.content?.identitas?.kelasRombel || "-"}</p>
                   </div>
 
-                  <div className="flex gap-2 pt-1 border-t border-gray-100">
+                  <div className="flex gap-2 pt-1 border-t border-gray-100 dark:border-zinc-800">
                     <Button
                       variant="secondary"
                       size="sm"
@@ -3729,7 +3726,7 @@ export default function RPMPage() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        className="min-h-[38px] w-10 p-0 text-xs border-red-300 text-red-600 hover:bg-red-50"
+                        className="min-h-[38px] w-10 p-0 text-xs border-red-300 dark:border-red-900/60 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                         onClick={() => setConfirmDeleteId(doc.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -3759,5 +3756,6 @@ export default function RPMPage() {
         }}
       />
     </PageContainer>
+    </div>
   );
 }

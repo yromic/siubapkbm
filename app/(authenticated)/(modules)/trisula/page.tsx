@@ -12,6 +12,7 @@ import {
 } from "@/components/trisula/TrisulaStudentReportSheet";
 import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
 import { PageContainer, PageSection } from "@/components/ui/page-framework";
+import { PageHeader } from "@/components/ui-states";
 import {
   Loader2,
   Plus,
@@ -1005,103 +1006,95 @@ export default function TrisulaPage() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (trisulaView === 'CLASS_LIST') {
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6 print:hidden">
-        {/* Header matching SIUBA Dashboard */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Asesmen 3 Pilar
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6 print:hidden">
+          {/* Standardized PageHeader */}
+          <PageHeader
+            title="Trisula Akademik / Penilaian Terpadu"
+            description="Penilaian terpadu 3 Pilar (Literasi, Numerasi, Diniyyah) dan penerbitan raport per rombongan belajar."
+            statusBadge={
+              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                Kurikulum Merdeka
               </span>
-              <span className="text-xs text-gray-400">&bull;</span>
-              <span className="text-xs text-gray-500 font-medium">Kurikulum Merdeka</span>
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">
-              Trisula Akademik / Penilaian Terpadu
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              Penilaian terpadu 3 Pilar (Literasi, Numerasi, Diniyyah) dan penerbitan raport per rombongan belajar.
-            </p>
-          </div>
+            }
+            actions={
+              <Button
+                onClick={() => handleSyncTrisula()}
+                variant="secondary"
+                size="sm"
+                className="min-h-[38px] text-xs border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/50 shadow-xs dark:bg-zinc-800"
+                disabled={syncingCurriculum}
+              >
+                {syncingCurriculum ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-600 dark:text-purple-400" />}
+                Sinkronkan Standar BLC
+              </Button>
+            }
+          />
 
-          <div className="flex items-center gap-2.5">
-            <Button
-              onClick={() => handleSyncTrisula()}
-              variant="secondary"
-              size="sm"
-              className="min-h-[38px] text-xs border-purple-200 text-purple-700 hover:bg-purple-50 shadow-xs"
-              disabled={syncingCurriculum}
-            >
-              {syncingCurriculum ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-600" />}
-              Sinkronkan Standar BLC
-            </Button>
-          </div>
-        </div>
-
-        {/* Desktop Aggregate KPI Strip */}
-        {!classSummaryLoading && classSummaries.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Total Kelas</span>
-                <School className="w-4 h-4 text-emerald-600" />
+          {/* Desktop Aggregate KPI Strip */}
+          {!classSummaryLoading && classSummaries.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Total Kelas</span>
+                  <School className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-fredoka">{desktopStats.totalClasses}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Rombongan belajar aktif</p>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalClasses}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Rombongan belajar aktif</p>
+
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Total Murid</span>
+                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-fredoka">{desktopStats.totalStudents}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Santri terdaftar</p>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Nilai Lengkap</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-fredoka">{desktopStats.totalComplete}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">{desktopStats.completionRate}% dari total murid</p>
+              </div>
+
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Pilar Asesmen</span>
+                  <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400 font-fredoka">3 Pilar</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Literasi, Numerasi, Diniyyah</p>
+              </div>
+            </div>
+          )}
+
+          {/* Class Search Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-900/60 p-2.5 rounded-2xl border border-zinc-200/70 dark:border-zinc-800">
+            <div className="flex items-center gap-2 text-xs font-bold text-zinc-700 dark:text-zinc-300 px-2">
+              <School className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Pilih Kelas untuk Penilaian ({displayedClassSummaries.length} Kelas)</span>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Total Murid</span>
-                <Users className="w-4 h-4 text-blue-600" />
-              </div>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalStudents}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Santri terdaftar</p>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Nilai Lengkap</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <p className="text-xl sm:text-2xl font-bold text-emerald-700 font-fredoka">{desktopStats.totalComplete}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">{desktopStats.completionRate}% dari total murid</p>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Pilar Asesmen</span>
-                <Layers className="w-4 h-4 text-purple-600" />
-              </div>
-              <p className="text-xl sm:text-2xl font-bold text-purple-700 font-fredoka">3 Pilar</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Literasi, Numerasi, Diniyyah</p>
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama atau kode kelas..."
+                value={classSearch}
+                onChange={(e) => setClassSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+              {classSearch && (
+                <button onClick={() => setClassSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
-        )}
-
-        {/* Class Search Toolbar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-200/70">
-          <div className="flex items-center gap-2 text-xs font-bold text-gray-700 px-2">
-            <School className="w-4 h-4 text-emerald-600" />
-            <span>Pilih Kelas untuk Penilaian ({displayedClassSummaries.length} Kelas)</span>
-          </div>
-
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari nama atau kode kelas..."
-              value={classSearch}
-              onChange={(e) => setClassSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg bg-white text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            />
-            {classSearch && (
-              <button onClick={() => setClassSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
 
         {classSummaryLoading ? (
           <div className="flex flex-col justify-center items-center p-20 space-y-3">
@@ -1129,29 +1122,29 @@ export default function TrisulaPage() {
               return (
                 <div
                   key={cls.class_id}
-                  className="bg-white rounded-2xl border border-gray-200/90 shadow-xs flex flex-col hover:shadow-md hover:border-emerald-300 transition-all duration-150 group"
+                  className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs flex flex-col hover:shadow-md hover:border-emerald-400 dark:hover:border-emerald-600 transition-all duration-150 group"
                 >
                   <div className="p-5 flex-1 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1">
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
                             {cls.fase}
                           </span>
-                          {cls.class_code && <span className="text-[10px] text-gray-400 font-semibold">{cls.class_code}</span>}
+                          {cls.class_code && <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-semibold">{cls.class_code}</span>}
                         </div>
-                        <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-700 transition-colors font-plus-jakarta">
+                        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors font-plus-jakarta">
                           {cls.class_name}
                         </h3>
-                        <p className="text-xs text-gray-500 mt-0.5 font-medium">{cls.student_count} Santri Terdaftar</p>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 font-medium">{cls.student_count} Santri Terdaftar</p>
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
                         <School className="w-5 h-5" />
                       </div>
                     </div>
 
                     {/* Per-pillar progress bars */}
-                    <div className="space-y-2 pt-1 border-t border-gray-100">
+                    <div className="space-y-2 pt-1 border-t border-zinc-100 dark:border-zinc-800">
                       {[
                         { label: 'Literasi', count: cls.literasi_count, color: 'bg-blue-500' },
                         { label: 'Numerasi', count: cls.numerasi_count, color: 'bg-violet-500' },
@@ -1160,11 +1153,11 @@ export default function TrisulaPage() {
                         const p = cls.student_count > 0 ? Math.round((count / cls.student_count) * 100) : 0;
                         return (
                           <div key={label}>
-                            <div className="flex items-center justify-between text-[11px] text-gray-600 mb-0.5 font-medium">
+                            <div className="flex items-center justify-between text-[11px] text-zinc-600 dark:text-zinc-400 mb-0.5 font-medium">
                               <span>{label}</span>
-                              <span className="font-bold text-gray-800">{count}/{cls.student_count}</span>
+                              <span className="font-bold text-zinc-800 dark:text-zinc-200">{count}/{cls.student_count}</span>
                             </div>
-                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                               <div className={`h-full ${color} rounded-full transition-all duration-300`} style={{ width: `${p}%` }} />
                             </div>
                           </div>
@@ -1172,19 +1165,19 @@ export default function TrisulaPage() {
                       })}
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-100 text-xs">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold">
+                    <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
                         ✓ {cls.complete_count} Lengkap ({pct}%)
                       </span>
                       {cls.student_count - cls.complete_count > 0 && (
-                        <span className="text-[10px] text-amber-700 font-semibold">
+                        <span className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
                           {cls.student_count - cls.complete_count} Belum Selesai
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-100 p-3 bg-gray-50/40">
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 p-3 bg-zinc-50/40 dark:bg-zinc-800/40">
                     <Button
                       className="w-full min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
                       onClick={() => {
@@ -1204,142 +1197,119 @@ export default function TrisulaPage() {
           </div>
         )}
       </PageContainer>
-    );
-  }
+    </div>
+  );
+}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // RENDER: CLASS_DETAIL (Desktop Gradebook & Assessment Workspace)
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <>
+    <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
       {/* ── 1. APPLICATION UI (Gradebook, Workspace, Tabs, Modals) ─────────────── */}
       {/* Strictly hidden during print/PDF generation */}
       <div className="print:hidden no-print">
-        <PageContainer maxWidth="7xl" className="space-y-6">
-          {/* Breadcrumb Navigation */}
-      <div className="flex items-center gap-2 text-xs text-gray-500">
-        <button
-          onClick={() => {
-            confirmNavigationIfUnsaved(() => {
-              setTrisulaView('CLASS_LIST');
-              fetchClassSummaries();
-            });
-          }}
-          className="hover:text-emerald-700 font-semibold transition-colors flex items-center gap-1"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Daftar Kelas
-        </button>
-        <ChevronRight className="w-3 h-3 text-gray-400" />
-        <span className="font-bold text-gray-900">{selectedClassName}</span>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-200">
-          {resolvedFase}
-        </span>
-      </div>
+        <PageContainer maxWidth="7xl" className="space-y-6 pb-40 md:pb-24">
+          {/* Standardized PageHeader with onBack navigation */}
+          <PageHeader
+            onBack={() => {
+              confirmNavigationIfUnsaved(() => {
+                setTrisulaView('CLASS_LIST');
+                fetchClassSummaries();
+              });
+            }}
+            backLabel="Daftar Kelas"
+            title={`${selectedClassName} — Penilaian 3 Pilar`}
+            description="Input nilai Literasi, Numerasi, Diniyyah, analisis pengamatan AI, dan terbitkan raport santri."
+            statusBadge={`Gradebook ${resolvedFase} • ${gradebook.length} Santri`}
+            actions={
+              <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/80 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 text-xs">
+                <span className="font-bold text-zinc-600 dark:text-zinc-300 pl-1 text-xs">Ganti Kelas:</span>
+                {loadingClasses ? (
+                  <span className="text-xs text-zinc-400 flex items-center gap-1 px-2 py-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" /> Memuat...
+                  </span>
+                ) : (
+                  <select
+                    value={selectedClassId}
+                    onChange={(e) => {
+                      const cid = e.target.value;
+                      const switchClass = () => {
+                        setSelectedClassId(cid);
+                        const found = (Array.isArray(classes) ? classes : []).find((c) => c.id === cid);
+                        if (found) {
+                          setSelectedClassName(found.name);
+                          setSelectedClassLevel(found.level || 1);
+                        }
+                      };
+                      confirmNavigationIfUnsaved(switchClass);
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-bold text-zinc-800 dark:text-zinc-200 focus:ring-2 focus:ring-emerald-500"
+                  >
+                    {(Array.isArray(classes) ? classes : []).map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-      {/* Header Context matching SIUBA standard */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Gradebook {resolvedFase}
-            </span>
-            <span className="text-xs text-gray-400">&bull;</span>
-            <span className="text-xs text-gray-500 font-medium">{gradebook.length} Santri Terdaftar</span>
-          </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">
-            {selectedClassName} &mdash; Penilaian 3 Pilar
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Input nilai Literasi, Numerasi, Diniyyah, analisis pengamatan AI, dan terbitkan raport santri.
-          </p>
-        </div>
-
-        {/* Global Class & Phase Selector */}
-        <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-200 text-xs">
-          <span className="font-bold text-gray-600 pl-1 text-xs">Ganti Kelas:</span>
-          {loadingClasses ? (
-            <span className="text-xs text-gray-400 flex items-center gap-1 px-2 py-1">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" /> Memuat...
-            </span>
-          ) : (
-            <select
-              value={selectedClassId}
-              onChange={(e) => {
-                const cid = e.target.value;
-                const switchClass = () => {
-                  setSelectedClassId(cid);
-                  const found = (Array.isArray(classes) ? classes : []).find((c) => c.id === cid);
-                  if (found) {
-                    setSelectedClassName(found.name);
-                    setSelectedClassLevel(found.level || 1);
-                  }
-                };
-                confirmNavigationIfUnsaved(switchClass);
-              }}
-              className="px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-800 focus:ring-2 focus:ring-emerald-500"
-            >
-              {(Array.isArray(classes) ? classes : []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <div className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-300">
-            {resolvedFase}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Tabs Navigation */}
-      <div className="flex border-b border-gray-200 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setActiveTab("GRADEBOOK")}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
-            activeTab === "GRADEBOOK"
-              ? "border-emerald-600 text-emerald-700 font-bold"
-              : "border-transparent text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          <TableIcon className="w-4 h-4" /> Penilaian Kelas (Gradebook)
-        </button>
-        <button
-          onClick={() => setActiveTab("MATRIX")}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
-            activeTab === "MATRIX"
-              ? "border-emerald-600 text-emerald-700 font-bold"
-              : "border-transparent text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          <SlidersHorizontal className="w-4 h-4" /> Matriks Nilai
-        </button>
-        <button
-          onClick={() => {
-            setActiveTab("REPORT");
-            if (gradebook.length > 0 && !selectedReportStudentId) {
-              openStudentReportModal(gradebook[0].student_id);
+                <div className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold text-[11px] border border-emerald-300 dark:border-emerald-700">
+                  {resolvedFase}
+                </div>
+              </div>
             }
-          }}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
-            activeTab === "REPORT"
-              ? "border-emerald-600 text-emerald-700 font-bold"
-              : "border-transparent text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          <FileText className="w-4 h-4" /> Raport & Cetak
-        </button>
-        <button
-          onClick={() => setActiveTab("CURRICULUM")}
-          className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
-            activeTab === "CURRICULUM"
-              ? "border-emerald-600 text-emerald-700 font-bold"
-              : "border-transparent text-gray-500 hover:text-gray-900"
-          }`}
-        >
-          <BookOpen className="w-4 h-4" /> Kurikulum BLC
-        </button>
-      </div>
+          />
+
+
+          {/* Main Tabs Navigation */}
+          <div className="flex border-b border-zinc-200 dark:border-zinc-800 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setActiveTab("GRADEBOOK")}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === "GRADEBOOK"
+                  ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold"
+                  : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              }`}
+            >
+              <TableIcon className="w-4 h-4" /> Penilaian Kelas (Gradebook)
+            </button>
+            <button
+              onClick={() => setActiveTab("MATRIX")}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === "MATRIX"
+                  ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold"
+                  : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" /> Matriks Nilai
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("REPORT");
+                if (gradebook.length > 0 && !selectedReportStudentId) {
+                  openStudentReportModal(gradebook[0].student_id);
+                }
+              }}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === "REPORT"
+                  ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold"
+                  : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              }`}
+            >
+              <FileText className="w-4 h-4" /> Raport & Cetak
+            </button>
+            <button
+              onClick={() => setActiveTab("CURRICULUM")}
+              className={`pb-3 px-3 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 shrink-0 ${
+                activeTab === "CURRICULUM"
+                  ? "border-emerald-600 text-emerald-700 dark:text-emerald-400 font-bold"
+                  : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+              }`}
+            >
+              <BookOpen className="w-4 h-4" /> Kurikulum BLC
+            </button>
+          </div>
 
       {/* ──────────────────────────────────────────────────────────────────────── */}
       {/* TAB 1: CLASS GRADEBOOK (HIGH PRODUCTIVITY WORKSPACE) */}
@@ -2022,10 +1992,10 @@ export default function TrisulaPage() {
       {/* ──────────────────────────────────────────────────────────────────────── */}
       {/* 4. STICKY MOBILE ACTION BAR (STAYS REACHABLE ON SMALL SCREENS) */}
       {/* ──────────────────────────────────────────────────────────────────────── */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 p-3 shadow-lg flex items-center justify-between gap-2 print:hidden">
+      <div className="sm:hidden fixed bottom-16 md:bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 p-3 shadow-xl flex items-center justify-between gap-2 print:hidden">
         <div className="min-w-0">
-          <span className="text-[10px] font-bold text-gray-500 block">Status Kelas</span>
-          <span className="text-xs font-bold text-emerald-700 truncate block">
+          <span className="text-[10px] font-bold text-zinc-500 dark:text-zinc-400 block">Status Kelas</span>
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 truncate block">
             {completedStudentsCount}/{gradebook.length} Nilai Lengkap
           </span>
         </div>
@@ -2035,7 +2005,7 @@ export default function TrisulaPage() {
             size="sm"
             variant="secondary"
             onClick={() => setBulkPrintModalOpen(true)}
-            className="h-10 text-xs px-2.5 font-bold"
+            className="h-10 text-xs px-2.5 font-bold dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200"
           >
             <Printer className="w-3.5 h-3.5" />
           </Button>
@@ -2044,7 +2014,7 @@ export default function TrisulaPage() {
             size="sm"
             onClick={handleSaveGradebook}
             disabled={savingGradebook || loadingContext}
-            className="h-10 text-xs px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            className="h-10 text-xs px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl"
           >
             {savingGradebook ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
@@ -2776,6 +2746,6 @@ export default function TrisulaPage() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
