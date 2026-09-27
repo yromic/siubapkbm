@@ -25,13 +25,11 @@ const ibmPlexSans = IBM_Plex_Sans({
 const fredoka = Fredoka({
   variable: "--font-fredoka",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
 });
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
 import { getWebsiteConfig } from "@/lib/services/websiteConfigService";
