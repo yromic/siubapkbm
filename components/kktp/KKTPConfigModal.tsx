@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { notify } from "@/lib/notify";
 import { fetchBankTPs as fetchBankTPsClient } from "@/lib/api/curriculumBankClient";
+import { AIUsageStatus } from "@/components/ai/AIUsageStatus";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export interface ConfiguredTPItem {
   id?: string;
@@ -58,6 +60,18 @@ export function KKTPConfigModal({
   initialTps,
   onTpsSaved,
 }: KKTPConfigModalProps) {
+  // Helper to maintain clean, sequential, continuous TP numbers (TP-01, TP-02, ...)
+  const renumberTps = (items: ConfiguredTPItem[]): ConfiguredTPItem[] => {
+    return items.map((item, idx) => {
+      const isAutoOrBlank = !item.tp_code || /^TP-\d+$/i.test(item.tp_code.trim());
+      return {
+        ...item,
+        tp_code: isAutoOrBlank ? `TP-${String(idx + 1).padStart(2, "0")}` : item.tp_code,
+        order_index: idx + 1,
+      };
+    });
+  };
+
   const [tps, setTps] = useState<ConfiguredTPItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"LIST" | "BANK" | "AI">("LIST");
@@ -70,14 +84,18 @@ export function KKTPConfigModal({
   // AI state
   const [aiPrompt, setAiPrompt] = useState("");
   const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ teks: string; checked: boolean }>>([]);
+  const [aiSource, setAiSource] = useState<"GEMINI" | "FALLBACK" | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+
+  // In-app ConfirmDialog states
+  const [tpToDeleteIndex, setTpToDeleteIndex] = useState<number | null>(null);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleSafeClose = () => {
     if (isDirty) {
-      if (window.confirm("Batalkan perubahan konfigurasi TP? Perubahan yang belum disimpan akan hilang.")) {
-        setIsDirty(false);
-        onClose();
-      }
+      setShowCloseConfirm(true);
     } else {
       onClose();
     }
@@ -88,11 +106,7 @@ export function KKTPConfigModal({
       const timer = setTimeout(() => {
         setTps(
           initialTps.length > 0
-            ? initialTps.map((t, idx) => ({
-                ...t,
-                tp_code: t.tp_code || `TP-${String(idx + 1).padStart(2, "0")}`,
-                order_index: t.order_index ?? idx + 1,
-              }))
+            ? renumberTps(initialTps)
             : []
         );
         setIsDirty(false);
@@ -203,24 +217,26 @@ export function KKTPConfigModal({
 
   const handleRemoveTP = (index: number) => {
     const targetTp = tps[index];
-    if (
-      targetTp?.id &&
-      !window.confirm(
-        `Hapus "${targetTp.tp_code || 'TP ini'}"? Menghapus TP yang sudah tersimpan dapat menghapus nilai murid terkait saat disimpan.`
-      )
-    ) {
-      return;
-    }
+    if (!targetTp) return;
 
-    setTps((prev) => {
-      const filtered = prev.filter((_, i) => i !== index);
-      return filtered.map((t, i) => ({
-        ...t,
-        tp_code: t.tp_code || `TP-${String(i + 1).padStart(2, "0")}`,
-        order_index: i + 1,
-      }));
-    });
+    // If it's already saved on the server (has id), prompt with ConfirmDialog
+    if (targetTp.id) {
+      setTpToDeleteIndex(index);
+    } else {
+      // Unsaved / draft TP, delete immediately
+      setTps((prev) => renumberTps(prev.filter((_, i) => i !== index)));
+      setIsDirty(true);
+      notify.info("TP dihapus dari daftar.");
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (tpToDeleteIndex === null) return;
+    const deletedTp = tps[tpToDeleteIndex];
+    setTps((prev) => renumberTps(prev.filter((_, i) => i !== tpToDeleteIndex)));
     setIsDirty(true);
+    setTpToDeleteIndex(null);
+    notify.success(`"${deletedTp?.tp_code || "TP"}" dihapus. Klik "Simpan Konfigurasi TP" untuk menerapkan ke matriks.`);
   };
 
   const handleMoveTP = (index: number, direction: "UP" | "DOWN") => {
@@ -236,7 +252,7 @@ export function KKTPConfigModal({
       const temp = updated[index];
       updated[index] = updated[targetIndex];
       updated[targetIndex] = temp;
-      return updated.map((t, i) => ({ ...t, order_index: i + 1 }));
+      return renumberTps(updated);
     });
     setIsDirty(true);
   };
@@ -262,18 +278,9 @@ export function KKTPConfigModal({
 
       const suggestions: string[] = json.data.saranTP;
       const isAi: boolean = json.data.source === "GEMINI";
-      const newItems: ConfiguredTPItem[] = suggestions.map((text, idx) => ({
-        tp_id: null,
-        tp_code: `TP-${String(tps.length + idx + 1).padStart(2, "0")}`,
-        tp_text_snapshot: text,
-        source_type: isAi ? "AI_GENERATED" : "MANUAL",
-        order_index: tps.length + idx + 1,
-      }));
-
-      setTps((prev) => [...prev, ...newItems]);
-      setIsDirty(true);
-      setActiveTab("LIST");
-      notify.success(`${newItems.length} rekomendasi TP ditambahkan${isAi ? " oleh AI" : " (kurikulum nasional)"}.`);
+      setAiSource(isAi ? "GEMINI" : "FALLBACK");
+      setAiSuggestions(suggestions.map((text) => ({ teks: text, checked: true })));
+      notify.success(`${suggestions.length} saran TP berhasil dirumuskan oleh AI. Silakan tinjau dan terapkan.`);
     } catch {
       notify.error("Gagal terhubung ke layanan AI.");
     } finally {
@@ -281,11 +288,43 @@ export function KKTPConfigModal({
     }
   };
 
+  const handleToggleAiSuggestion = (index: number) => {
+    setAiSuggestions((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, checked: !item.checked } : item))
+    );
+  };
+
+  const handleApplyAiSuggestions = () => {
+    const selected = aiSuggestions.filter((t) => t.checked && t.teks.trim().length > 0);
+    if (selected.length === 0) {
+      notify.error("Pilih minimal 1 saran TP dari AI.");
+      return;
+    }
+
+    const isAi = aiSource === "GEMINI";
+    const newItems: ConfiguredTPItem[] = selected.map((item, idx) => ({
+      tp_id: null,
+      tp_code: `TP-${String(tps.length + idx + 1).padStart(2, "0")}`,
+      tp_text_snapshot: item.teks,
+      source_type: isAi ? "AI_GENERATED" : "MANUAL",
+      order_index: tps.length + idx + 1,
+    }));
+
+    setTps((prev) => [...prev, ...newItems]);
+    setIsDirty(true);
+    setActiveTab("LIST");
+    notify.success(`${newItems.length} saran TP dari AI berhasil diterapkan ke daftar.`);
+  };
+
   // Save to backend
-  const handleSave = async () => {
+  const handleSave = async (forceEmpty = false) => {
     const validTps = tps.filter((t) => t.tp_text_snapshot.trim().length > 0);
-    if (validTps.length === 0) {
-      notify.error("Minimal tambahkan 1 Tujuan Pembelajaran (TP) untuk kelas ini.");
+    if (validTps.length === 0 && !forceEmpty) {
+      if (tps.length === 0) {
+        setShowClearConfirm(true);
+        return;
+      }
+      notify.error("Teks Tujuan Pembelajaran tidak boleh kosong.");
       return;
     }
 
@@ -303,6 +342,7 @@ export function KKTPConfigModal({
       }
 
       setIsDirty(false);
+      setShowClearConfirm(false);
       notify.success("Konfigurasi Tujuan Pembelajaran berhasil disimpan!");
       onTpsSaved();
       onClose();
@@ -316,7 +356,7 @@ export function KKTPConfigModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleSafeClose()}>
       <DialogContent
-        className="max-w-3xl max-h-[85vh] flex flex-col p-0"
+        className="max-w-3xl h-[85vh] max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border bg-white dark:bg-zinc-900 shadow-2xl"
         onInteractOutside={(e) => {
           e.preventDefault();
         }}
@@ -327,7 +367,7 @@ export function KKTPConfigModal({
           }
         }}
       >
-        <DialogHeader className="p-6 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+        <DialogHeader className="p-5 pb-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
@@ -377,7 +417,7 @@ export function KKTPConfigModal({
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-4">
           {/* TAB 1: LIST */}
           {activeTab === "LIST" && (
             <div className="space-y-3">
@@ -508,7 +548,7 @@ export function KKTPConfigModal({
                   Tidak ada TP di Bank untuk mata pelajaran dan fase ini.
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
                   {bankTps.map((item) => {
                     const isSelected = selectedBankIds.has(item.id);
                     return (
@@ -548,6 +588,9 @@ export function KKTPConfigModal({
           {/* TAB 3: AI GENERATOR */}
           {activeTab === "AI" && (
             <div className="space-y-4">
+              {/* AI Quota Status Check */}
+              <AIUsageStatus className="mb-1" />
+
               <div className="p-4 bg-amber-50/60 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-900 text-xs">
                 <div className="flex items-center gap-2 font-semibold text-amber-900 dark:text-amber-300 mb-1">
                   <Sparkles className="w-4 h-4 text-amber-500" />
@@ -562,43 +605,115 @@ export function KKTPConfigModal({
                 <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1 block">
                   Fokus Topik / Bab Materi (Opsional)
                 </label>
-                <Input
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="Contoh: Operasi hitung pecahan campuran dan soal cerita"
-                  className="text-xs"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !generatingAi) {
+                        e.preventDefault();
+                        handleGenerateAI();
+                      }
+                    }}
+                    placeholder="Contoh: Operasi hitung pecahan campuran dan soal cerita"
+                    className="text-xs flex-1"
+                  />
+                  <Button
+                    onClick={handleGenerateAI}
+                    disabled={generatingAi}
+                    className="bg-amber-600 hover:bg-amber-700 text-white shrink-0 text-xs"
+                  >
+                    {generatingAi ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                        Merumuskan...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-1.5" />
+                        Rumuskan TP
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
 
-              <Button
-                onClick={handleGenerateAI}
-                disabled={generatingAi}
-                className="w-full bg-amber-600 hover:bg-amber-700 text-white"
-              >
-                {generatingAi ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Merumuskan TP...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Rumuskan Rekomendasi TP
-                  </>
-                )}
-              </Button>
+              {/* AI Suggestions Checklist */}
+              {aiSuggestions.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center justify-between text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    <span className="flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-amber-600" />
+                      Rekomendasi AI ({aiSuggestions.filter((s) => s.checked).length} dari {aiSuggestions.length} terpilih)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allChecked = aiSuggestions.every((s) => s.checked);
+                        setAiSuggestions((prev) => prev.map((s) => ({ ...s, checked: !allChecked })));
+                      }}
+                      className="text-[11px] text-amber-700 dark:text-amber-400 hover:underline font-medium"
+                    >
+                      {aiSuggestions.every((s) => s.checked) ? "Batal Pilih Semua" : "Pilih Semua"}
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                    {aiSuggestions.map((item, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => handleToggleAiSuggestion(idx)}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all flex items-start gap-3 ${
+                          item.checked
+                            ? "bg-amber-50/50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800"
+                            : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-zinc-300"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={item.checked}
+                          onChange={() => {}}
+                          className="mt-0.5 rounded text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-xs text-zinc-800 dark:text-zinc-200 leading-relaxed flex-1">
+                          {item.teks}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAiSuggestions((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                          className="text-zinc-400 hover:text-rose-500 p-0.5 rounded transition-colors"
+                          title="Hapus saran ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <Button
+                    onClick={handleApplyAiSuggestions}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"
+                  >
+                    <Check className="w-3.5 h-3.5 mr-1.5" />
+                    Terapkan TP Terpilih ({aiSuggestions.filter((s) => s.checked).length}) ke Daftar
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <DialogFooter className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center sm:justify-between">
+        <DialogFooter className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center sm:justify-between shrink-0">
           <Button variant="ghost" size="sm" onClick={handleSafeClose} disabled={saving}>
             Batal
           </Button>
           <Button
             size="sm"
-            onClick={handleSave}
-            disabled={saving || tps.length === 0}
+            onClick={() => handleSave(false)}
+            disabled={saving}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
             {saving ? (
@@ -612,6 +727,46 @@ export function KKTPConfigModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Confirmation Dialog: Delete TP */}
+      <ConfirmDialog
+        open={tpToDeleteIndex !== null}
+        onOpenChange={(open) => !open && setTpToDeleteIndex(null)}
+        title="Hapus Tujuan Pembelajaran?"
+        description={`Apakah Anda yakin ingin menghapus "${tps[tpToDeleteIndex ?? 0]?.tp_code || "TP ini"}"? Menghapus TP yang telah tersimpan dapat menghapus data nilai murid yang telah diinput pada TP ini saat konfigurasi disimpan.`}
+        confirmLabel="Ya, Hapus TP"
+        cancelLabel="Batal"
+        variant="destructive"
+        onConfirm={handleConfirmDelete}
+      />
+
+      {/* Confirmation Dialog: Unsaved changes on modal close */}
+      <ConfirmDialog
+        open={showCloseConfirm}
+        onOpenChange={setShowCloseConfirm}
+        title="Batalkan Perubahan?"
+        description="Perubahan konfigurasi TP yang belum disimpan akan hilang. Apakah Anda yakin ingin keluar?"
+        confirmLabel="Ya, Batalkan"
+        cancelLabel="Lanjut Mengedit"
+        variant="destructive"
+        onConfirm={() => {
+          setIsDirty(false);
+          setShowCloseConfirm(false);
+          onClose();
+        }}
+      />
+
+      {/* Confirmation Dialog: Clear All TPs */}
+      <ConfirmDialog
+        open={showClearConfirm}
+        onOpenChange={setShowClearConfirm}
+        title="Kosongkan Seluruh TP?"
+        description="Menyimpan dengan 0 TP akan menghapus seluruh Tujuan Pembelajaran pada asesmen kelas ini dan mereset nilai murid ke status DRAFT. Apakah Anda yakin ingin melanjutkan?"
+        confirmLabel="Ya, Kosongkan & Reset"
+        cancelLabel="Batal"
+        variant="destructive"
+        onConfirm={() => handleSave(true)}
+      />
     </Dialog>
   );
 }

@@ -17,6 +17,7 @@ import { notify } from "@/lib/notify";
 const toast = notify;
 import { useAuth } from "@/hooks/useAuth";
 import { PageContainer, PageSection } from "@/components/ui/page-framework";
+import { PageHeader } from "@/components/ui-states";
 import { KPICard } from "@/components/ui/kpi-card";
 import { AIUsageStatus, getAIErrorMessageByReason } from "@/components/ai/AIUsageStatus";
 import { resolvePhaseByClassName } from "@/lib/utils/academicUtils";
@@ -514,9 +515,12 @@ export default function KKTPPage() {
     setSelectedSubjectName(subjectName);
     setSelectedStudentId(studentId);
     setSelectedStudentName(studentName);
-    setSelectedStudentNisn(doc.content?.identitas?.nisn || null);
-
-    setTpItems(doc.content?.tpItems || []);
+    const rawTps = doc.content?.tpItems || [];
+    const normalizedTps = rawTps.map((t: any, idx: number) => ({
+      ...t,
+      id: t.id || `legacy-tp-${idx}-${Date.now()}`,
+    }));
+    setTpItems(normalizedTps);
     setCatatanTutor(doc.content?.catatanTutor || '');
     setPesanKemitraan(doc.content?.pesanKemitraan || '');
     setSelectedRpmId('');
@@ -784,8 +788,9 @@ export default function KKTPPage() {
     );
   };
 
-  const handleRemoveTP = (id: string) => {
-    setTpItems((prev) => prev.filter((t) => t.id !== id));
+  const handleRemoveTP = (id: string, index?: number) => {
+    setTpItems((prev) => prev.filter((t, idx) => (t.id ? t.id !== id : idx !== index)));
+    toast.info('Tujuan pembelajaran dihapus dari formulir.');
   };
 
   // ─── Auto-save & Save Document ────────────────────────────────────────────
@@ -1029,96 +1034,93 @@ export default function KKTPPage() {
   // ═══════════════════════════════════════════════════════════════════════════
   if (view === 'CLASS_LIST') {
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
-        {/* Page Header matching SIUBA Dashboard */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Modul Asesmen
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6 print:hidden">
+          {/* Standardized PageHeader */}
+          <PageHeader
+            title="Asesmen KKTP / Kriteria Ketercapaian"
+            description="Kriteria Ketercapaian Tujuan Pembelajaran — kelola penilaian per kelas, mata pelajaran, dan murid."
+            statusBadge={
+              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                Kurikulum Merdeka
               </span>
-              <span className="text-xs text-gray-400">&bull;</span>
-              <span className="text-xs text-gray-500 font-medium">Kurikulum Merdeka</span>
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">
-              Assessment KKTP
-            </h1>
-            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-              Kriteria Ketercapaian Tujuan Pembelajaran &mdash; kelola penilaian per kelas, mata pelajaran, dan murid.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Button
-              onClick={() => setView('LIST')}
-              variant="secondary"
-              size="sm"
-              className="text-xs min-h-[38px] border-gray-200 shadow-xs hover:bg-gray-50"
-            >
-              <ClipboardList className="w-4 h-4 mr-1.5 text-gray-500" /> Semua Dokumen
-            </Button>
-            <Button
-              onClick={handleStartWizard}
-              size="sm"
-              className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
-            >
-              <Plus className="w-4 h-4 mr-1.5" /> Buat KKTP
-            </Button>
-          </div>
-        </div>
-
-        {/* Desktop Aggregate Strip (KPIs) */}
-        {!classSummaryLoading && classSummaries.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Total Kelas</span>
-                <School className="w-4 h-4 text-emerald-600" />
+            }
+            actions={
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <AIUsageStatus compact />
+                <Button
+                  onClick={() => setView('LIST')}
+                  variant="secondary"
+                  size="sm"
+                  className="text-xs min-h-[38px] border-zinc-200 dark:border-zinc-700 shadow-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-800 dark:text-zinc-200"
+                >
+                  <ClipboardList className="w-4 h-4 mr-1.5 text-zinc-500 dark:text-zinc-400" /> Semua Dokumen
+                </Button>
+                <Button
+                  onClick={handleStartWizard}
+                  variant="outline"
+                  size="sm"
+                  className="min-h-[38px] border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold shadow-xs"
+                  title="Penyusunan dokumen KKTP individual per murid (arsip satuan)"
+                >
+                  <FileText className="w-4 h-4 mr-1.5 text-zinc-500" /> Dokumen Satuan (Arsip)
+                </Button>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalClasses}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Rombel terdaftar</p>
-            </div>
+            }
+          />
 
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Total Murid</span>
-                <Users className="w-4 h-4 text-blue-600" />
+          {/* Desktop Aggregate Strip (KPIs) */}
+          {!classSummaryLoading && classSummaries.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Total Kelas</span>
+                  <School className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-fredoka">{desktopStats.totalClasses}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Rombel terdaftar</p>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalStudents}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Siswa terdaftar</p>
-            </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">KKTP Dibuat</span>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Total Murid</span>
+                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-fredoka">{desktopStats.totalStudents}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Siswa terdaftar</p>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-emerald-700 font-fredoka">{desktopStats.totalKktp}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Dokumen selesai</p>
-            </div>
 
-            <div className="bg-white p-4 rounded-2xl border border-gray-200/80 shadow-xs">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span className="font-semibold">Mata Pelajaran</span>
-                <BookOpen className="w-4 h-4 text-amber-600" />
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">KKTP Dibuat</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 font-fredoka">{desktopStats.totalKktp}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Dokumen selesai</p>
               </div>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 font-fredoka">{desktopStats.totalSubjects}</p>
-              <p className="text-[11px] text-gray-400 mt-0.5">Mapel terpetakan</p>
-            </div>
-          </div>
-        )}
 
-        {/* Toolbar with quick search */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-200/70">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari nama atau kode kelas..."
-              value={classSearch}
-              onChange={(e) => setClassSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg bg-white text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            />
+              <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 shadow-xs">
+                <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                  <span className="font-semibold">Mata Pelajaran</span>
+                  <BookOpen className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <p className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-zinc-50 font-fredoka">{desktopStats.totalSubjects}</p>
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5">Mapel terpetakan</p>
+              </div>
+            </div>
+          )}
+
+          {/* Toolbar with quick search */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-900/60 p-2.5 rounded-2xl border border-zinc-200/70 dark:border-zinc-800">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari nama atau kode kelas..."
+                value={classSearch}
+                onChange={(e) => setClassSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
             {classSearch && (
               <button onClick={() => setClassSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                 <X className="w-3.5 h-3.5" />
@@ -1161,36 +1163,36 @@ export default function KKTPPage() {
               return (
                 <div
                   key={cls.class_id}
-                  className="bg-white rounded-2xl border border-gray-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex flex-col justify-between overflow-hidden group"
+                  className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs hover:shadow-md hover:border-emerald-400 dark:hover:border-emerald-600 transition-all duration-200 flex flex-col justify-between overflow-hidden group"
                 >
                   <div className="p-5 flex-1">
                     {/* Top meta */}
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
                             Tingkat {cls.class_level}
                           </span>
-                          <span className="text-[10px] text-gray-400 font-medium">{cls.class_code}</span>
+                          <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">{cls.class_code}</span>
                         </div>
-                        <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">
+                        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors font-plus-jakarta">
                           {cls.class_name}
                         </h3>
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
                         <School className="w-5 h-5" />
                       </div>
                     </div>
 
                     {/* Enrolled students count */}
-                    <div className="flex items-center gap-1.5 text-xs text-gray-600 font-medium mb-3.5">
-                      <Users className="w-3.5 h-3.5 text-gray-400" />
+                    <div className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400 font-medium mb-3.5">
+                      <Users className="w-3.5 h-3.5 text-zinc-400 dark:text-zinc-500" />
                       <span>{cls.student_count} Murid Terdaftar</span>
                     </div>
 
                     {/* Mata Pelajaran Breakdown */}
-                    <div className="space-y-1.5 pt-3 border-t border-gray-100">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-gray-500 mb-1">
+                    <div className="space-y-1.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-zinc-500 dark:text-zinc-400 mb-1">
                         <span>Mata Pelajaran</span>
                         <span>Progress KKTP</span>
                       </div>
@@ -1201,31 +1203,31 @@ export default function KKTPPage() {
                             return (
                               <div
                                 key={subj.subject_id}
-                                className="flex items-center justify-between text-xs text-gray-700 bg-gray-50/80 px-2.5 py-1.5 rounded-lg border border-gray-100"
+                                className="flex items-center justify-between text-xs text-zinc-700 dark:text-zinc-300 bg-zinc-50/80 dark:bg-zinc-800/80 px-2.5 py-1.5 rounded-xl border border-zinc-100 dark:border-zinc-800"
                               >
                                 <span className="truncate pr-2 font-medium">{subj.subject_name}</span>
-                                <span className={`text-[11px] font-bold shrink-0 ${isFull ? 'text-emerald-700' : 'text-gray-600'}`}>
+                                <span className={`text-[11px] font-bold shrink-0 ${isFull ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-600 dark:text-zinc-400'}`}>
                                   {subj.created_count} / {cls.student_count}
                                 </span>
                               </div>
                             );
                           })}
                           {cls.subjects.length > 3 && (
-                            <p className="text-[10px] text-gray-400 text-right font-medium pr-1">
+                            <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-right font-medium pr-1">
                               +{cls.subjects.length - 3} mapel lainnya
                             </p>
                           )}
                         </div>
                       ) : (
-                        <p className="text-xs text-gray-400 italic py-1">Belum ada mapel terdaftar</p>
+                        <p className="text-xs text-zinc-400 dark:text-zinc-500 italic py-1">Belum ada mapel terdaftar</p>
                       )}
                     </div>
                   </div>
 
                   {/* Card Action Footer */}
-                  <div className="border-t border-gray-100 p-4 bg-gray-50/40">
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 p-4 bg-zinc-50/40 dark:bg-zinc-800/40">
                     <Button
-                      className="w-full min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
+                      className="w-full min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs rounded-xl"
                       onClick={() => handleSelectClass(cls)}
                     >
                       Buka Kelas <ChevronRight className="w-4 h-4 ml-1.5" />
@@ -1237,83 +1239,63 @@ export default function KKTPPage() {
           </div>
         )}
       </PageContainer>
-    );
-  }
+    </div>
+  );
+}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // LEVEL 2: SUBJECT_LIST VIEW (Responsive Grid)
   // ═══════════════════════════════════════════════════════════════════════════
   if (view === 'SUBJECT_LIST' && activeClass) {
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
-        {/* Breadcrumb matching SIUBA hierarchy */}
-        <div className="flex items-center gap-2 text-xs text-gray-500 font-medium">
-          <button
-            onClick={() => {
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6">
+          {/* Standardized PageHeader with onBack navigation */}
+          <PageHeader
+            onBack={() => {
               setView('CLASS_LIST');
               setActiveClass(null);
             }}
-            className="hover:text-emerald-600 transition-colors flex items-center gap-1.5"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> KKTP
-          </button>
-          <ChevronRight className="w-3 h-3 text-gray-400" />
-          <span className="font-bold text-gray-900">{activeClass.name}</span>
-        </div>
+            backLabel="Daftar Kelas"
+            title={`${activeClass.name} — Mata Pelajaran`}
+            description={`${activeClass.student_count || 0} Murid Terdaftar • Pilih mata pelajaran untuk mengelola asesmen KKTP.`}
+            statusBadge={`Tingkat ${activeClass.level} • ${activeClass.code}`}
+            actions={
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setView('CLASS_LIST');
+                  setActiveClass(null);
+                }}
+                className="text-xs min-h-[38px] dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 rounded-xl"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Ganti Kelas
+              </Button>
+            }
+          />
 
-        {/* Class Details Banner */}
-        <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
-                Tingkat {activeClass.level}
-              </span>
-              <span className="text-xs text-gray-400">{activeClass.code}</span>
+          {/* Toolbar & Search */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-50/60 dark:bg-zinc-900/60 p-2.5 rounded-2xl border border-zinc-200/70 dark:border-zinc-800">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 text-zinc-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari mata pelajaran..."
+                value={subjectSearch}
+                onChange={(e) => setSubjectSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-zinc-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+              {subjectSearch && (
+                <button onClick={() => setSubjectSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">
-              {activeClass.name}
-            </h1>
-            <p className="text-xs text-gray-500">
-              {activeClass.student_count || 0} Murid Terdaftar &bull; Pilih mata pelajaran untuk mengelola asesmen KKTP.
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 px-1 font-medium w-full sm:w-auto text-right">
+              Menampilkan <span className="font-bold text-zinc-800 dark:text-zinc-200">{filteredSubjects.length}</span> dari {classSubjects.length} mata pelajaran
             </p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setView('CLASS_LIST');
-                setActiveClass(null);
-              }}
-              className="text-xs min-h-[38px]"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Ganti Kelas
-            </Button>
-          </div>
-        </div>
-
-        {/* Toolbar & Search */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gray-50/60 p-2.5 rounded-xl border border-gray-200/70">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari mata pelajaran..."
-              value={subjectSearch}
-              onChange={(e) => setSubjectSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg bg-white text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-            />
-            {subjectSearch && (
-              <button onClick={() => setSubjectSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 px-1 font-medium w-full sm:w-auto text-right">
-            Menampilkan <span className="font-bold text-gray-800">{filteredSubjects.length}</span> dari {classSubjects.length} mata pelajaran
-          </p>
-        </div>
 
         {/* Subject Cards Grid */}
         {classSubjectsLoading ? (
@@ -1349,31 +1331,31 @@ export default function KKTPPage() {
               return (
                 <div
                   key={subj.subject_id}
-                  className="bg-white rounded-2xl border border-gray-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex flex-col justify-between overflow-hidden group"
+                  className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs hover:shadow-md hover:border-emerald-400 dark:hover:border-emerald-600 transition-all duration-200 flex flex-col justify-between overflow-hidden group"
                 >
                   <div className="p-5 flex-1">
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold mb-1.5 inline-block">
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold mb-1.5 inline-block">
                           {subj.subject_code || 'Mapel'}
                         </span>
-                        <h3 className="text-base font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">
+                        <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors font-plus-jakarta">
                           {subj.subject_name}
                         </h3>
                       </div>
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors shadow-2xs">
                         <BookOpen className="w-5 h-5" />
                       </div>
                     </div>
 
                     <div className="mt-4 mb-2">
-                      <div className="flex items-center justify-between text-xs text-gray-600 mb-1.5">
-                        <span className={`font-bold ${isFull ? 'text-emerald-700' : 'text-gray-700'}`}>
+                      <div className="flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400 mb-1.5">
+                        <span className={`font-bold ${isFull ? 'text-emerald-600 dark:text-emerald-400' : 'text-zinc-700 dark:text-zinc-300'}`}>
                           {subj.created_count} / {subj.student_count} KKTP dibuat
                         </span>
-                        <span className="text-xs font-bold text-gray-500">{pct}%</span>
+                        <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400 font-fredoka">{pct}%</span>
                       </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${isFull ? 'bg-emerald-600' : 'bg-emerald-500'}`}
                           style={{ width: `${pct}%` }}
@@ -1382,9 +1364,9 @@ export default function KKTPPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-gray-100 p-4 bg-gray-50/40">
+                  <div className="border-t border-zinc-100 dark:border-zinc-800 p-4 bg-zinc-50/40 dark:bg-zinc-800/40">
                     <Button
-                      className="w-full min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs"
+                      className="w-full min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs rounded-xl"
                       onClick={() => handleSelectSubject(subj)}
                     >
                       Buka Mapel <ChevronRight className="w-4 h-4 ml-1.5" />
@@ -1396,68 +1378,71 @@ export default function KKTPPage() {
           </div>
         )}
       </PageContainer>
-    );
-  }
+    </div>
+  );
+}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // LEVEL 3: GRADEBOOK MATRIX VIEW (Canonical Class-Wide KKTP Assessment)
   // ═══════════════════════════════════════════════════════════════════════════
   if (view === 'GRADEBOOK' && activeClass && activeSubject) {
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
-        {/* Breadcrumb & Switcher */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-xs text-gray-500 font-medium flex-wrap">
-            <button
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6">
+          {/* Breadcrumb & Switcher */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400 font-medium flex-wrap">
+              <button
+                onClick={() => {
+                  setView('CLASS_LIST');
+                  setActiveClass(null);
+                  setActiveSubject(null);
+                }}
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              >
+                KKTP
+              </button>
+              <ChevronRight className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+              <button
+                onClick={() => {
+                  setView('SUBJECT_LIST');
+                  setActiveSubject(null);
+                  fetchClassSubjects(activeClass.id);
+                }}
+                className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              >
+                {activeClass.name}
+              </button>
+              <ChevronRight className="w-3 h-3 text-zinc-400 dark:text-zinc-500" />
+              <span className="font-bold text-zinc-900 dark:text-zinc-100">{activeSubject.name}</span>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               onClick={() => {
-                setView('CLASS_LIST');
-                setActiveClass(null);
-                setActiveSubject(null);
+                setView('STUDENT_LIST');
+                fetchStudentsForSubject(activeClass.id, activeSubject.id);
               }}
-              className="hover:text-emerald-600 transition-colors"
             >
-              KKTP
-            </button>
-            <ChevronRight className="w-3 h-3 text-gray-400" />
-            <button
-              onClick={() => {
-                setView('SUBJECT_LIST');
-                setActiveSubject(null);
-                fetchClassSubjects(activeClass.id);
-              }}
-              className="hover:text-emerald-600 transition-colors"
-            >
-              {activeClass.name}
-            </button>
-            <ChevronRight className="w-3 h-3 text-gray-400" />
-            <span className="font-bold text-gray-900">{activeSubject.name}</span>
+              <FileText className="w-3.5 h-3.5 mr-1 text-zinc-400" /> Mode Dokumen Satuan (Arsip Legacy)
+            </Button>
           </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-zinc-500 hover:text-zinc-700"
-            onClick={() => {
-              setView('STUDENT_LIST');
-              fetchStudentsForSubject(activeClass.id, activeSubject.id);
+          <KKTPMatrixGradebook
+            classId={activeClass.id}
+            className={activeClass.name}
+            subjectId={activeSubject.id}
+            subjectName={activeSubject.name}
+            onBack={() => {
+              setView('SUBJECT_LIST');
+              setActiveSubject(null);
+              fetchClassSubjects(activeClass.id);
             }}
-          >
-            <FileText className="w-3.5 h-3.5 mr-1 text-zinc-400" /> Mode Dokumen Satuan (Arsip Legacy)
-          </Button>
-        </div>
-
-        <KKTPMatrixGradebook
-          classId={activeClass.id}
-          className={activeClass.name}
-          subjectId={activeSubject.id}
-          subjectName={activeSubject.name}
-          onBack={() => {
-            setView('SUBJECT_LIST');
-            setActiveSubject(null);
-            fetchClassSubjects(activeClass.id);
-          }}
-        />
-      </PageContainer>
+          />
+        </PageContainer>
+      </div>
     );
   }
 
@@ -1469,28 +1454,29 @@ export default function KKTPPage() {
     const completionPct = studentSummaries.length > 0 ? Math.round((createdStudents.length / studentSummaries.length) * 100) : 0;
 
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
-        {/* Modern Gradebook Switcher Callout */}
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-              <ClipboardList className="w-5 h-5" />
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6">
+          {/* Modern Gradebook Switcher Callout */}
+          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                <ClipboardList className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200">Gradebook Matriks KKTP Tersedia</p>
+                <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                  Gunakan Gradebook Matriks untuk mengonfigurasi TP sekali per kelas dan menilai seluruh murid sekaligus dalam tabel matriks.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-emerald-950">Gradebook Matriks KKTP Tersedia</p>
-              <p className="text-xs text-emerald-800">
-                Gunakan Gradebook Matriks untuk mengonfigurasi TP sekali per kelas dan menilai seluruh murid sekaligus dalam tabel matriks.
-              </p>
-            </div>
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0 rounded-xl"
+              onClick={() => setView('GRADEBOOK')}
+            >
+              Buka Gradebook Matriks
+            </Button>
           </div>
-          <Button
-            size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0"
-            onClick={() => setView('GRADEBOOK')}
-          >
-            Buka Gradebook Matriks
-          </Button>
-        </div>
 
         {/* Bulk print modal */}
         {bulkPrintModalOpen && (
@@ -1538,52 +1524,18 @@ export default function KKTPPage() {
           </div>
         )}
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-gray-500 font-medium flex-wrap">
-          <button
-            onClick={() => {
-              setView('CLASS_LIST');
-              setActiveClass(null);
-              setActiveSubject(null);
-            }}
-            className="hover:text-emerald-600 transition-colors"
-          >
-            KKTP
-          </button>
-          <ChevronRight className="w-3 h-3 text-gray-400" />
-          <button
-            onClick={() => {
-              setView('SUBJECT_LIST');
-              setActiveSubject(null);
-              fetchClassSubjects(activeClass.id);
-            }}
-            className="hover:text-emerald-600 transition-colors"
-          >
-            {activeClass.name}
-          </button>
-          <ChevronRight className="w-3 h-3 text-gray-400" />
-          <span className="font-bold text-gray-900">{activeSubject.name}</span>
-        </div>
-
-        {/* Header Summary Card */}
-        <div className="bg-white rounded-2xl border border-gray-200/90 p-5 shadow-xs space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold">
-                  {activeClass.name}
-                </span>
-                <span className="text-xs text-gray-400">&bull;</span>
-                <span className="text-xs text-gray-600 font-semibold">{activeSubject.name}</span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">
-                Daftar Asesmen Murid
-              </h1>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {studentSummaries.length} Murid &bull; {createdStudents.length} / {studentSummaries.length} KKTP dibuat ({completionPct}%)
-              </p>
-            </div>
-
+        {/* Standardized PageHeader with onBack navigation */}
+        <PageHeader
+          onBack={() => {
+            setView('SUBJECT_LIST');
+            setActiveSubject(null);
+            fetchClassSubjects(activeClass.id);
+          }}
+          backLabel="Mata Pelajaran"
+          title="Daftar Asesmen Murid"
+          description={`${studentSummaries.length} Murid • ${createdStudents.length} / ${studentSummaries.length} KKTP dibuat (${completionPct}%)`}
+          statusBadge={`${activeClass.name} • ${activeSubject.name}`}
+          actions={
             <div className="flex items-center gap-2 flex-wrap">
               {createdStudents.length > 0 && (
                 <Button
@@ -1608,15 +1560,15 @@ export default function KKTPPage() {
                 <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Ganti Mapel
               </Button>
             </div>
-          </div>
+          }
+        />
 
-          {/* Progress bar */}
-          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-            <div
-              className="bg-emerald-500 h-full rounded-full transition-all duration-300"
-              style={{ width: `${completionPct}%` }}
-            />
-          </div>
+        {/* Progress bar */}
+        <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+          <div
+            className="bg-emerald-500 h-full rounded-full transition-all duration-300"
+            style={{ width: `${completionPct}%` }}
+          />
         </div>
 
         {/* Toolbar & Student Search */}
@@ -1833,7 +1785,8 @@ export default function KKTPPage() {
             </div>
           </>
         )}
-      </PageContainer>
+        </PageContainer>
+      </div>
     );
   }
 
@@ -1855,16 +1808,17 @@ export default function KKTPPage() {
     const schoolSub = schoolSettings.school_sub_header || '[Alamat & izin operasional belum dikonfigurasi]';
 
     return (
-      <div className="space-y-4 max-w-4xl mx-auto p-4 print:p-0 print:max-w-none print:mx-0">
-        {/* Toolbar */}
-        <div className="flex justify-between items-center print:hidden border-b pb-4">
-          <Button variant="secondary" onClick={handleBackFromPrint} size="sm" className="min-h-[38px] text-xs">
-            <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Daftar Murid
-          </Button>
-          <Button onClick={() => window.print()} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold" size="sm">
-            <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen ({docsToPrint.length})
-          </Button>
-        </div>
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 p-4 print:p-0 print:bg-white">
+        <div className="space-y-4 max-w-4xl mx-auto print:max-w-none print:mx-0">
+          {/* Toolbar */}
+          <div className="flex justify-between items-center print:hidden border-b border-zinc-200 dark:border-zinc-800 pb-4">
+            <Button variant="secondary" onClick={handleBackFromPrint} size="sm" className="min-h-[38px] text-xs">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Daftar Murid
+            </Button>
+            <Button onClick={() => window.print()} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold" size="sm">
+              <Printer className="w-4 h-4 mr-2" /> Cetak Dokumen ({docsToPrint.length})
+            </Button>
+          </div>
 
         {/* Petunjuk Cetak Resmi (Screen Only) */}
         <PrintBrowserHint />
@@ -2070,7 +2024,8 @@ export default function KKTPPage() {
           })}
         </div>
       </div>
-    );
+    </div>
+  );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2095,24 +2050,25 @@ export default function KKTPPage() {
     };
 
     return (
-      <PageContainer maxWidth="7xl" className="space-y-6">
-        {/* ── Modal Bank TP ── */}
+      <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+        <PageContainer maxWidth="7xl" className="space-y-6">
+          {/* ── Modal Bank TP ── */}
         {showBankTpModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 sm:p-6 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-150">
-              <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3 bg-gradient-to-r from-emerald-50/60 to-teal-50/30">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-gray-200 dark:border-zinc-800 animate-in fade-in zoom-in-95 duration-150">
+              <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex items-start justify-between gap-3 bg-gradient-to-r from-emerald-50/60 to-teal-50/30 dark:from-zinc-900 dark:to-zinc-900">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 flex-shrink-0 shadow-xs">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-700 dark:text-emerald-400 flex-shrink-0 shadow-xs">
                     <Database className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-900 leading-tight">Bank Tujuan Pembelajaran (TP)</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">Pilih dan gunakan kembali TP yang tersimpan.</p>
+                    <h3 className="text-base font-bold text-gray-900 dark:text-zinc-100 leading-tight">Bank Tujuan Pembelajaran (TP)</h3>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400 mt-0.5">Pilih dan gunakan kembali TP yang tersimpan.</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowBankTpModal(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-white/80 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-zinc-200 p-1.5 rounded-lg hover:bg-white/80 dark:hover:bg-zinc-800 transition-colors"
                   title="Tutup"
                 >
                   <X className="w-5 h-5" />
@@ -2120,9 +2076,9 @@ export default function KKTPPage() {
               </div>
 
               {/* Filter Bar */}
-              <div className="p-4 border-b border-gray-100 bg-gray-50/60 space-y-3">
+              <div className="p-4 border-b border-gray-100 dark:border-zinc-800 bg-gray-50/60 dark:bg-zinc-900/50 space-y-3">
                 <div className="relative">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Search className="w-4 h-4 text-gray-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Cari teks TP..."
@@ -2131,7 +2087,7 @@ export default function KKTPPage() {
                       setBankTpSearch(e.target.value);
                       fetchBankTPs(bankTpFilterSubject, bankTpFilterFase, e.target.value);
                     }}
-                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl bg-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-zinc-700 rounded-xl bg-white dark:bg-zinc-800 text-xs text-gray-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                   />
                 </div>
               </div>
@@ -2144,8 +2100,8 @@ export default function KKTPPage() {
                   </div>
                 ) : bankTpList.length === 0 ? (
                   <div className="text-center py-10 space-y-2">
-                    <Database className="w-10 h-10 mx-auto text-gray-300" />
-                    <p className="text-xs font-semibold text-gray-600">Belum ada TP di Bank untuk filter ini.</p>
+                    <Database className="w-10 h-10 mx-auto text-gray-300 dark:text-zinc-700" />
+                    <p className="text-xs font-semibold text-gray-600 dark:text-zinc-400">Belum ada TP di Bank untuk filter ini.</p>
                   </div>
                 ) : (
                   bankTpList.map((item) => {
@@ -2156,8 +2112,8 @@ export default function KKTPPage() {
                         onClick={() => handleToggleBankTpSelection(item.id)}
                         className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
                           isSelected
-                            ? "border-emerald-500 bg-emerald-50/50 shadow-xs"
-                            : "border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50/20"
+                            ? "border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-xs"
+                            : "border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-800/80 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-emerald-50/20"
                         }`}
                       >
                         <input
@@ -2168,14 +2124,14 @@ export default function KKTPPage() {
                           className="mt-1 rounded text-emerald-600 focus:ring-emerald-400"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-800 leading-relaxed">{item.teks}</p>
+                          <p className="text-xs text-gray-800 dark:text-zinc-200 leading-relaxed">{item.teks}</p>
                           <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[10px]">
                             {item.mata_pelajaran_name && (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-semibold">
                                 {item.mata_pelajaran_name}
                               </span>
                             )}
-                            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-semibold">
+                            <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-700 text-gray-600 dark:text-zinc-300 font-semibold">
                               {item.fase || 'Fase C'}
                             </span>
                           </div>
@@ -2187,8 +2143,8 @@ export default function KKTPPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3">
-                <span className="text-xs text-gray-500 font-medium">{selectedBankTpIds.length} TP dipilih</span>
+              <div className="p-4 border-t border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900 flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-500 dark:text-zinc-400 font-medium">{selectedBankTpIds.length} TP dipilih</span>
                 <div className="flex gap-2">
                   <Button variant="secondary" size="sm" onClick={() => setShowBankTpModal(false)}>Batal</Button>
                   <Button
@@ -2207,14 +2163,14 @@ export default function KKTPPage() {
         )}
 
         {/* Header + Breadcrumb */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200/80 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200/80 dark:border-zinc-800 pb-4">
           <div className="flex items-center gap-3">
             <Button variant="secondary" size="sm" onClick={handleBackFromWizard} className="min-h-[36px] text-xs">
               <ArrowLeft className="w-4 h-4 mr-1.5" />
               {wizardStep === 'FORM_KKTP' ? 'Kembali' : 'Batal'}
             </Button>
             <div>
-              <h1 className="text-lg font-bold text-gray-900 font-plus-jakarta">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-zinc-100 font-plus-jakarta">
                 {wizardStep === 'SELECT_CLASS' && 'Langkah 1 — Pilih Kelas'}
                 {wizardStep === 'SELECT_SUBJECT' && `Langkah 2 — Pilih Mata Pelajaran`}
                 {wizardStep === 'SELECT_STUDENT' && `Langkah 3 — Pilih Murid`}
@@ -2233,10 +2189,10 @@ export default function KKTPPage() {
         {/* STEP 1: PILIH KELAS (Generic fallback) */}
         {wizardStep === 'SELECT_CLASS' && (
           <div className="max-w-2xl mx-auto">
-            <Card className="bg-white">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="text-base font-bold text-gray-900">Pilih Rombongan Belajar / Kelas</h2>
-                <p className="text-xs text-gray-500">Pilih kelas yang akan dinilai kriteria ketercapaian pembelajarannya.</p>
+            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+              <div className="p-5 border-b border-gray-100 dark:border-zinc-800">
+                <h2 className="text-base font-bold text-gray-900 dark:text-zinc-100">Pilih Rombongan Belajar / Kelas</h2>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">Pilih kelas yang akan dinilai kriteria ketercapaian pembelajarannya.</p>
               </div>
               <div className="p-4 space-y-2">
                 {loadingStep ? (
@@ -2251,15 +2207,15 @@ export default function KKTPPage() {
                         loadSubjectOptions(cls.id);
                         setWizardStep('SELECT_SUBJECT');
                       }}
-                      className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-all group"
+                      className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                        <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
                           <School className="w-4 h-4" />
                         </div>
                         <div>
-                          <span className="font-bold text-sm text-gray-900 group-hover:text-emerald-700 transition-colors">{cls.name}</span>
-                          {cls.code && <span className="text-xs text-gray-400 ml-2">({cls.code})</span>}
+                          <span className="font-bold text-sm text-gray-900 dark:text-zinc-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">{cls.name}</span>
+                          {cls.code && <span className="text-xs text-gray-400 dark:text-zinc-500 ml-2">({cls.code})</span>}
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-600 transition-colors" />
@@ -2274,10 +2230,10 @@ export default function KKTPPage() {
         {/* STEP 2: PILIH MAPEL */}
         {wizardStep === 'SELECT_SUBJECT' && (
           <div className="max-w-2xl mx-auto">
-            <Card className="bg-white">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="text-base font-bold text-gray-900">Pilih Mata Pelajaran</h2>
-                <p className="text-xs text-gray-500">Kelas: <span className="font-semibold text-gray-800">{selectedClassName}</span></p>
+            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+              <div className="p-5 border-b border-gray-100 dark:border-zinc-800">
+                <h2 className="text-base font-bold text-gray-900 dark:text-zinc-100">Pilih Mata Pelajaran</h2>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">Kelas: <span className="font-semibold text-gray-800 dark:text-zinc-200">{selectedClassName}</span></p>
               </div>
               <div className="p-4 space-y-2">
                 {loadingStep ? (
@@ -2293,13 +2249,13 @@ export default function KKTPPage() {
                         loadRpmForContext(selectedClassId, subj.name);
                         setWizardStep('SELECT_STUDENT');
                       }}
-                      className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-all group"
+                      className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                        <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
                           <BookOpen className="w-4 h-4" />
                         </div>
-                        <span className="font-bold text-sm text-gray-900 group-hover:text-emerald-700 transition-colors">{subj.name}</span>
+                        <span className="font-bold text-sm text-gray-900 dark:text-zinc-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">{subj.name}</span>
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-600 transition-colors" />
                     </button>
@@ -2313,11 +2269,11 @@ export default function KKTPPage() {
         {/* STEP 3: PILIH MURID */}
         {wizardStep === 'SELECT_STUDENT' && (
           <div className="max-w-2xl mx-auto">
-            <Card className="bg-white">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="text-base font-bold text-gray-900">Pilih Murid</h2>
-                <p className="text-xs text-gray-500">
-                  {selectedClassName} &bull; <span className="font-semibold text-gray-800">{selectedSubjectName}</span>
+            <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+              <div className="p-5 border-b border-gray-100 dark:border-zinc-800">
+                <h2 className="text-base font-bold text-gray-900 dark:text-zinc-100">Pilih Murid</h2>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">
+                  {selectedClassName} &bull; <span className="font-semibold text-gray-800 dark:text-zinc-200">{selectedSubjectName}</span>
                 </p>
               </div>
               <div className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
@@ -2334,15 +2290,15 @@ export default function KKTPPage() {
                         setTitle(`KKTP ${selectedSubjectName} — ${stu.full_name}`);
                         setWizardStep('FORM_KKTP');
                       }}
-                      className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/40 text-left transition-all group"
+                      className="w-full flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-zinc-800 hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-all group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 flex items-center justify-center font-bold text-xs">
                           {stu.full_name.slice(0, 1).toUpperCase()}
                         </div>
                         <div>
-                          <span className="font-bold text-sm text-gray-900 group-hover:text-emerald-700 transition-colors">{stu.full_name}</span>
-                          {stu.nisn && <span className="text-xs text-gray-400 ml-2">NISN: {stu.nisn}</span>}
+                          <span className="font-bold text-sm text-gray-900 dark:text-zinc-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">{stu.full_name}</span>
+                          {stu.nisn && <span className="text-xs text-gray-400 dark:text-zinc-500 ml-2">NISN: {stu.nisn}</span>}
                         </div>
                       </div>
                       <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-emerald-600 transition-colors" />
@@ -2360,26 +2316,26 @@ export default function KKTPPage() {
             {/* ── Main Editor Column (8 cols on desktop) ── */}
             <div className="lg:col-span-8 space-y-6">
               {/* Document Title */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-1.5">
-                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+              <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-200/90 dark:border-zinc-800 shadow-xs space-y-1.5">
+                <label className="block text-xs font-bold text-gray-700 dark:text-zinc-300 uppercase tracking-wider">
                   Judul Dokumen KKTP
                 </label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Contoh: KKTP IPAS — Muhammad Raihan"
-                  className="text-sm font-semibold bg-white"
+                  className="text-sm font-semibold bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                 />
               </div>
 
               {/* Tujuan Pembelajaran List */}
-              <Card className="bg-white shadow-xs">
-                <div className="p-5 flex flex-row items-center justify-between pb-3 border-b border-gray-100">
+              <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="p-5 flex flex-row items-center justify-between pb-3 border-b border-gray-100 dark:border-zinc-800">
                   <div>
-                    <h3 className="text-sm font-bold text-gray-900 font-plus-jakarta">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-zinc-100 font-plus-jakarta">
                       Tujuan Pembelajaran & Kriteria Ketercapaian
                     </h3>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">
                       Tentukan nilai dan deskripsi ketercapaian untuk masing-masing tujuan pembelajaran.
                     </p>
                   </div>
@@ -2391,7 +2347,7 @@ export default function KKTPPage() {
                       variant="secondary"
                       size="sm"
                       onClick={() => setShowTpAiPanel(!showTpAiPanel)}
-                      className="text-xs h-8 text-violet-700 border-violet-200 hover:bg-violet-50"
+                      className="text-xs h-8 text-violet-700 dark:text-violet-400 border-violet-200 dark:border-violet-800 hover:bg-violet-50 dark:hover:bg-violet-950/30"
                     >
                       <Sparkles className="w-3.5 h-3.5 mr-1" /> Rekomendasi AI
                     </Button>
@@ -2403,16 +2359,25 @@ export default function KKTPPage() {
 
                 {/* AI TP Recommendations Sub-panel */}
                 {showTpAiPanel && (
-                  <div className="p-4 bg-violet-50/60 border-b border-violet-100 space-y-3">
-                    <p className="text-xs font-bold text-violet-900 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-violet-600" /> Hasilkan Rekomendasi TP dengan AI
-                    </p>
+                  <div className="p-4 bg-violet-50/60 dark:bg-violet-950/20 border-b border-violet-100 dark:border-violet-900/50 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-xs font-bold text-violet-900 dark:text-violet-300 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" /> Hasilkan Rekomendasi TP dengan AI
+                      </p>
+                      <AIUsageStatus compact />
+                    </div>
                     <div className="flex gap-2">
                       <Input
                         placeholder="Masukkan materi / topik..."
                         value={tpAiTopik}
                         onChange={(e) => setTpAiTopik(e.target.value)}
-                        className="text-xs bg-white"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !tpAiLoading) {
+                            e.preventDefault();
+                            handleGenerateTpSuggestions();
+                          }
+                        }}
+                        className="text-xs bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                       />
                       <Button
                         onClick={handleGenerateTpSuggestions}
@@ -2425,20 +2390,22 @@ export default function KKTPPage() {
                     </div>
                     {tpAiSuggestions.length > 0 && (
                       <div className="space-y-1.5 pt-2">
-                        {tpAiSuggestions.map((s, idx) => (
-                          <label key={idx} className="flex items-start gap-2 text-xs cursor-pointer p-1.5 hover:bg-white/80 rounded-lg">
-                            <input
-                              type="checkbox"
-                              checked={s.checked}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setTpAiSuggestions((prev) => prev.map((item, i) => (i === idx ? { ...item, checked } : item)));
-                              }}
-                              className="mt-0.5 rounded text-violet-600"
-                            />
-                            <span className="text-gray-800">{s.teks}</span>
-                          </label>
-                        ))}
+                        <div className="max-h-56 overflow-y-auto custom-scrollbar pr-1 space-y-1.5">
+                          {tpAiSuggestions.map((s, idx) => (
+                            <label key={idx} className="flex items-start gap-2 text-xs cursor-pointer p-1.5 hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded-lg">
+                              <input
+                                type="checkbox"
+                                checked={s.checked}
+                                onChange={(e) => {
+                                  const checked = e.target.checked;
+                                  setTpAiSuggestions((prev) => prev.map((item, i) => (i === idx ? { ...item, checked } : item)));
+                                }}
+                                className="mt-0.5 rounded text-violet-600"
+                              />
+                              <span className="text-gray-800 dark:text-zinc-200">{s.teks}</span>
+                            </label>
+                          ))}
+                        </div>
                         <Button onClick={handleApplyAiSuggestions} size="sm" className="w-full mt-2 bg-violet-700 hover:bg-violet-800 text-white text-xs">
                           Terapkan TP Terpilih ({tpAiSuggestions.filter((t) => t.checked).length})
                         </Button>
@@ -2450,10 +2417,10 @@ export default function KKTPPage() {
                 {/* TP Items List */}
                 <div className="p-5 space-y-4">
                   {tpItems.length === 0 ? (
-                    <div className="text-center py-10 space-y-2 border border-dashed rounded-xl">
-                      <BookOpen className="w-9 h-9 mx-auto text-gray-300" />
-                      <p className="text-xs font-semibold text-gray-600">Belum ada Tujuan Pembelajaran</p>
-                      <p className="text-xs text-gray-400 max-w-xs mx-auto">
+                    <div className="text-center py-10 space-y-2 border border-dashed border-gray-200 dark:border-zinc-800 rounded-xl">
+                      <BookOpen className="w-9 h-9 mx-auto text-gray-300 dark:text-zinc-700" />
+                      <p className="text-xs font-semibold text-gray-600 dark:text-zinc-400">Belum ada Tujuan Pembelajaran</p>
+                      <p className="text-xs text-gray-400 dark:text-zinc-500 max-w-xs mx-auto">
                         Klik tombol Tambah TP, ambil dari Bank TP, atau gunakan rekomendasi AI.
                       </p>
                     </div>
@@ -2461,9 +2428,9 @@ export default function KKTPPage() {
                     tpItems.map((tp, idx) => {
                       const kat = getKategori(tp.nilai);
                       return (
-                        <div key={tp.id} className="border border-gray-200/90 rounded-xl p-4 space-y-3 bg-gray-50/50 shadow-2xs">
+                        <div key={tp.id} className="border border-gray-200/90 dark:border-zinc-800 rounded-xl p-4 space-y-3 bg-gray-50/50 dark:bg-zinc-800/40 shadow-2xs">
                           <div className="flex items-start justify-between gap-3">
-                            <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md shrink-0 mt-0.5">
+                            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md shrink-0 mt-0.5">
                               TP {idx + 1}
                             </span>
                             <Textarea
@@ -2471,28 +2438,29 @@ export default function KKTPPage() {
                               onChange={(e) => handleUpdateTP(tp.id, 'teks', e.target.value)}
                               placeholder="Tulis deskripsi tujuan pembelajaran..."
                               rows={2}
-                              className="text-xs bg-white flex-1"
+                              className="text-xs bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100 flex-1"
                             />
                             <button
-                              onClick={() => handleRemoveTP(tp.id)}
-                              className="text-gray-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition-colors"
+                              type="button"
+                              onClick={() => handleRemoveTP(tp.id, idx)}
+                              className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                               title="Hapus TP ini"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
 
-                          {/* Score section: slider + number input + deskripsi (P0/B restored) */}
+                          {/* Score section: slider + number input + deskripsi */}
                           <div className="space-y-3 pt-1">
                             <div className="flex items-center justify-between">
-                              <label className="text-[11px] font-bold text-gray-600">Nilai (0–100)</label>
+                              <label className="text-[11px] font-bold text-gray-600 dark:text-zinc-400">Nilai (0–100)</label>
                               <span className={`text-[11px] px-2.5 py-0.5 rounded-full border font-bold ${kat.color}`}>
                                 {kat.label}
                               </span>
                             </div>
                             {tp.nilai === null ? (
                               <div className="flex items-center gap-2">
-                                <div className="flex-1 h-2 rounded-full bg-gray-200 opacity-50" />
+                                <div className="flex-1 h-2 rounded-full bg-gray-200 dark:bg-zinc-700 opacity-50" />
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateTP(tp.id, 'nilai', 60)}
@@ -2522,7 +2490,7 @@ export default function KKTPPage() {
                                     if (raw === '') return;
                                     handleUpdateTP(tp.id, 'nilai', Math.min(100, Math.max(0, Number(raw))));
                                   }}
-                                  className="w-16 text-xs text-center border border-gray-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                                  className="w-16 text-xs text-center border border-gray-200 dark:border-zinc-700 rounded-lg px-2 py-1.5 bg-white dark:bg-zinc-800 text-gray-900 dark:text-zinc-100 font-bold focus:ring-2 focus:ring-emerald-400 focus:outline-none"
                                 />
                                 <button
                                   type="button"
@@ -2535,12 +2503,12 @@ export default function KKTPPage() {
                               </div>
                             )}
                             <div>
-                              <label className="block text-[11px] font-bold text-gray-600 mb-1">Deskripsi Ketercapaian</label>
+                              <label className="block text-[11px] font-bold text-gray-600 dark:text-zinc-400 mb-1">Deskripsi Ketercapaian</label>
                               <Input
                                 value={tp.deskripsi || ''}
                                 onChange={(e) => handleUpdateTP(tp.id, 'deskripsi', e.target.value)}
                                 placeholder={getDeskripsi(tp.nilai, tp.teks)}
-                                className="text-xs bg-white"
+                                className="text-xs bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                               />
                             </div>
                           </div>
@@ -2552,13 +2520,13 @@ export default function KKTPPage() {
               </Card>
 
               {/* Catatan Tutor & Pesan Kemitraan */}
-              <Card className="bg-white shadow-xs">
-                <div className="p-5 border-b border-gray-100 pb-3">
-                  <h3 className="text-sm font-bold text-gray-900 font-plus-jakarta">Catatan Evaluasi & Kemitraan</h3>
+              <Card className="bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 shadow-xs">
+                <div className="p-5 border-b border-gray-100 dark:border-zinc-800 pb-3">
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-zinc-100 font-plus-jakarta">Catatan Evaluasi & Kemitraan</h3>
                 </div>
                 <div className="p-5 space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-zinc-300 mb-1.5">
                       Catatan Tutor / Narasi Evaluasi Perkembangan
                     </label>
                     <Textarea
@@ -2566,11 +2534,11 @@ export default function KKTPPage() {
                       onChange={(e) => setCatatanTutor(e.target.value)}
                       placeholder="Catatan perkembangan belajar murid selama proses pembelajaran..."
                       rows={3}
-                      className="text-xs"
+                      className="text-xs bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-zinc-300 mb-1.5">
                       Pesan Kemitraan untuk Orang Tua / Wali
                     </label>
                     <Textarea
@@ -2578,7 +2546,7 @@ export default function KKTPPage() {
                       onChange={(e) => setPesanKemitraan(e.target.value)}
                       placeholder="Pesan kolaborasi pembimbingan di rumah untuk orang tua / wali..."
                       rows={2}
-                      className="text-xs"
+                      className="text-xs bg-white dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                     />
                   </div>
                 </div>
@@ -2603,56 +2571,57 @@ export default function KKTPPage() {
             {/* ── Sticky Context & AI Tools Sidebar (4 cols on desktop) ── */}
             <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-6">
               {/* Context Summary Card */}
-              <div className="bg-white p-5 rounded-2xl border border-gray-200/90 shadow-xs space-y-3">
-                <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                  <User className="w-4 h-4 text-emerald-600" />
-                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Identitas Konteks</h3>
+              <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-gray-200/90 dark:border-zinc-800 shadow-xs space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-zinc-800">
+                  <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-xs font-bold text-gray-900 dark:text-zinc-100 uppercase tracking-wider">Identitas Konteks</h3>
                 </div>
                 <div className="space-y-2 text-xs">
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="text-gray-500 font-medium">Nama Murid:</span>
-                    <span className="font-bold text-gray-900">{selectedStudentName}</span>
+                  <div className="flex justify-between py-1 border-b border-gray-50 dark:border-zinc-800/60">
+                    <span className="text-gray-500 dark:text-zinc-400 font-medium">Nama Murid:</span>
+                    <span className="font-bold text-gray-900 dark:text-zinc-100">{selectedStudentName}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="text-gray-500 font-medium">Kelas:</span>
-                    <span className="font-bold text-gray-800">{selectedClassName}</span>
+                  <div className="flex justify-between py-1 border-b border-gray-50 dark:border-zinc-800/60">
+                    <span className="text-gray-500 dark:text-zinc-400 font-medium">Kelas:</span>
+                    <span className="font-bold text-gray-800 dark:text-zinc-200">{selectedClassName}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="text-gray-500 font-medium">Mata Pelajaran:</span>
-                    <span className="font-bold text-gray-800">{selectedSubjectName}</span>
+                  <div className="flex justify-between py-1 border-b border-gray-50 dark:border-zinc-800/60">
+                    <span className="text-gray-500 dark:text-zinc-400 font-medium">Mata Pelajaran:</span>
+                    <span className="font-bold text-gray-800 dark:text-zinc-200">{selectedSubjectName}</span>
                   </div>
                   <div className="flex justify-between py-1">
-                    <span className="text-gray-500 font-medium">Fase:</span>
-                    <span className="font-bold text-emerald-700">{resolvePhaseByClassName(selectedClassName)}</span>
+                    <span className="text-gray-500 dark:text-zinc-400 font-medium">Fase:</span>
+                    <span className="font-bold text-emerald-700 dark:text-emerald-400">{resolvePhaseByClassName(selectedClassName)}</span>
                   </div>
                 </div>
               </div>
 
               {/* AI Auto-Formulate Assessment Panel */}
-              <Card className="border-violet-200 bg-gradient-to-br from-violet-50/50 to-indigo-50/20 shadow-xs">
-                <div className="p-4 pb-2 border-b border-violet-100/60">
-                  <h3 className="text-xs font-bold text-violet-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-violet-600" /> Analisis Observasi AI
+              <Card className="border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-50/50 to-indigo-50/20 dark:from-zinc-900 dark:to-violet-950/20 shadow-xs">
+                <div className="p-4 pb-2 border-b border-violet-100/60 dark:border-violet-900/50">
+                  <h3 className="text-xs font-bold text-violet-900 dark:text-violet-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" /> Analisis Observasi AI
                   </h3>
-                  <p className="text-[11px] text-violet-700 mt-0.5">
+                  <p className="text-[11px] text-violet-700 dark:text-violet-400 mt-0.5">
                     Masukkan catatan pengamatan belajar murid, AI akan merumuskan penilaian ketercapaian secara otomatis.
                   </p>
                 </div>
                 <div className="p-4 space-y-3">
+                  <AIUsageStatus className="mb-1" />
                   <Textarea
                     value={catatanPengamatan}
                     onChange={(e) => setCatatanPengamatan(e.target.value)}
                     placeholder="Contoh: Raihan sangat aktif saat praktik mandiri, mampu menjelaskan konsep dengan baik..."
                     rows={4}
-                    className="text-xs bg-white border-violet-200 placeholder-violet-300"
+                    className="text-xs bg-white dark:bg-zinc-800 border-violet-200 dark:border-violet-800/60 placeholder-violet-300 dark:placeholder-zinc-500 dark:text-zinc-100"
                   />
                   {aiError && (
-                    <p className="text-[11px] text-red-600 flex items-center gap-1">
+                    <p className="text-[11px] text-red-600 dark:text-red-400 flex items-center gap-1">
                       <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {aiError}
                     </p>
                   )}
                   {aiCatatanUmum && (
-                    <p className="text-xs text-violet-800 italic bg-violet-100/70 p-2.5 rounded-lg border border-violet-200">
+                    <p className="text-xs text-violet-800 dark:text-violet-300 italic bg-violet-100/70 dark:bg-violet-950/40 p-2.5 rounded-lg border border-violet-200 dark:border-violet-800/50">
                       {aiCatatanUmum}
                     </p>
                   )}
@@ -2669,7 +2638,8 @@ export default function KKTPPage() {
             </div>
           </div>
         )}
-      </PageContainer>
+        </PageContainer>
+      </div>
     );
   }
 
@@ -2677,96 +2647,94 @@ export default function KKTPPage() {
   // RENDER: LIST VIEW (Flat legacy list fallback)
   // ═══════════════════════════════════════════════════════════════════════════
   return (
-    <PageContainer maxWidth="7xl" className="space-y-6">
-      {/* Modal konfirmasi hapus */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-gray-200">
-            <h3 className="text-base font-bold text-gray-900">Hapus Dokumen KKTP?</h3>
-            <p className="text-xs text-gray-600">Dokumen yang dihapus tidak dapat dikembalikan lagi ke sistem.</p>
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" className="flex-1 text-xs" onClick={() => setConfirmDeleteId(null)} disabled={deleting}>
-                Batal
-              </Button>
-              <Button variant="destructive" className="flex-1 text-xs" onClick={() => handleDeleteKKTP(confirmDeleteId)} loading={deleting}>
-                <Trash2 className="w-4 h-4 mr-1.5" /> Hapus
-              </Button>
+    <div className="min-h-screen bg-[#fdfbf7] dark:bg-zinc-950 pb-16">
+      <PageContainer maxWidth="7xl" className="space-y-6">
+        {/* Modal konfirmasi hapus */}
+        {confirmDeleteId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-sm w-full p-6 space-y-4 border border-zinc-200 dark:border-zinc-800">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Hapus Dokumen KKTP?</h3>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">Dokumen yang dihapus tidak dapat dikembalikan lagi ke sistem.</p>
+              <div className="flex gap-3 pt-2">
+                <Button variant="secondary" className="flex-1 text-xs dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200" onClick={() => setConfirmDeleteId(null)} disabled={deleting}>
+                  Batal
+                </Button>
+                <Button variant="destructive" className="flex-1 text-xs" onClick={() => handleDeleteKKTP(confirmDeleteId)} loading={deleting}>
+                  <Trash2 className="w-4 h-4 mr-1.5" /> Hapus
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200/80 pb-5">
-        <div>
-          <button
-            onClick={() => setView('CLASS_LIST')}
-            className="text-xs text-emerald-700 font-bold hover:underline flex items-center gap-1.5 mb-1"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Kembali ke Tampilan Kelas
-          </button>
-          <h1 className="text-2xl font-extrabold tracking-tight text-gray-900 font-plus-jakarta">Semua Dokumen KKTP</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Daftar keseluruhan dokumen KKTP yang tersimpan di sistem PKBM.
-          </p>
-        </div>
-        <Button onClick={handleStartWizard} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
-          <Plus className="w-4 h-4 mr-1.5" /> Buat KKTP Baru
-        </Button>
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col justify-center items-center p-20 space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-          <p className="text-xs text-gray-500 font-medium">Memuat dokumen KKTP...</p>
-        </div>
-      ) : documents.length === 0 ? (
-        <Card className="text-center p-12 bg-white">
-          <div className="space-y-3 py-6 max-w-md mx-auto">
-            <FileText className="w-12 h-12 mx-auto text-emerald-600" />
-            <h3 className="font-bold text-base text-gray-800">Belum Ada Dokumen KKTP</h3>
-            <Button onClick={handleStartWizard} className="min-h-[40px] mt-2 bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold">
-              <Plus className="w-4 h-4 mr-1.5" /> Buat KKTP Pertama
+        {/* Standardized PageHeader with onBack navigation */}
+        <PageHeader
+          onBack={() => setView('CLASS_LIST')}
+          backLabel="Tampilan Kelas"
+          title="Semua Dokumen KKTP"
+          description="Daftar keseluruhan dokumen KKTP yang tersimpan di sistem PKBM."
+          statusBadge="Arsip Lengkap"
+          actions={
+            <Button onClick={handleStartWizard} className="min-h-[38px] bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl">
+              <Plus className="w-4 h-4 mr-1.5" /> Buat KKTP Baru
             </Button>
+          }
+        />
+
+        {loading ? (
+          <div className="flex flex-col justify-center items-center p-20 space-y-3">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-medium">Memuat dokumen KKTP...</p>
           </div>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-          {documents.map((doc) => {
-            const identitas = doc.content?.identitas || {};
-            return (
-              <Card key={doc.id} className="flex flex-col justify-between hover:shadow-md transition-shadow bg-white rounded-2xl border border-gray-200/90">
-                <div className="p-5">
-                  <div className="flex justify-between items-start gap-2 mb-2">
-                    <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold border bg-emerald-100 text-emerald-800 border-emerald-200">
-                      Sudah Dibuat
-                    </span>
-                    <span className="text-[10px] text-gray-400 font-medium">v{doc.version}</span>
+        ) : documents.length === 0 ? (
+          <Card className="text-center p-12 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 rounded-2xl">
+            <div className="space-y-3 py-6 max-w-md mx-auto">
+              <FileText className="w-12 h-12 mx-auto text-emerald-600" />
+              <h3 className="font-bold text-base text-zinc-800 dark:text-zinc-200">Belum Ada Dokumen KKTP</h3>
+              <Button onClick={handleStartWizard} className="min-h-[40px] mt-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl">
+                <Plus className="w-4 h-4 mr-1.5" /> Buat KKTP Pertama
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {documents.map((doc) => {
+              const identitas = doc.content?.identitas || {};
+              return (
+                <Card key={doc.id} className="flex flex-col justify-between hover:shadow-md transition-shadow bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200/90 dark:border-zinc-800">
+                  <div className="p-5">
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <span className="text-[10px] px-2.5 py-0.5 rounded-full font-bold border bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800">
+                        Sudah Dibuat
+                      </span>
+                      <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium">v{doc.version}</span>
+                    </div>
+                    <h3 className="text-sm font-bold line-clamp-2 text-zinc-900 dark:text-zinc-100 font-plus-jakarta">{doc.title}</h3>
+                    <div className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+                      <p><span className="font-semibold text-zinc-500 dark:text-zinc-400">Murid:</span> {identitas.namaMurid || '-'}</p>
+                      <p><span className="font-semibold text-zinc-500 dark:text-zinc-400">Kelas:</span> {identitas.kelasRombel || '-'}</p>
+                      <p><span className="font-semibold text-zinc-500 dark:text-zinc-400">Mapel:</span> {identitas.mataPelajaran || '-'}</p>
+                    </div>
                   </div>
-                  <h3 className="text-sm font-bold line-clamp-2 text-gray-900">{doc.title}</h3>
-                  <div className="text-xs text-gray-600 space-y-1 mt-3 pt-3 border-t border-gray-100">
-                    <p><span className="font-semibold text-gray-500">Murid:</span> {identitas.namaMurid || '-'}</p>
-                    <p><span className="font-semibold text-gray-500">Kelas:</span> {identitas.kelasRombel || '-'}</p>
-                    <p><span className="font-semibold text-gray-500">Mapel:</span> {identitas.mataPelajaran || '-'}</p>
-                  </div>
-                </div>
-                <CardFooter className="border-t border-gray-100 pt-3 flex gap-2 justify-between bg-gray-50/50 p-4">
-                  <Button variant="secondary" size="sm" onClick={() => handleOpenPrint(doc)} className="min-h-[34px] text-xs">
-                    <Printer className="w-3.5 h-3.5 mr-1" /> Cetak
-                  </Button>
-                  <div className="flex gap-1.5">
-                    <Button size="sm" variant="secondary" className="min-h-[34px] text-xs" onClick={() => handleEditKKTP(doc)}>
-                      <Edit className="w-3.5 h-3.5" />
+                  <CardFooter className="border-t border-zinc-100 dark:border-zinc-800 pt-3 flex gap-2 justify-between bg-zinc-50/50 dark:bg-zinc-800/50 p-4">
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenPrint(doc)} className="min-h-[34px] text-xs dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200">
+                      <Printer className="w-3.5 h-3.5 mr-1" /> Cetak
                     </Button>
-                    <Button size="sm" variant="destructive" className="min-h-[34px] text-xs" onClick={() => setConfirmDeleteId(doc.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </PageContainer>
+                    <div className="flex gap-1.5">
+                      <Button size="sm" variant="secondary" className="min-h-[34px] text-xs dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200" onClick={() => handleEditKKTP(doc)}>
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button size="sm" variant="destructive" className="min-h-[34px] text-xs" onClick={() => setConfirmDeleteId(doc.id)}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </PageContainer>
+    </div>
   );
 }

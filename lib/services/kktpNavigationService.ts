@@ -198,6 +198,28 @@ export async function getKKTPClassesSummary(user: { id: string; role: string }):
     kktpsByClass.get(classId)!.push({ studentId, subjectId, subjectName });
   }
 
+  // Also query normalized assessment summaries (from modern Matrix Gradebook)
+  const rawAssessmentSummaries = (await db('kktp_assessments')
+    .join('kktp_student_summaries', 'kktp_assessments.id', 'kktp_student_summaries.assessment_id')
+    .whereIn('kktp_assessments.class_id', classIds)
+    .whereIn('kktp_student_summaries.status', ['COMPLETED', 'IN_PROGRESS'])
+    .select(
+      'kktp_assessments.class_id',
+      'kktp_assessments.subject_id',
+      'kktp_student_summaries.student_id'
+    )) as any[];
+
+  const assessmentSummariesByClass = new Map<string, Array<{ subjectId: string; studentId: string }>>();
+  for (const a of rawAssessmentSummaries) {
+    if (!assessmentSummariesByClass.has(a.class_id)) {
+      assessmentSummariesByClass.set(a.class_id, []);
+    }
+    assessmentSummariesByClass.get(a.class_id)!.push({
+      subjectId: a.subject_id,
+      studentId: a.student_id,
+    });
+  }
+
   // Build summary for each class
   const result: KKTPClassCardItem[] = [];
 
@@ -205,6 +227,7 @@ export async function getKKTPClassesSummary(user: { id: string; role: string }):
     const studentCount = enrollmentMap.get(cls.id) || 0;
     const subjects = await getSubjectsForClass(cls.id);
     const classKKTPs = kktpsByClass.get(cls.id) || [];
+    const classAssessments = assessmentSummariesByClass.get(cls.id) || [];
 
     const subjectSummaries: KKTPClassSubjectSummary[] = subjects.map((subj) => {
       // Count unique students who have KKTP for this subject
@@ -216,6 +239,12 @@ export async function getKKTPClassesSummary(user: { id: string; role: string }):
 
         if (matchesSubject) {
           matchingStudents.add(k.studentId);
+        }
+      }
+
+      for (const a of classAssessments) {
+        if (a.subjectId === subj.id && a.studentId) {
+          matchingStudents.add(a.studentId);
         }
       }
 
@@ -282,6 +311,16 @@ export async function getKKTPClassSubjects(
     .where('class_id', classId)
     .select('id', 'subject_id', 'content')) as any[];
 
+  // Also query normalized assessment summaries (from modern Matrix Gradebook)
+  const assessmentSummaries = (await db('kktp_assessments')
+    .join('kktp_student_summaries', 'kktp_assessments.id', 'kktp_student_summaries.assessment_id')
+    .where('kktp_assessments.class_id', classId)
+    .whereIn('kktp_student_summaries.status', ['COMPLETED', 'IN_PROGRESS'])
+    .select(
+      'kktp_assessments.subject_id',
+      'kktp_student_summaries.student_id'
+    )) as any[];
+
   const parsedDocs = classDocs.map((d: any) => {
     const content = typeof d.content === 'string' ? JSON.parse(d.content) : d.content;
     return {
@@ -301,6 +340,12 @@ export async function getKKTPClassSubjects(
         (doc.subjectName && doc.subjectName.toLowerCase() === subj.name.toLowerCase());
       if (matches) {
         matchingStudents.add(doc.studentId);
+      }
+    }
+
+    for (const sum of assessmentSummaries) {
+      if (sum.subject_id === subj.id && sum.student_id) {
+        matchingStudents.add(sum.student_id);
       }
     }
 
@@ -408,10 +453,37 @@ export async function getKKTPStudentsForClassSubject(
     }
   }
 
+  // Check normalized assessment summaries for this subject (from modern Matrix Gradebook)
+  const normalizedAssessment = await db('kktp_assessments')
+    .where('class_id', classId)
+    .where('subject_id', foundSubject.id)
+    .first();
+
+  const normalizedSummaries = normalizedAssessment
+    ? ((await db('kktp_student_summaries')
+        .where('assessment_id', normalizedAssessment.id)
+        .select('student_id', 'status', 'average_score', 'updated_at')) as Array<{
+        student_id: string;
+        status: string;
+        average_score: number | null;
+        updated_at: string | Date | null;
+      }>)
+    : [];
+
+  const summaryByStudent = new Map<
+    string,
+    { student_id: string; status: string; average_score: number | null; updated_at: string | Date | null }
+  >(normalizedSummaries.map((s) => [s.student_id, s]));
+
   // Build student list
   const students: KKTPStudentItem[] = enrollments.map((e: any) => {
     const doc = docByStudent.get(e.student_id) || null;
-    const status = deriveKKTPStatusFromDoc(doc);
+    const normalizedSum = summaryByStudent.get(e.student_id);
+
+    let status: KKTPDocStatus = deriveKKTPStatusFromDoc(doc);
+    if (status === 'BELUM_DIBUAT' && normalizedSum) {
+      status = 'SUDAH_DIBUAT';
+    }
     const badge = getKKTPStatusBadge(status);
 
     return {
@@ -421,9 +493,9 @@ export async function getKKTPStudentsForClassSubject(
       status,
       status_label: badge.label,
       status_color: badge.colorClass,
-      kktp_doc_id: doc?.id || null,
-      kktp_doc_title: doc?.title || null,
-      kktp_updated_at: doc?.updated_at || null,
+      kktp_doc_id: doc?.id || (normalizedAssessment ? `matrix-${normalizedAssessment.id}` : null),
+      kktp_doc_title: doc?.title || (normalizedAssessment ? `Asesmen Matriks ${foundSubject.name}` : null),
+      kktp_updated_at: doc?.updated_at || (normalizedSum?.updated_at ? String(normalizedSum.updated_at) : null),
     };
   });
 

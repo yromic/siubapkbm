@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FileText,
+  Trash2,
 } from "lucide-react";
 import { notify } from "@/lib/notify";
 import {
@@ -23,10 +24,12 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { calculateSubjectScore, getKKTPPredicate } from "@/lib/utils/kktpCalculationUtils";
 import { KKTPConfigModal, ConfiguredTPItem } from "./KKTPConfigModal";
 import { KKTPStudentReportSheet, StudentKKTPReportData } from "./KKTPStudentReportSheet";
 import { PrintBrowserHint } from "@/components/print/PrintBrowserHint";
+import { AIUsageStatus } from "@/components/ai/AIUsageStatus";
 
 export interface KKTPMatrixStudentRow {
   student_id: string;
@@ -93,6 +96,8 @@ export function KKTPMatrixGradebook({
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [printData, setPrintData] = useState<StudentKKTPReportData | null>(null);
   const [batchPrintData, setBatchPrintData] = useState<StudentKKTPReportData[] | null>(null);
+  const [tpToDeleteFromMatrix, setTpToDeleteFromMatrix] = useState<ConfiguredTPItem | null>(null);
+  const [deletingMatrixTp, setDeletingMatrixTp] = useState(false);
 
   // Institutional Settings & Letterhead State
   const [schoolSettings, setSchoolSettings] = useState<Record<string, any>>({});
@@ -171,6 +176,42 @@ export function KKTPMatrixGradebook({
       setLoading(false);
     }
   }, [classId, subjectId]);
+
+  const handleDeleteTpFromMatrix = async () => {
+    if (!tpToDeleteFromMatrix || !assessment?.id) return;
+    setDeletingMatrixTp(true);
+    try {
+      const remaining = tps
+        .filter((t) => t.id !== tpToDeleteFromMatrix.id)
+        .map((t, idx) => {
+          const isAuto = !t.tp_code || /^TP-\d+$/i.test(t.tp_code.trim());
+          return {
+            ...t,
+            tp_code: isAuto ? `TP-${String(idx + 1).padStart(2, "0")}` : t.tp_code,
+            order_index: idx + 1,
+          };
+        });
+
+      const res = await fetch(`/api/v1/kktp/assessments/${assessment.id}/tps`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(remaining),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        notify.error(json.message || "Gagal menghapus TP dari asesmen.");
+        return;
+      }
+
+      notify.success(`TP "${tpToDeleteFromMatrix.tp_code || "TP"}" berhasil dihapus dari asesmen.`);
+      setTpToDeleteFromMatrix(null);
+      await loadMatrixData();
+    } catch {
+      notify.error("Terjadi kendala saat menghapus TP.");
+    } finally {
+      setDeletingMatrixTp(false);
+    }
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -426,7 +467,8 @@ export function KKTPMatrixGradebook({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          <AIUsageStatus compact />
           <Button
             size="sm"
             variant="outline"
@@ -515,13 +557,26 @@ export function KKTPMatrixGradebook({
                 {tps.map((tp, idx) => (
                   <th
                     key={tp.id}
-                    className="py-3 px-2 text-center min-w-[110px] max-w-[140px] border-r border-zinc-200 dark:border-zinc-800"
+                    className="py-3 px-2 text-center min-w-[110px] max-w-[140px] border-r border-zinc-200 dark:border-zinc-800 relative group"
                     title={tp.tp_text_snapshot}
                   >
                     <div className="flex flex-col items-center">
-                      <span className="font-bold text-zinc-900 dark:text-zinc-100">
-                        {tp.tp_code || `TP-${String(idx + 1).padStart(2, "0")}`}
-                      </span>
+                      <div className="flex items-center gap-1 justify-center w-full">
+                        <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                          {tp.tp_code || `TP-${String(idx + 1).padStart(2, "0")}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTpToDeleteFromMatrix(tp);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-opacity"
+                          title={`Hapus ${tp.tp_code || "TP ini"} dari asesmen`}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                       <span className="text-[10px] text-zinc-500 font-normal truncate max-w-[110px]">
                         {tp.tp_text_snapshot}
                       </span>
@@ -655,6 +710,19 @@ export function KKTPMatrixGradebook({
           onTpsSaved={loadMatrixData}
         />
       )}
+
+      {/* Direct Delete TP from Matrix Confirmation */}
+      <ConfirmDialog
+        open={tpToDeleteFromMatrix !== null}
+        onOpenChange={(open) => !open && setTpToDeleteFromMatrix(null)}
+        title="Hapus TP dari Asesmen?"
+        description={`Apakah Anda yakin ingin menghapus "${tpToDeleteFromMatrix?.tp_code || "TP ini"}" dari asesmen ini? Menghapus TP ini akan menghapus seluruh data nilai murid pada kolom ini secara permanen.`}
+        confirmLabel="Ya, Hapus TP"
+        cancelLabel="Batal"
+        variant="destructive"
+        loading={deletingMatrixTp}
+        onConfirm={handleDeleteTpFromMatrix}
+      />
 
       {/* Unsaved Changes In-App Navigation Guard */}
       <Dialog open={showLeaveConfirmDialog} onOpenChange={setShowLeaveConfirmDialog}>
