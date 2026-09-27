@@ -7,7 +7,172 @@ import { getUTSMANSummary } from './utsmanCalculationService';
 import { getSecuritySettingNum } from '@/lib/auth/securityUtils';
 import { logAuthenticationEvent } from './auditService';
 
-const PARENT_SESSION_HOURS = 2;
+const PARENT_SESSION_HOURS = 365 * 24; // 1 year persistent session for parents
+
+/**
+ * Public helper for parent portal to populate Class and Student dropdowns.
+ * Returns safe public fields only (id, full_name, gender, class_id, class_name).
+ */
+export async function getParentPublicClassStudents() {
+  const classes = await db('classes')
+    .where('status', 'active')
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .select('id', 'name', 'level')
+    .orderBy('level', 'asc')
+    .orderBy('name', 'asc');
+
+  const classIds = classes.map((c: any) => c.id);
+
+  const students = await db('student_enrollments')
+    .join('students', 'student_enrollments.student_id', 'students.id')
+    .join('classes', 'student_enrollments.class_id', 'classes.id')
+    .whereIn('student_enrollments.class_id', classIds)
+    .where('student_enrollments.status', 'active')
+    .where('students.status', 'active')
+    .select(
+      'students.id',
+      'students.full_name',
+      'students.gender',
+      'classes.id as class_id',
+      'classes.name as class_name',
+      'classes.level as class_level'
+    )
+    .orderBy('students.full_name', 'asc');
+
+  return { classes, students };
+}
+
+/**
+ * Modern parent login by selecting student_id and entering 4-digit PIN (default DDMM birthdate).
+ */
+export async function loginParentByStudentId(
+  studentId: string,
+  pin: string,
+  ip?: string,
+  userAgent?: string
+) {
+  if (!studentId || !pin) {
+    throw new AppError('Nama anak dan PIN wajib diisi.', 'ERR_VALIDATION', 400);
+  }
+
+  const student = await db('students')
+    .where('id', studentId)
+    .whereNotIn('status', ['soft_deleted', 'archived', 'deceased'])
+    .first();
+
+  if (!student) {
+    await logParentAccess(null, 'login_failed_no_student', false, ip, userAgent);
+    throw new AppError('Data anak tidak ditemukan.', 'ERR_NOT_FOUND', 404);
+  }
+
+  // Check for PIN lockout
+  if (student.parent_access_pin_locked_until && new Date(student.parent_access_pin_locked_until) > new Date()) {
+    const remainingMs = new Date(student.parent_access_pin_locked_until).getTime() - Date.now();
+    const remainingMins = Math.ceil(remainingMs / 60000);
+    await logParentAccess(student.id, 'login_locked', false, ip, userAgent);
+    throw new AppError(`Akses akun terkunci sementara. Coba lagi dalam ${remainingMins} menit.`, 'ERR_ACCOUNT_LOCKED', 403);
+  }
+
+  // Calculate default DDMM from student's birth_date
+  let expectedDDMM = '';
+  if (student.birth_date) {
+    const d = new Date(student.birth_date);
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      expectedDDMM = `${day}${month}`;
+    }
+  }
+
+  let isPinValid = false;
+  const trimmedPin = pin.trim();
+
+  // 1. If custom pin hash configured, check bcrypt
+  if (student.parent_access_pin_hash) {
+    isPinValid = await bcrypt.compare(trimmedPin, student.parent_access_pin_hash);
+  }
+
+  // 2. If not valid via hash, check if matches expected DDMM birth date
+  if (!isPinValid && expectedDDMM && trimmedPin === expectedDDMM) {
+    isPinValid = true;
+    try {
+      const newHash = await bcrypt.hash(trimmedPin, 10);
+      await db('students').where('id', student.id).update({ parent_access_pin_hash: newHash });
+    } catch {
+      // non-fatal
+    }
+  }
+
+  if (!isPinValid) {
+    const attempts = (student.parent_access_pin_failed_attempts || 0) + 1;
+    const patch: any = { parent_access_pin_failed_attempts: attempts, updated_at: new Date() };
+
+    const maxFailedLogin = await getSecuritySettingNum('MAX_FAILED_LOGIN', 5);
+    const lockDuration = await getSecuritySettingNum('LOCK_DURATION', 15);
+
+    if (attempts >= maxFailedLogin) {
+      const lockUntil = new Date();
+      lockUntil.setMinutes(lockUntil.getMinutes() + lockDuration);
+      patch.parent_access_pin_locked_until = lockUntil;
+
+      await db('students').where('id', student.id).update(patch);
+      await logParentAccess(student.id, 'login_locked', false, ip, userAgent);
+      await logAuthenticationEvent(student.nisn || student.id, 'parent', 'account_locked', false, ip, userAgent, `Locked for ${lockDuration} mins.`);
+    } else {
+      await db('students').where('id', student.id).update(patch);
+      await logParentAccess(student.id, 'login_failed_invalid_pin', false, ip, userAgent);
+      await logAuthenticationEvent(student.nisn || student.id, 'parent', 'login_failed', false, ip, userAgent, `Incorrect PIN. Attempt ${attempts}.`);
+    }
+
+    throw new AppError(
+      'PIN salah. Masukkan 4 digit tanggal & bulan lahir anak (contoh: 1708 untuk 17 Agustus).',
+      'ERR_UNAUTHORIZED',
+      401
+    );
+  }
+
+  // Reset failed attempts
+  await db('students').where('id', student.id).update({
+    parent_access_pin_failed_attempts: 0,
+    parent_access_pin_locked_until: null,
+    updated_at: new Date()
+  });
+
+  // Generate 1-year persistent session token
+  const { rawToken, hash } = generateSessionToken();
+  const sessionId = uuidv4();
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 365); // 365 days
+
+  // Revoke previous sessions for this student
+  await db('parent_sessions')
+    .where('student_id', student.id)
+    .delete();
+
+  await db('parent_sessions').insert({
+    id: sessionId,
+    student_id: student.id,
+    token_hash: hash,
+    issued_at: new Date(),
+    expires_at: expiresAt,
+    last_seen_at: new Date(),
+    ip_address: ip || null,
+    user_agent: userAgent || null,
+    created_at: new Date(),
+    updated_at: new Date()
+  });
+
+  await logParentAccess(student.id, 'login_success', true, ip, userAgent);
+  await logAuthenticationEvent(student.nisn || student.id, 'parent', 'login_success', true, ip, userAgent);
+
+  const { parent_access_pin_hash, parent_access_pin_failed_attempts, parent_access_pin_locked_until, ...safeStudent } = student;
+
+  return {
+    token: rawToken,
+    student: safeStudent,
+    expires_at: expiresAt
+  };
+}
 
 export async function loginParent(
   nisn: string,
@@ -284,6 +449,9 @@ export async function getParentDashboard(studentId: string) {
   // Student Attendance aggregate calculation (semester-scoped)
   const student_attendance = await getParentStudentAttendanceSummary(studentId, enrollment?.semester_id);
 
+  // KKTP Real Objective Progress (Kurikulum Merdeka)
+  const kktp_progress = await getParentKKTPProgress(studentId, enrollment?.semester_id);
+
   return {
     student: {
       id: student.id,
@@ -298,8 +466,118 @@ export async function getParentDashboard(studentId: string) {
     character_summary,
     student_attendance,
     enrollment,
-    spp_this_month: sppStatus
+    spp_this_month: sppStatus,
+    kktp_progress
   };
+}
+
+/**
+ * Fetches real Kurikulum Merdeka KKTP student progress (TP scores, status, competency description).
+ */
+export async function getParentKKTPProgress(studentId: string, semesterId?: string) {
+  let targetSemesterId = semesterId;
+  let targetClassId: string | null = null;
+
+  const enrollment = await db('student_enrollments')
+    .where({ student_id: studentId, status: 'active' })
+    .whereNot('lifecycle_status', 'soft_deleted')
+    .first();
+
+  if (enrollment) {
+    targetSemesterId = targetSemesterId || enrollment.semester_id;
+    targetClassId = enrollment.class_id;
+  }
+
+  if (!targetSemesterId || !targetClassId) {
+    return [];
+  }
+
+  try {
+    const hasKktpTable = await db.schema.hasTable('kktp_assessments');
+    if (!hasKktpTable) return [];
+
+    // Get all KKTP assessments for this class + semester
+    const assessments = await db('kktp_assessments')
+      .join('subjects', 'kktp_assessments.subject_id', 'subjects.id')
+      .where({
+        'kktp_assessments.class_id': targetClassId,
+        'kktp_assessments.semester_id': targetSemesterId,
+      })
+      .whereNot('kktp_assessments.lifecycle_status', 'soft_deleted')
+      .select(
+        'kktp_assessments.id as assessment_id',
+        'kktp_assessments.fase',
+        'subjects.id as subject_id',
+        'subjects.name as subject_name',
+        'subjects.code as subject_code'
+      );
+
+    if (assessments.length === 0) {
+      return [];
+    }
+
+    const assessmentIds = assessments.map((a: any) => a.assessment_id);
+
+    // Get TPs for these assessments
+    const tps = await db('kktp_assessment_tps')
+      .whereIn('assessment_id', assessmentIds)
+      .orderBy('order_index', 'asc')
+      .select('id', 'assessment_id', 'code', 'tp_name', 'description');
+
+    // Get student scores for these assessments
+    const scores = await db('kktp_student_scores')
+      .whereIn('assessment_id', assessmentIds)
+      .where('student_id', studentId)
+      .select('assessment_id', 'assessment_tp_id', 'score', 'evidence_status', 'reflection');
+
+    // Get student summaries for competency descriptions
+    const summaries = await db('kktp_student_summaries')
+      .whereIn('assessment_id', assessmentIds)
+      .where('student_id', studentId)
+      .select('assessment_id', 'average_score', 'predicate', 'competency_description', 'catatan_tutor');
+
+    // Build subject progress
+    return assessments.map((ass: any) => {
+      const subjectTps = tps.filter((t: any) => t.assessment_id === ass.assessment_id);
+      const subjectScores = scores.filter((s: any) => s.assessment_id === ass.assessment_id);
+      const summary = summaries.find((sm: any) => sm.assessment_id === ass.assessment_id);
+
+      const tpResults = subjectTps.map((t: any) => {
+        const sc = subjectScores.find((s: any) => s.assessment_tp_id === t.id);
+        const rawScore = sc && sc.score !== null && sc.score !== undefined ? Number(sc.score) : null;
+        return {
+          id: t.id,
+          code: t.code,
+          title: t.tp_name || t.code,
+          description: t.description,
+          score: rawScore,
+          evidence_status: sc ? sc.evidence_status : null,
+          is_achieved: rawScore !== null ? rawScore >= 76 : null,
+        };
+      });
+
+      const achievedCount = tpResults.filter((t: any) => t.is_achieved === true).length;
+      const scoredCount = tpResults.filter((t: any) => t.score !== null).length;
+
+      return {
+        subject_id: ass.subject_id,
+        subject_name: ass.subject_name,
+        subject_code: ass.subject_code,
+        fase: ass.fase,
+        total_tps: tpResults.length,
+        scored_tps: scoredCount,
+        achieved_tps: achievedCount,
+        average_score: summary && summary.average_score !== null ? Number(summary.average_score) : null,
+        predicate: summary?.predicate || null,
+        competency_description: summary?.competency_description || null,
+        catatan_tutor: summary?.catatan_tutor || null,
+        tps: tpResults,
+      };
+    });
+  } catch (err) {
+    console.error('Failed to load KKTP progress for parent portal:', err);
+    return [];
+  }
 }
 
 export async function getParentStudentAttendanceSummary(studentId: string, semesterId?: string) {

@@ -25,6 +25,43 @@ export async function loginParentApi(
   return apiRequest<ParentLoginResponse>("parent_login", { nisn, birth_date, pin, altchaPayload });
 }
 
+export async function loginParentByStudentIdApi(
+  student_id: string,
+  pin: string,
+  altchaPayload?: string
+): Promise<ParentLoginResponse> {
+  return apiRequest<ParentLoginResponse>("parent_login", { student_id, pin, altchaPayload });
+}
+
+export interface ParentPublicClassStudentItem {
+  id: string;
+  full_name: string;
+  gender: string;
+  class_id: string;
+  class_name: string;
+  class_level: number;
+}
+
+export interface ParentPublicClassItem {
+  id: string;
+  name: string;
+  level: number;
+}
+
+export interface ParentPublicClassStudentsResponse {
+  classes: ParentPublicClassItem[];
+  students: ParentPublicClassStudentItem[];
+}
+
+export async function getParentPublicClassStudentsApi(): Promise<ParentPublicClassStudentsResponse> {
+  const res = await fetch("/api/v1/parent/class-students");
+  const json = await res.json();
+  if (!res.ok || json.status === "error") {
+    throw new Error(json.message || "Gagal memuat data kelas dan murid.");
+  }
+  return json.data;
+}
+
 
 export async function logoutParentApi(token: string): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>("parent_logout", { parent_access_token: token });
@@ -71,6 +108,32 @@ export interface ParentDashboardData {
     attendance_rate: number | null;
   };
   spp_this_month?: string | null;
+  kktp_progress?: ParentKKTPProgressItem[];
+}
+
+export interface ParentKKTPTPItem {
+  id: string;
+  code: string;
+  title: string;
+  description?: string;
+  score: number | null;
+  evidence_status?: string | null;
+  is_achieved: boolean | null;
+}
+
+export interface ParentKKTPProgressItem {
+  subject_id: string;
+  subject_name: string;
+  subject_code: string;
+  fase: string;
+  total_tps: number;
+  scored_tps: number;
+  achieved_tps: number;
+  average_score: number | null;
+  predicate: string | null;
+  competency_description: string | null;
+  catatan_tutor: string | null;
+  tps: ParentKKTPTPItem[];
 }
 
 export async function getParentDashboardApi(token: string): Promise<ParentDashboardData> {

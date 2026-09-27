@@ -10,6 +10,7 @@ interface ParentAuthContextType {
   token: string | null;
   loading: boolean;
   login: (nisn: string, birth_date: string, pin: string, altchaPayload?: string) => Promise<void>;
+  loginByStudent: (studentId: string, pin: string, altchaPayload?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearSession: () => void;
@@ -71,6 +72,21 @@ export function ParentAuthProvider({ children }: { children: React.ReactNode }) 
     }
   };
 
+  const loginByStudent = async (studentId: string, pin: string, altchaPayload?: string) => {
+    try {
+      const { loginParentByStudentIdApi } = await import("@/lib/api/parent");
+      await loginParentByStudentIdApi(studentId, pin, altchaPayload);
+      setToken("cookie_session");
+
+      const prof = await getParentProfileApi("");
+      setProfile(prof);
+      router.push("/parent/dashboard");
+    } catch (error) {
+      clearSession();
+      throw error;
+    }
+  };
+
   const logout = async () => {
     setLoading(true);
     try {
@@ -89,6 +105,7 @@ export function ParentAuthProvider({ children }: { children: React.ReactNode }) 
         token,
         loading,
         login,
+        loginByStudent,
         logout,
         refreshProfile,
         clearSession,
