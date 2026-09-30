@@ -503,7 +503,7 @@ export async function getParentKKTPProgress(studentId: string, semesterId?: stri
         'kktp_assessments.class_id': targetClassId,
         'kktp_assessments.semester_id': targetSemesterId,
       })
-      .whereNot('kktp_assessments.lifecycle_status', 'soft_deleted')
+      .whereNot('subjects.lifecycle_status', 'soft_deleted')
       .select(
         'kktp_assessments.id as assessment_id',
         'kktp_assessments.fase',
@@ -522,7 +522,7 @@ export async function getParentKKTPProgress(studentId: string, semesterId?: stri
     const tps = await db('kktp_assessment_tps')
       .whereIn('assessment_id', assessmentIds)
       .orderBy('order_index', 'asc')
-      .select('id', 'assessment_id', 'code', 'tp_name', 'description');
+      .select('id', 'assessment_id', 'tp_code', 'tp_text_snapshot');
 
     // Get student scores for these assessments
     const scores = await db('kktp_student_scores')
@@ -547,9 +547,9 @@ export async function getParentKKTPProgress(studentId: string, semesterId?: stri
         const rawScore = sc && sc.score !== null && sc.score !== undefined ? Number(sc.score) : null;
         return {
           id: t.id,
-          code: t.code,
-          title: t.tp_name || t.code,
-          description: t.description,
+          code: t.tp_code,
+          title: t.tp_code,
+          description: t.tp_text_snapshot,
           score: rawScore,
           evidence_status: sc ? sc.evidence_status : null,
           is_achieved: rawScore !== null ? rawScore >= 76 : null,
@@ -782,11 +782,14 @@ export async function getParentAcademicSummary(studentId: string, academicYearId
   const overall_average = totalScoreCount > 0
     ? parseFloat((totalScoreSum / totalScoreCount).toFixed(2))
     : null;
+  const studentClass = await db('classes').where('id', validEnrollment.class_id).first();
+  const kktp_progress = await getParentKKTPProgress(studentId, semId);
 
   return {
     student: {
       full_name: student.full_name,
       nisn: student.nisn,
+      class_name: studentClass?.name || null,
     },
     period: {
       academic_year_name: year?.name || '',
@@ -796,6 +799,7 @@ export async function getParentAcademicSummary(studentId: string, academicYearId
     total_assessments: classAssessments.length,
     completed_assessments: totalScoreCount,
     subject_averages,
+    kktp_progress,
   };
 }
 

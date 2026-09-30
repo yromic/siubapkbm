@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useParentAuth } from "@/hooks/useParentAuth";
 import { getParentCharacterSummaryApi, ParentCharacterData } from "@/lib/api/parent";
 import { UtsmanRadarChart } from "@/components/character/utsman-radar-chart";
@@ -13,9 +12,7 @@ import {
   Award,
   Sparkles,
   CheckCircle2,
-  ChevronDown,
   Info,
-  TrendingUp,
 } from "lucide-react";
 import { UX_COPY } from "@/lib/ux-copy";
 
@@ -109,51 +106,28 @@ export default function ParentCharacterPage() {
       {/* Main Content — Responsive Desktop Grid */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
+        {/* Top Summary Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 p-4 sm:p-5 rounded-2xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs">
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold font-fredoka text-zinc-900 dark:text-zinc-100">
+              Rapor Karakter UTSMAN
+            </h1>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+              Evaluasi pembiasaan budaya dan 6 dimensi karakter ananda semester ini.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              {period?.label || "Semester Aktif"}
+            </span>
+          </div>
+        </div>
+
         {/* 2-Column Responsive Desktop Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
           {/* ─── LEFT COLUMN (lg:col-span-4) ─── */}
           <div className="lg:col-span-4 space-y-6">
-
-            {/* Student Header Card */}
-            {student && (
-              <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-200/90 dark:border-zinc-800 shadow-xs space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
-                      Santri / Murid
-                    </span>
-                    <h2 className="text-lg font-bold font-fredoka text-zinc-900 dark:text-zinc-100 mt-1">
-                      {student.full_name}
-                    </h2>
-                    <p className="text-xs text-zinc-500 mt-0.5 font-data">NISN: {student.nisn}</p>
-                  </div>
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 flex items-center justify-center font-bold text-base font-fredoka border border-emerald-200 dark:border-emerald-800 shadow-xs shrink-0">
-                    {student.full_name?.charAt(0) || "S"}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">
-                      Kelas
-                    </span>
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200 block mt-0.5">
-                      {student.class_name || "Belum terdaftar"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 block">
-                      Periode Penilaian
-                    </span>
-                    <span className="font-semibold text-zinc-800 dark:text-zinc-200 block mt-0.5 truncate font-data">
-                      {period?.label || "Semester Aktif"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Quick Metrics */}
             {data && (
               <div className="grid grid-cols-2 gap-3">
@@ -191,7 +165,7 @@ export default function ParentCharacterPage() {
                 <span>Mengenal 6 Dimensi UTSMAN</span>
               </div>
               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-plus-jakarta">
-                Karakter santri dievaluasi secara berkala oleh guru dan musyrif ke dalam 6 pilar pembiasaan:
+                Karakter santri dievaluasi secara berkala ke dalam 6 pilar pembiasaan:
               </p>
               <div className="space-y-2 text-xs">
                 <div className="bg-zinc-50 dark:bg-zinc-800/60 p-2.5 rounded-xl border border-zinc-200/60 dark:border-zinc-700/60">
@@ -235,7 +209,7 @@ export default function ParentCharacterPage() {
                     Radar Visual Karakter UTSMAN
                   </h3>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                    Grafik jaring laba-laba keseimbangan 6 dimensi karakter santri semester ini.
+                    Grafik keseimbangan 6 dimensi karakter ananda semester ini.
                   </p>
                 </div>
                 <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full shrink-0">
@@ -246,10 +220,7 @@ export default function ParentCharacterPage() {
               {!hasData ? (
                 <div className="py-12 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
                   <Award className="w-10 h-10 text-zinc-300 dark:text-zinc-700 mx-auto mb-2" />
-                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Belum ada data evaluasi karakter</p>
-                  <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-1 max-w-sm mx-auto">
-                    Data akan tampil otomatis setelah guru mencatat pembiasaan budaya mingguan pada semester ini.
-                  </p>
+                  <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Belum ada penilaian karakter semester ini.</p>
                 </div>
               ) : (
                 <div className="bg-zinc-50/60 dark:bg-zinc-950/50 rounded-2xl p-4 border border-zinc-100 dark:border-zinc-800 flex items-center justify-center">

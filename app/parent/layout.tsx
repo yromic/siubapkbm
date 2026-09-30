@@ -14,10 +14,10 @@ function ParentRouteGuard({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     const isLoginRoute = pathname === "/parent/login";
-    const isProtectedRoute = pathname === "/parent/dashboard" || pathname === "/parent/character" || pathname === "/parent/academic";
+    const isProtectedRoute = pathname.startsWith("/parent") && pathname !== "/parent/login";
 
     if (!token && isProtectedRoute) {
-      // Redirect unauthenticated parents trying to access dashboard, character, or academic detail to login
+      // Redirect unauthenticated parents trying to access protected parent pages to login
       router.push("/parent/login");
     } else if (token && isLoginRoute) {
       // Redirect already authenticated parents trying to access login page to dashboard
@@ -34,7 +34,7 @@ function ParentRouteGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Handle path authorization block during render to avoid content flash
-  const isProtectedRoute = pathname === "/parent/dashboard" || pathname === "/parent/character" || pathname === "/parent/academic";
+  const isProtectedRoute = pathname.startsWith("/parent") && pathname !== "/parent/login";
   if (!token && isProtectedRoute) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-[#0a0a0a]">

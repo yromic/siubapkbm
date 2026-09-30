@@ -2,8 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useParentAuth } from "@/hooks/useParentAuth";
+import { useWebsiteBranding } from "@/hooks/useWebsiteBranding";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   LayoutDashboard,
@@ -32,6 +34,7 @@ export function ParentNavbar({
 }: ParentNavbarProps) {
   const pathname = usePathname();
   const { logout } = useParentAuth();
+  const { branding } = useWebsiteBranding();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const navItems = [
@@ -79,25 +82,33 @@ export function ParentNavbar({
                 </Link>
               )}
 
-              <Link href="/parent/dashboard" className="flex items-center gap-2.5 group">
-                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-fredoka font-bold text-sm shadow-xs group-hover:bg-emerald-700 transition-colors">
-                  S
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-extrabold font-fredoka bg-gradient-to-r from-[#468432] to-emerald-500 bg-clip-text text-transparent">
-                      SIUBA PKBM
-                    </span>
-                    <span className="hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                      Wali Murid
-                    </span>
+              <Link href="/parent/dashboard" className="flex items-center gap-2.5 group" aria-label="Portal Wali Murid">
+                {branding.logo_url ? (
+                  <div className="relative h-8 w-24">
+                    <Image
+                      src={branding.logo_url}
+                      alt={branding.short_name}
+                      fill
+                      sizes="96px"
+                      priority
+                      className="object-contain object-left"
+                    />
                   </div>
-                  {title && (
-                    <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 sm:hidden">
-                      {title}
-                    </p>
-                  )}
+                ) : (
+                  <span className="text-base font-extrabold font-fredoka bg-gradient-to-r from-[#468432] to-emerald-500 bg-clip-text text-transparent">
+                    {branding.short_name}
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="hidden sm:inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    Portal Wali Murid
+                  </span>
                 </div>
+                {title && (
+                  <p className="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 sm:hidden">
+                    {title}
+                  </p>
+                )}
               </Link>
             </div>
 

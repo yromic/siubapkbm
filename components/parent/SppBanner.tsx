@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useParentAuth } from "@/hooks/useParentAuth";
 import { getParentSppStatusApi, SppPayment } from "@/lib/api/finance";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
@@ -79,6 +80,12 @@ export default function SppBanner() {
               Semua Tagihan SPP Lunas
             </span>
           </div>
+          <Link
+            href="/parent/spp"
+            className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline"
+          >
+            Lihat Riwayat
+          </Link>
         </div>
       </div>
     );
@@ -135,9 +142,17 @@ export default function SppBanner() {
           </div>
         )}
 
-        <p className="text-[10px] opacity-70 text-center leading-normal">
-          Harap lakukan pembayaran SPP melalui Operator Sekolah PKBM untuk verifikasi status lunas.
-        </p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-1 border-t border-current/10">
+          <p className="text-[10px] opacity-75 leading-normal">
+            Harap lakukan pembayaran SPP melalui Operator Sekolah PKBM.
+          </p>
+          <Link
+            href="/parent/spp"
+            className="inline-flex items-center px-3 py-1.5 bg-red-650 hover:bg-red-700 text-white rounded-lg text-xs font-semibold shrink-0 transition-colors shadow-2xs"
+          >
+            Lihat Pembayaran
+          </Link>
+        </div>
       </div>
     </div>
   );

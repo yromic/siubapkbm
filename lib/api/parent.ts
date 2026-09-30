@@ -219,6 +219,7 @@ export interface ParentAcademicSummary {
   student: {
     full_name: string;
     nisn: string;
+    class_name?: string | null;
   };
   period: {
     academic_year_name: string;
@@ -233,6 +234,7 @@ export interface ParentAcademicSummary {
     average_score: number | null;
     assessment_count: number;
   }>;
+  kktp_progress?: ParentKKTPProgressItem[];
 }
 
 export interface ParentAcademicDetail {

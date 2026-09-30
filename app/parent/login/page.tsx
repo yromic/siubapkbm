@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useParentAuth } from "@/hooks/useParentAuth";
+import { useWebsiteBranding } from "@/hooks/useWebsiteBranding";
 import { humanizeError } from "@/lib/utils/ui-error";
 import { InfoBanner } from "@/components/ui/info-banner";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Loader2,
   Lock,
@@ -13,10 +15,8 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
-  Sparkles,
   HelpCircle,
   CheckCircle2,
-  HeartHandshake,
 } from "lucide-react";
 import {
   getParentPublicClassStudentsApi,
@@ -27,6 +27,7 @@ import { Altcha } from "@/components/Altcha";
 
 export default function ParentLoginPage() {
   const { loginByStudent, login } = useParentAuth();
+  const { branding } = useWebsiteBranding();
 
   // Mode: 'EASY' (Pilih Kelas > Nama > PIN DDMM) or 'LEGACY' (NISN + Tanggal Lahir)
   const [loginMode, setLoginMode] = useState<"EASY" | "LEGACY">("EASY");
@@ -75,7 +76,8 @@ export default function ParentLoginPage() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       if (params.get("expired") === "true") {
-        setShowExpiredAlert(true);
+        const timer = setTimeout(() => setShowExpiredAlert(true), 0);
+        return () => clearTimeout(timer);
       }
     }
   }, []);
@@ -161,108 +163,42 @@ export default function ParentLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-[#fdfbf7] dark:bg-zinc-950 px-4 py-6 sm:py-8 lg:py-12">
-      {/* Top logo/home link */}
-      <header className="w-full max-w-5xl mx-auto mb-6 flex items-center justify-between">
-        <Link
-          href="/"
-          className="font-fredoka text-2xl font-bold text-[#468432] dark:text-emerald-400 hover:opacity-85 transition-opacity flex items-center gap-2"
-        >
-          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-fredoka font-bold text-base shadow-xs">
-            S
-          </div>
-          <span className="tracking-tight">SIUBA PKBM</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-block text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
-            PKBM Baitusyukur Learning Center
-          </span>
-          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+    <div className="min-h-screen flex flex-col justify-between bg-[#fdfbf7] dark:bg-zinc-950 px-4 py-8 sm:py-12">
+      {/* Top Header Branding */}
+      <header className="w-full max-w-md mx-auto text-center mb-6">
+        <Link href="/" className="inline-flex flex-col items-center gap-2 group" aria-label="Beranda">
+          {branding.logo_url ? (
+            <div className="relative h-12 w-36">
+              <Image
+                src={branding.logo_url}
+                alt={branding.short_name}
+                fill
+                sizes="144px"
+                priority
+                className="object-contain"
+              />
+            </div>
+          ) : (
+            <span className="font-fredoka text-3xl font-extrabold bg-gradient-to-r from-[#468432] to-emerald-500 bg-clip-text text-transparent">
+              {branding.short_name}
+            </span>
+          )}
+          <span className="text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
             Portal Wali Murid
           </span>
-        </div>
+        </Link>
       </header>
 
-      {/* Main Container - Split View on Desktop */}
-      <main className="w-full max-w-5xl mx-auto my-auto grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
-        {/* Left Side: Desktop Branding & Institutional Highlights (hidden on mobile, visible lg:block) */}
-        <div className="hidden lg:flex lg:col-span-5 flex-col justify-between p-8 rounded-[28px] bg-gradient-to-br from-emerald-800 via-emerald-900 to-zinc-900 text-white shadow-xl shadow-emerald-950/20 relative overflow-hidden">
-          {/* Subtle background glow */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-400/10 rounded-full blur-2xl pointer-events-none" />
-
-          <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-700/50 border border-emerald-500/30 text-emerald-200 text-xs font-semibold mb-6 backdrop-blur-xs">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
-              Sistem Informasi Terpadu Wali Murid
-            </div>
-            <h2 className="text-3xl font-extrabold font-fredoka tracking-tight leading-tight text-white mb-3">
-              Pantau Tumbuh Kembang Ananda Bersama SIUBA
-            </h2>
-            <p className="text-sm text-emerald-100/90 leading-relaxed font-plus-jakarta mb-8">
-              Akses cepat, transparan, dan terpercaya bagi ayah dan bunda untuk mendampingi pendidikan holistik ananda.
-            </p>
-
-            {/* Feature Highlights */}
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <HeartHandshake className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Karakter Unggulan UTSMAN</h4>
-                  <p className="text-[11px] text-emerald-100/80 mt-0.5">
-                    Ulet, Tanggung Jawab, Santun, Mandiri, Amanah, dan Nalar Kritis yang terpantau berkala.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">KKTP & Asesmen Kurikulum Merdeka</h4>
-                  <p className="text-[11px] text-emerald-100/80 mt-0.5">
-                    Evaluasi capaian Tujuan Pembelajaran secara objektif dan terukur tiap mata pelajaran.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xs">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5">
-                  <School className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Presensi Harian & Tagihan SPP</h4>
-                  <p className="text-[11px] text-emerald-100/80 mt-0.5">
-                    Cek kedisiplinan kehadiran di kelas dan unduh struk resmi riwayat administrasi iuran.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 pt-6 mt-6 border-t border-emerald-700/50 flex items-center justify-between text-[11px] text-emerald-200/80 font-medium">
-            <span>Paket A (Setara SD) PKBM Baitusyukur</span>
-            <span>Aman & Terenkripsi</span>
-          </div>
+      {/* Main Login Card */}
+      <main className="w-full max-w-md mx-auto my-auto p-6 sm:p-8 bg-white dark:bg-zinc-900 rounded-[24px] border border-zinc-200/90 dark:border-zinc-800 shadow-xl shadow-zinc-200/50 dark:shadow-none">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold font-fredoka text-zinc-900 dark:text-zinc-50">
+            Selamat Datang, Ayah/Bunda
+          </h1>
+          <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-plus-jakarta leading-relaxed">
+            Silakan pilih kelas, nama Ananda, dan masukkan PIN akses.
+          </p>
         </div>
-
-        {/* Right Side: Login Card */}
-        <div className="lg:col-span-7 p-6 sm:p-8 lg:p-10 bg-white dark:bg-zinc-900 rounded-[28px] border border-zinc-200/90 dark:border-zinc-800 shadow-xl shadow-zinc-200/50 dark:shadow-none flex flex-col justify-between">
-          <div>
-            <div className="text-center lg:text-left mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto lg:mx-0 mb-3 border border-emerald-100 dark:border-emerald-900">
-                <HeartHandshake className="w-6 h-6" />
-              </div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-50 font-fredoka">
-                Selamat Datang, Bapak/Ibu
-              </h1>
-              <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400 font-plus-jakarta leading-relaxed">
-                Pantau perkembangan belajar, karakter budaya, dan kehadiran ananda secara langsung.
-              </p>
-            </div>
 
             {showExpiredAlert && !error && (
               <div className="mb-4">
@@ -378,9 +314,9 @@ export default function ParentLoginPage() {
 
                   {/* Hint ramah ortu */}
                   <div className="mt-1.5 p-2 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40 text-[11px] text-emerald-900 dark:text-emerald-300 flex items-start gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <HelpCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
-                      <b>Petunjuk PIN:</b> Masukkan 2 digit tanggal + 2 digit bulan lahir anak (contoh: lahir <b>5 Mei</b> masukkan <b>0505</b>).
+                      <b>Petunjuk PIN:</b> Masukkan 2 digit tanggal + 2 digit bulan lahir ananda (contoh: lahir <b>5 Mei</b> masukkan <b>0505</b>).
                     </span>
                   </div>
                 </div>
@@ -402,7 +338,7 @@ export default function ParentLoginPage() {
                         <span>Membuka Profil...</span>
                       </>
                     ) : (
-                      <span>Buka Profil Anak</span>
+                      <span>Buka Profil Ananda</span>
                     )}
                   </button>
                 </div>
@@ -464,7 +400,6 @@ export default function ParentLoginPage() {
                 </button>
               </form>
             )}
-          </div>
 
           {/* Mode switcher & Help */}
           <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-center space-y-2">
@@ -488,7 +423,7 @@ export default function ParentLoginPage() {
                 }}
                 className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer"
               >
-                ← Kembali ke cara mudah (Pilih Kelas & Nama Anak)
+                ← Kembali ke cara mudah (Pilih Kelas & Nama Ananda)
               </button>
             )}
 
@@ -499,12 +434,11 @@ export default function ParentLoginPage() {
               </p>
             </div>
           </div>
-        </div>
       </main>
 
       {/* Footer copyright */}
-      <footer className="w-full max-w-5xl mx-auto text-center py-4 text-[10px] font-medium tracking-wider uppercase text-zinc-400">
-        © {new Date().getFullYear()} PKBM SIUBA Baitusyukur Learning Center. Hak Cipta Dilindungi.
+      <footer className="w-full max-w-md mx-auto text-center py-4 text-[10px] font-medium tracking-wider uppercase text-zinc-400">
+        © {new Date().getFullYear()} {branding.school_name}
       </footer>
     </div>
   );

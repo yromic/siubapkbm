@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { useParentAuth } from "@/hooks/useParentAuth";
 import { getParentSppStatusApi, SppPayment } from "@/lib/api/finance";
 import { ParentNavbar } from "@/components/parent/ParentNavbar";
@@ -54,7 +53,10 @@ export default function ParentSppPage() {
 
   useEffect(() => {
     if (token) {
-      fetchSppData(token);
+      const timer = setTimeout(() => {
+        fetchSppData(token);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [token, fetchSppData]);
 
