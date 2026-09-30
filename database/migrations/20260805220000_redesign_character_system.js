@@ -7,11 +7,26 @@ exports.up = async function(knex) {
     const hasOld = await knex.schema.hasTable(oldName);
     if (!hasOld) return;
     const hasLegacy = await knex.schema.hasTable(legacyName);
+    let targetName = legacyName;
     if (!hasLegacy) {
       await knex.raw(`RENAME TABLE \`${oldName}\` TO \`${legacyName}\`;`);
     } else {
       const timestamp = Date.now();
-      await knex.raw(`RENAME TABLE \`${oldName}\` TO \`${legacyName}_${timestamp}\`;`);
+      targetName = `${legacyName}_${timestamp}`;
+      await knex.raw(`RENAME TABLE \`${oldName}\` TO \`${targetName}\`;`);
+    }
+
+    // Drop foreign keys from preserved legacy table so constraint names do not collide with new tables
+    try {
+      const [fkRows] = await knex.raw(
+        `SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_TYPE = 'FOREIGN KEY'`,
+        [targetName]
+      );
+      for (const row of fkRows) {
+        await knex.raw(`ALTER TABLE \`${targetName}\` DROP FOREIGN KEY \`${row.CONSTRAINT_NAME}\`;`);
+      }
+    } catch (e) {
+      // Ignore if table constraints cannot be queried or dropped
     }
   };
 
