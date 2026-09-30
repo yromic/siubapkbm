@@ -18,6 +18,7 @@ import {
   Info,
   Clock,
   ExternalLink,
+  SlidersHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,6 +29,16 @@ import { LetterheadA4PreviewModal } from "@/components/settings/LetterheadA4Prev
 import { LetterheadVersion } from "@/types/letterhead";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  DEFAULT_LETTERHEAD_MARGINS,
+  LETTERHEAD_MARGIN_KEYS,
+  LETTERHEAD_MARGIN_MODE_ABSOLUTE,
+  LETTERHEAD_MARGIN_MODE_KEY,
+  MAX_LETTERHEAD_MARGIN_MM,
+  MIN_LETTERHEAD_MARGIN_MM,
+  getLetterheadMargins,
+  type LetterheadMargins,
+} from "@/lib/utils/letterheadMarginUtils";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
@@ -40,6 +51,8 @@ export default function LetterheadSettingsPage() {
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [activeLetterheadUrl, setActiveLetterheadUrl] = useState<string | null>(null);
   const [schoolSettings, setSchoolSettings] = useState<Record<string, any>>({});
+  const [letterheadMargins, setLetterheadMargins] = useState<LetterheadMargins>(DEFAULT_LETTERHEAD_MARGINS);
+  const [savingMargins, setSavingMargins] = useState(false);
 
   // Upload Form State
   const [uploadName, setUploadName] = useState("");
@@ -81,6 +94,7 @@ export default function LetterheadSettingsPage() {
 
       if (setJson.success && setJson.data) {
         setSchoolSettings(setJson.data);
+        setLetterheadMargins(getLetterheadMargins(setJson.data));
       }
     } catch {
       toast.error("Gagal memuat data kop surat resmi.");
@@ -95,6 +109,52 @@ export default function LetterheadSettingsPage() {
 
   // Find currently active version object
   const activeVersion = versions.find((v) => v.id === activeVersionId) || null;
+
+  const previewSchoolSettings = {
+    ...schoolSettings,
+    [LETTERHEAD_MARGIN_KEYS.top]: letterheadMargins.top,
+    [LETTERHEAD_MARGIN_KEYS.right]: letterheadMargins.right,
+    [LETTERHEAD_MARGIN_KEYS.bottom]: letterheadMargins.bottom,
+    [LETTERHEAD_MARGIN_KEYS.left]: letterheadMargins.left,
+    [LETTERHEAD_MARGIN_MODE_KEY]: LETTERHEAD_MARGIN_MODE_ABSOLUTE,
+  };
+
+  const handleMarginChange = (side: keyof LetterheadMargins, rawValue: string) => {
+    const value = rawValue === "" ? 0 : Number(rawValue);
+    setLetterheadMargins((current) => ({
+      ...current,
+      [side]: Number.isFinite(value)
+        ? Math.min(MAX_LETTERHEAD_MARGIN_MM, Math.max(MIN_LETTERHEAD_MARGIN_MM, value))
+        : current[side],
+    }));
+  };
+
+  const handleSaveMargins = async () => {
+    setSavingMargins(true);
+    try {
+      const payload = {
+        [LETTERHEAD_MARGIN_KEYS.top]: String(letterheadMargins.top),
+        [LETTERHEAD_MARGIN_KEYS.right]: String(letterheadMargins.right),
+        [LETTERHEAD_MARGIN_KEYS.bottom]: String(letterheadMargins.bottom),
+        [LETTERHEAD_MARGIN_KEYS.left]: String(letterheadMargins.left),
+        [LETTERHEAD_MARGIN_MODE_KEY]: LETTERHEAD_MARGIN_MODE_ABSOLUTE,
+      };
+      const res = await fetch("/api/v1/app-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.message || "Gagal menyimpan margin kop surat.");
+      setSchoolSettings(json.data || { ...schoolSettings, ...payload });
+      setLetterheadMargins(getLetterheadMargins(json.data || payload));
+      toast.success("Margin khusus kop surat berhasil disimpan.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Gagal menyimpan margin kop surat.");
+    } finally {
+      setSavingMargins(false);
+    }
+  };
 
   // ── File Selection Handler ─────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -340,7 +400,7 @@ export default function LetterheadSettingsPage() {
           <div className="bg-white p-6 rounded-xl border border-gray-200/80 shadow-2xs">
             <OfficialSchoolLetterhead
               src={activeLetterheadUrl || "/branding/school-letterhead.png"}
-              schoolSettings={schoolSettings}
+              schoolSettings={previewSchoolSettings}
             />
           </div>
 
@@ -371,7 +431,68 @@ export default function LetterheadSettingsPage() {
         </div>
       </Card>
 
-      {/* ── Upload New Letterhead Card (Admin Only) ──────────────────────────── */}
+      {/* Letterhead margin settings */}
+      <Card className="bg-white border-gray-200/90 rounded-2xl shadow-xs overflow-hidden">
+        <div className="p-5 border-b border-gray-100 flex items-center justify-between gap-3 bg-gray-50/50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+              <SlidersHorizontal className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Margin Khusus Kop Surat</h3>
+              <p className="text-xs text-gray-500">Jarak absolut kop dari tepi kertas; posisi isi dokumen tetap.</p>
+            </div>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            Satuan mm
+          </span>
+        </div>
+        <div className="p-5 sm:p-6 space-y-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {(["top", "right", "bottom", "left"] as const).map((side) => {
+              const labels = { top: "Atas", right: "Kanan", bottom: "Bawah", left: "Kiri" };
+              return (
+                <label key={side} className="space-y-1.5">
+                  <span className="block text-xs font-bold text-gray-700">{labels[side]}</span>
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      min={MIN_LETTERHEAD_MARGIN_MM}
+                      max={MAX_LETTERHEAD_MARGIN_MM}
+                      step={1}
+                      value={letterheadMargins[side]}
+                      onChange={(event) => handleMarginChange(side, event.target.value)}
+                      disabled={!isAdmin || savingMargins}
+                      className="pr-10"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">mm</span>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl bg-amber-50 border border-amber-200 p-3.5">
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Atas, kiri, dan kanan diukur langsung dari tepi kertas (0–{MAX_LETTERHEAD_MARGIN_MM} mm). Nilai di bawah 5 mm cocok untuk PDF atau printer borderless dan dapat terpotong pada printer biasa. Isi dokumen tetap pada margin 10/12/12/12 mm.
+            </p>
+            {isAdmin ? (
+              <Button
+                type="button"
+                onClick={handleSaveMargins}
+                disabled={savingMargins}
+                className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold min-h-[38px]"
+              >
+                {savingMargins ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                Simpan Margin
+              </Button>
+            ) : (
+              <span className="text-[11px] font-semibold text-gray-500 shrink-0">Hanya admin yang dapat mengubah</span>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Upload New Letterhead Card (Admin Only) */}
       {isAdmin && (
         <Card className="bg-white border-gray-200/90 rounded-2xl shadow-xs overflow-hidden">
           <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
@@ -713,7 +834,7 @@ export default function LetterheadSettingsPage() {
         }}
         onActivate={isAdmin ? (id) => handleActivate(id) : undefined}
         isActivating={activatingId !== null}
-        schoolSettings={schoolSettings}
+        schoolSettings={previewSchoolSettings}
       />
 
       {/* ── Confirmation Modal (Activate / Archive) ─────────────────────────── */}

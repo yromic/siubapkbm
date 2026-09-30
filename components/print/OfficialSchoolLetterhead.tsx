@@ -1,6 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
+import {
+  DOCUMENT_CONTENT_MARGIN_MM,
+  getLetterheadMargins,
+} from "@/lib/utils/letterheadMarginUtils";
 
 export interface OfficialSchoolLetterheadProps {
   /** Optional custom image source. Defaults to /branding/school-letterhead.png */
@@ -9,6 +13,11 @@ export interface OfficialSchoolLetterheadProps {
   schoolSettings?: {
     school_name?: string;
     school_sub_header?: string;
+    letterhead_margin_top_mm?: string | number;
+    letterhead_margin_right_mm?: string | number;
+    letterhead_margin_bottom_mm?: string | number;
+    letterhead_margin_left_mm?: string | number;
+    letterhead_margin_mode?: string;
   };
   defaultSchoolName?: string;
   defaultSubHeader?: string;
@@ -39,9 +48,22 @@ export function OfficialSchoolLetterhead({
     schoolSettings?.school_name?.trim() || defaultSchoolName;
   const resolvedSubHeader =
     schoolSettings?.school_sub_header?.trim() || defaultSubHeader;
+  const margins = getLetterheadMargins(schoolSettings);
+  const leftAdjustment = margins.left - DOCUMENT_CONTENT_MARGIN_MM.left;
+  const rightAdjustment = margins.right - DOCUMENT_CONTENT_MARGIN_MM.right;
+  const topAdjustment = margins.top - DOCUMENT_CONTENT_MARGIN_MM.top;
 
   return (
-    <div className={`official-school-letterhead w-full ${className}`}>
+    <div
+      className={`official-school-letterhead ${className}`}
+      style={{
+        marginTop: `${topAdjustment}mm`,
+        marginRight: `${rightAdjustment}mm`,
+        marginBottom: `${margins.bottom}mm`,
+        marginLeft: `${leftAdjustment}mm`,
+        width: `calc(100% - ${leftAdjustment + rightAdjustment}mm)`,
+      }}
+    >
       {!imgError ? (
         <div className="w-full overflow-hidden flex justify-center items-center pb-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}

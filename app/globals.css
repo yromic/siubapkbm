@@ -140,7 +140,9 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm 12mm 12mm;
+    /* The page itself is edge-to-edge so the letterhead can reach 0 mm.
+       Document sheets independently preserve the 10/12/12/12 mm body inset. */
+    margin: 0;
   }
 
   /* ── 0. GLOBAL RESET ─────────────────────────────────────────────────── */
@@ -215,7 +217,8 @@ body {
   /* ── 4. RESTORE document sheet styles (override rule 3) ─────────────── */
   .kktp-report-sheet,
   .raport-academic-sheet,
-  .trisula-report-sheet {
+  .trisula-report-sheet,
+  .kktp-legacy-print-sheet {
     background-color: #ffffff !important;
     background-image: none !important;
     -webkit-print-color-adjust: exact !important;
@@ -224,7 +227,7 @@ body {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 10mm 12mm 12mm 12mm !important;
     border: none !important;
     box-shadow: none !important;
     overflow: visible !important;
@@ -248,7 +251,7 @@ body {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 10mm 12mm 12mm 12mm !important;
     background: #ffffff !important;
     color: #000000 !important;
   }

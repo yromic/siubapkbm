@@ -15,6 +15,11 @@ interface LetterheadA4PreviewModalProps {
   schoolSettings?: {
     school_name?: string;
     school_sub_header?: string;
+    letterhead_margin_top_mm?: string | number;
+    letterhead_margin_right_mm?: string | number;
+    letterhead_margin_bottom_mm?: string | number;
+    letterhead_margin_left_mm?: string | number;
+    letterhead_margin_mode?: string;
   };
 }
 
@@ -76,7 +81,7 @@ export function LetterheadA4PreviewModal({
 
         {/* Modal Body: Realistic A4 Sheet Simulation */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-zinc-100/80 flex justify-center">
-          <div className="bg-white text-zinc-900 w-full max-w-[210mm] shadow-md border border-zinc-200 rounded-sm p-6 sm:p-10 font-sans min-h-[297mm] flex flex-col justify-between">
+          <div className="bg-white text-zinc-900 w-full max-w-[210mm] shadow-md border border-zinc-200 rounded-sm pt-[10mm] px-[12mm] pb-[12mm] font-sans min-h-[297mm] flex flex-col justify-between box-border">
             {/* Top Sheet Content */}
             <div>
               {/* Kop Surat Header */}

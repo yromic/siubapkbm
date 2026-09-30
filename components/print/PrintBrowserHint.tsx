@@ -34,7 +34,7 @@ export function PrintBrowserHint({
         <div className="leading-snug">
           <span className="font-semibold text-emerald-900">Tips PDF Bersih: </span>
           <span className="text-gray-700">
-            Pada dialog cetak, buka <strong className="font-semibold text-gray-900">More settings</strong> lalu nonaktifkan opsi <strong className="font-semibold text-gray-900">&ldquo;Headers and footers&rdquo;</strong> agar tanggal, URL, dan nomor halaman browser tidak tercetak.
+            Pada dialog cetak, gunakan <strong className="font-semibold text-gray-900">Scale 100%</strong> dan margin <strong className="font-semibold text-gray-900">Default</strong>, lalu nonaktifkan <strong className="font-semibold text-gray-900">&ldquo;Headers and footers&rdquo;</strong>.
           </span>
         </div>
       </div>
@@ -55,7 +55,7 @@ export function PrintBrowserHint({
           Petunjuk Hasil Cetak &amp; PDF Resmi
         </h4>
         <p className="text-gray-700 text-xs leading-relaxed">
-          Untuk menghasilkan dokumen PDF yang bersih sesuai standar resmi SIUBA: pada jendela dialog cetak (Chrome / Edge), buka menu <strong className="font-semibold text-gray-900">&ldquo;More settings&rdquo;</strong> lalu hilangkan centang opsi <strong className="font-semibold text-gray-900">&ldquo;Headers and footers&rdquo;</strong>.
+          Untuk menghasilkan dokumen sesuai pratinjau: pada dialog cetak Chrome/Edge, pilih <strong className="font-semibold text-gray-900">Scale 100%</strong>, margin <strong className="font-semibold text-gray-900">Default</strong>, lalu hilangkan centang <strong className="font-semibold text-gray-900">&ldquo;Headers and footers&rdquo;</strong>.
         </p>
         <p className="text-[11px] text-gray-500">
           Langkah ini memastikan tanggal browser, judul halaman, URL website, dan nomor halaman bawaan tidak ikut tercetak pada dokumen.
