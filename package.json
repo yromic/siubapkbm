@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build --webpack",
-    "test": "node --test --experimental-strip-types lib/utils/attachmentPreview.test.mjs lib/utils/buildInfo.test.mjs lib/utils/rpmAttachmentRendering.test.mjs lib/utils/rpmAttachmentRendererLifecycle.test.mjs && tsx --test components/rpm/RPMAttachmentDocumentPages.test.tsx && tsx --test tests/dashboardAlignment.test.ts && tsx --test tests/utsmanCorrectness.test.ts && tsx --test tests/kktpArchitecture.test.ts && tsx --test tests/raportTerpadu.test.ts",
+    "test": "node --test --experimental-strip-types lib/utils/attachmentPreview.test.mjs lib/utils/buildInfo.test.mjs lib/utils/rpmAttachmentRendering.test.mjs lib/utils/rpmAttachmentRendererLifecycle.test.mjs && tsx --test components/rpm/RPMAttachmentDocumentPages.test.tsx && tsx --test tests/dashboardAlignment.test.ts && tsx --test tests/utsmanCorrectness.test.ts && tsx --test tests/kktpArchitecture.test.ts && tsx --test tests/raportTerpadu.test.ts && tsx --test tests/productionRemediation.test.ts",
 
     "start": "next start",
+    "package:standalone": "node scripts/package-standalone.mjs",
+    "build:deploy": "npm run build && node scripts/package-standalone.mjs",
     "lint": "eslint",
     "seed": "knex seed:run",
     "db:seed": "knex seed:run",
