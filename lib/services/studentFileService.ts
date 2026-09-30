@@ -3,13 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 import fs from 'fs';
 import path from 'path';
+import { STORAGE_PATHS, ensureDir } from '@/lib/config/storage';
 
-const STUDENT_FILES_DIR = path.join(process.cwd(), 'storage', 'uploads', 'student_files');
+const STUDENT_FILES_DIR = STORAGE_PATHS.studentFiles;
 
 export function setupStudentFilesDirectory() {
-  if (!fs.existsSync(STUDENT_FILES_DIR)) {
-    fs.mkdirSync(STUDENT_FILES_DIR, { recursive: true });
-  }
+  ensureDir(STUDENT_FILES_DIR);
 }
 
 function getMimeType(filename: string): string {
@@ -174,16 +173,16 @@ export async function getStudentFileById(fileId: string) {
 
 export async function setupStorageFolders() {
   const dirs = [
-    path.join(process.cwd(), 'storage', 'uploads'),
-    path.join(process.cwd(), 'storage', 'uploads', 'student_files'),
-    path.join(process.cwd(), 'storage', 'templates'),
-    path.join(process.cwd(), 'storage', 'reports'),
+    STORAGE_PATHS.uploads,
+    STORAGE_PATHS.studentFiles,
+    STORAGE_PATHS.rpmAttachments,
+    STORAGE_PATHS.templates,
+    STORAGE_PATHS.reports,
+    STORAGE_PATHS.exports,
   ];
 
   for (const dir of dirs) {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    ensureDir(dir);
   }
 
   return {

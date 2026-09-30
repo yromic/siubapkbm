@@ -10,14 +10,17 @@ const devConfig: Knex.Config = {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'siuba_dev',
+    timezone: '+07:00',
   },
   migrations: {
     directory: './database/migrations',
     extension: 'ts',
+    loadExtensions: ['.ts', '.js'],
   },
   seeds: {
     directory: './database/seeds',
     extension: 'ts',
+    loadExtensions: ['.ts', '.js'],
   },
   pool: { 
     min: Number(process.env.DB_POOL_MIN) || 0, 
@@ -32,4 +35,3 @@ const config: { [key: string]: Knex.Config } = {
 };
 
 export default config;
-

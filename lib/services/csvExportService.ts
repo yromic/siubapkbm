@@ -11,13 +11,12 @@ import { v4 as uuidv4 } from 'uuid';
 import { AppError } from '@/lib/errors';
 import fs from 'fs';
 import path from 'path';
+import { STORAGE_PATHS, ensureDir } from '@/lib/config/storage';
 
-const EXPORTS_DIR = path.join(process.cwd(), 'storage', 'exports');
+const EXPORTS_DIR = STORAGE_PATHS.exports;
 
 function ensureExportsDirectory() {
-  if (!fs.existsSync(EXPORTS_DIR)) {
-    fs.mkdirSync(EXPORTS_DIR, { recursive: true });
-  }
+  ensureDir(EXPORTS_DIR);
 }
 
 /** Escape a CSV cell value */

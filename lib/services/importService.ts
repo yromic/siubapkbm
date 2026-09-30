@@ -11,13 +11,14 @@ import { addJob } from './jobQueueService';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { assertNotLocked } from './assessmentService';
+import { STORAGE_PATHS, ensureDir } from '@/lib/config/storage';
 
-const UPLOADS_DIR = path.join(process.cwd(), 'storage', 'uploads');
-const TEMPLATES_DIR = path.join(process.cwd(), 'storage', 'templates');
+const UPLOADS_DIR = STORAGE_PATHS.uploads;
+const TEMPLATES_DIR = STORAGE_PATHS.templates;
 
 function ensureDirectories() {
-  if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-  if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
+  ensureDir(UPLOADS_DIR);
+  ensureDir(TEMPLATES_DIR);
 }
 
 // ─── Date normalisation ───────────────────────────────────────────────────────

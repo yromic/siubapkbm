@@ -10,13 +10,12 @@ for (const [key, value] of Object.entries(pdfFonts)) {
 }
 import { getStudentAcademicSummary } from './academicScoreService';
 import { calculateAndSaveUTSMAN, getUTSMANSummary } from './utsmanCalculationService';
+import { STORAGE_PATHS, ensureDir } from '@/lib/config/storage';
 
-const REPORTS_DIR = path.join(process.cwd(), 'storage', 'reports');
+const REPORTS_DIR = STORAGE_PATHS.reports;
 
 function ensureReportsDirectory() {
-  if (!fs.existsSync(REPORTS_DIR)) {
-    fs.mkdirSync(REPORTS_DIR, { recursive: true });
-  }
+  ensureDir(REPORTS_DIR);
 }
 
 const fonts = {

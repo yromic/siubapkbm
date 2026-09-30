@@ -19,57 +19,22 @@ import {
   buildStorageFilename,
   isValidAttachmentType,
 } from "@/lib/utils/rpmAttachmentUtils";
+import { STORAGE_PATHS, ensureDir } from "@/lib/config/storage";
 
-const RPM_ATTACHMENTS_DIR = path.join(process.cwd(), "storage", "uploads", "rpm_attachments");
+const RPM_ATTACHMENTS_DIR = STORAGE_PATHS.rpmAttachments;
 
 /**
  * Ensures private storage directory exists.
  */
 export function ensureRpmAttachmentsDirectory(): void {
-  if (!fs.existsSync(RPM_ATTACHMENTS_DIR)) {
-    fs.mkdirSync(RPM_ATTACHMENTS_DIR, { recursive: true });
-  }
+  ensureDir(RPM_ATTACHMENTS_DIR);
 }
 
 /**
- * Auto-migration helper: Ensures rpm_attachments table exists dynamically in database.
+ * Migration helper: Schema creation is canonical in database/migrations/20260912180000_create_rpm_attachments_table.ts.
+ * Runtime auto-DDL checks have been removed to prevent performance overhead and race conditions.
  */
 export async function ensureRpmAttachmentsTableExists(): Promise<void> {
-  const hasTable = await db.schema.hasTable("rpm_attachments");
-  if (!hasTable) {
-    await db.raw("SET FOREIGN_KEY_CHECKS = 0;");
-    await db.raw(`
-      CREATE TABLE IF NOT EXISTS \`rpm_attachments\` (
-        \`id\` CHAR(36) NOT NULL,
-        \`document_id\` CHAR(36) NOT NULL,
-        \`attachment_type\` ENUM(
-          'LKPD',
-          'BAHAN_AJAR',
-          'RUBRIK',
-          'INSTRUMEN_ASESMEN',
-          'MEDIA_PENDUKUNG',
-          'DOKUMEN_PENDUKUNG',
-          'LAINNYA'
-        ) NOT NULL DEFAULT 'LKPD',
-        \`title\` VARCHAR(255) NOT NULL,
-        \`description\` TEXT NULL,
-        \`file_path\` VARCHAR(500) NOT NULL,
-        \`original_filename\` VARCHAR(255) NOT NULL,
-        \`mime_type\` VARCHAR(127) NOT NULL,
-        \`file_size\` INT UNSIGNED NOT NULL,
-        \`sort_order\` INT NOT NULL DEFAULT 0,
-        \`created_by\` CHAR(36) NOT NULL,
-        \`created_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        \`updated_at\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (\`id\`),
-        INDEX \`idx_rpm_attachments_doc_order\` (\`document_id\`, \`sort_order\`),
-        INDEX \`idx_rpm_attachments_creator\` (\`created_by\`),
-        CONSTRAINT \`fk_rpm_attachments_document\` FOREIGN KEY (\`document_id\`) REFERENCES \`documents\` (\`id\`) ON DELETE CASCADE,
-        CONSTRAINT \`fk_rpm_attachments_creator\` FOREIGN KEY (\`created_by\`) REFERENCES \`users\` (\`id\`) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-    await db.raw("SET FOREIGN_KEY_CHECKS = 1;");
-  }
   ensureRpmAttachmentsDirectory();
 }
 
@@ -110,7 +75,7 @@ export async function listRpmAttachments(
   documentId: string,
   user: { id: string; role: string }
 ): Promise<RPMAttachment[]> {
-  await ensureRpmAttachmentsTableExists();
+  ensureRpmAttachmentsDirectory();
 
   const doc = await getDocumentById(documentId, user);
   if (!canViewDocument(user, doc)) {
@@ -138,7 +103,7 @@ export async function uploadRpmAttachment(
   input: RPMAttachmentInput,
   user: { id: string; role: string }
 ): Promise<RPMAttachment> {
-  await ensureRpmAttachmentsTableExists();
+  ensureRpmAttachmentsDirectory();
 
   const doc = await getDocumentById(documentId, user);
   if (!canEditDocument(user, doc)) {
@@ -243,7 +208,6 @@ export async function updateRpmAttachmentMetadata(
   input: RPMAttachmentMetadataUpdate,
   user: { id: string; role: string }
 ): Promise<RPMAttachment> {
-  await ensureRpmAttachmentsTableExists();
 
   const doc = await getDocumentById(documentId, user);
   if (!canEditDocument(user, doc)) {
@@ -306,7 +270,6 @@ export async function deleteRpmAttachment(
   attachmentId: string,
   user: { id: string; role: string }
 ): Promise<{ success: boolean; deleted_id: string }> {
-  await ensureRpmAttachmentsTableExists();
 
   const doc = await getDocumentById(documentId, user);
   if (!canEditDocument(user, doc)) {
@@ -344,7 +307,6 @@ export async function reorderRpmAttachments(
   orderedIds: string[],
   user: { id: string; role: string }
 ): Promise<RPMAttachment[]> {
-  await ensureRpmAttachmentsTableExists();
 
   const doc = await getDocumentById(documentId, user);
   if (!canEditDocument(user, doc)) {
@@ -380,7 +342,6 @@ export async function getRpmAttachmentForDownload(
   filePath: string;
   fileBuffer: Buffer;
 }> {
-  await ensureRpmAttachmentsTableExists();
 
   const doc = await getDocumentById(documentId, user);
   if (!canViewDocument(user, doc)) {

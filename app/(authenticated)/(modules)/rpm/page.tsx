@@ -471,7 +471,7 @@ export default function RPMPage() {
         const [subjRes, classRes, usersRes, semRes, ayRes, settingsRes] = await Promise.all([
           fetch("/api/v1/subjects"),
           fetch("/api/v1/classes"),
-          fetch("/api/v1/users?role=teacher&limit=100"),
+          fetch("/api/v1/teachers?limit=100"),
           fetch("/api/v1/semesters?limit=50"),
           fetch("/api/v1/academic-years?limit=50"),
           fetch("/api/v1/app-settings"),
@@ -529,7 +529,7 @@ export default function RPMPage() {
         if (usersJson.success) {
           setMasterTeachers(
             teachersData.map((u: any) => ({
-              id: u.id,
+              id: u.user_id || u.id,
               full_name: u.full_name || u.name || "Guru",
             }))
           );

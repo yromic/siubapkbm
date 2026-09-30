@@ -40,7 +40,7 @@ function parseEnvLimit(val: string | undefined): number | null {
 export function getGeminiConfig(): GeminiConfig {
   const rawKey = process.env.GEMINI_API_KEY;
   const apiKey = typeof rawKey === 'string' && rawKey.trim().length > 0 ? rawKey.trim() : null;
-  const model = (process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite').trim();
+  const model = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
   const rpmLimit = parseEnvLimit(process.env.GEMINI_RPM_LIMIT);
   const rpdLimit = parseEnvLimit(process.env.GEMINI_RPD_LIMIT);
 

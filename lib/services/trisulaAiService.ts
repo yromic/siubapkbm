@@ -249,10 +249,14 @@ FORMAT OUTPUT (JSON murni):
 `;
 
   const startedAt = new Date();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(endpointUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -313,17 +317,21 @@ FORMAT OUTPUT (JSON murni):
       usage: usageCheck.snapshot,
     };
   } catch (err: any) {
+    const isTimeout = controller.signal.aborted;
+    const fallbackReason: AIFallbackReason = isTimeout ? "TIMEOUT" : (err instanceof SyntaxError ? "INVALID_JSON" : "NETWORK_ERROR");
     const durationMs = Date.now() - startedAt.getTime();
     await recordAIUsageAttempt({
       userId: params.userId,
       feature: "TRISULA_ASSESSMENT",
       model,
       source: "FALLBACK",
-      providerErrorReason: "INVALID_JSON",
+      providerErrorReason: fallbackReason,
       durationMs,
       requestStartedAt: startedAt,
     });
-    return getFallbackObservationEvaluation(params, "INVALID_JSON", usageCheck.snapshot);
+    return getFallbackObservationEvaluation(params, fallbackReason, usageCheck.snapshot);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -385,10 +393,14 @@ FORMAT OUTPUT (JSON murni):
 `;
 
   const startedAt = new Date();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(endpointUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -435,8 +447,22 @@ FORMAT OUTPUT (JSON murni):
       rekomendasi: parsed.rekomendasi || "Pertahankan capaian positif ini.",
       usage: usageCheck.snapshot,
     };
-  } catch {
-    return getFallbackDescription(params, "INVALID_JSON", usageCheck.snapshot);
+  } catch (err: any) {
+    const isTimeout = controller.signal.aborted;
+    const fallbackReason: AIFallbackReason = isTimeout ? "TIMEOUT" : (err instanceof SyntaxError ? "INVALID_JSON" : "NETWORK_ERROR");
+    const durationMs = Date.now() - startedAt.getTime();
+    await recordAIUsageAttempt({
+      userId: params.userId,
+      feature: "TRISULA_ASSESSMENT",
+      model,
+      source: "FALLBACK",
+      providerErrorReason: fallbackReason,
+      durationMs,
+      requestStartedAt: startedAt,
+    });
+    return getFallbackDescription(params, fallbackReason, usageCheck.snapshot);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -553,10 +579,14 @@ FORMAT OUTPUT (JSON murni):
   }
 
   const startedAt = new Date();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
     const response = await fetch(endpointUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
@@ -593,7 +623,11 @@ FORMAT OUTPUT (JSON murni):
       pesanOrangTua: parsed.pesanOrangTua || "",
       usage: usageCheck.snapshot,
     };
-  } catch {
-    return getFallbackReportSynthesis(params, "INVALID_JSON", usageCheck.snapshot);
+  } catch (err: any) {
+    const isTimeout = controller.signal.aborted;
+    const fallbackReason: AIFallbackReason = isTimeout ? "TIMEOUT" : (err instanceof SyntaxError ? "INVALID_JSON" : "NETWORK_ERROR");
+    return getFallbackReportSynthesis(params, fallbackReason, usageCheck.snapshot);
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
