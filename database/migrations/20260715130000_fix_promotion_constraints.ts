@@ -18,20 +18,39 @@ export async function up(knex: Knex): Promise<void> {
   }
 
   // 2. Alter student_enrollments: add a virtual column and a unique index to enforce a single active enrollment per student per semester
-  const hasActiveEnrollmentCheck = await knex.schema.hasColumn("student_enrollments", "active_enrollment_check");
-  if (!hasActiveEnrollmentCheck) {
+  const [existingActiveIdx]: any = await knex.raw("SHOW INDEX FROM `student_enrollments` WHERE Key_name = 'uq_active_enrollment'");
+  const hasActiveIndex = existingActiveIdx && existingActiveIdx.length > 0;
+
+  if (!hasActiveIndex) {
+    // If the column was partially created in a prior failed migration run, drop it first to ensure the correct deterministic expression is applied
+    const hasActiveEnrollmentCheck = await knex.schema.hasColumn("student_enrollments", "active_enrollment_check");
+    if (hasActiveEnrollmentCheck) {
+      await knex.schema.alterTable("student_enrollments", (table) => {
+        table.dropColumn("active_enrollment_check");
+      });
+    }
+
     await knex.schema.alterTable("student_enrollments", (table) => {
-      table.specificType("active_enrollment_check", "VARCHAR(150) GENERATED ALWAYS AS (IF(status = 'active', CONCAT(student_id, \'_\', academic_year_id, \'_\', semester_id), NULL)) VIRTUAL");
+      table.specificType(
+        "active_enrollment_check",
+        "VARCHAR(150) GENERATED ALWAYS AS (IF(status = 'active', CONCAT(RTRIM(student_id), '_', RTRIM(academic_year_id), '_', RTRIM(semester_id)), NULL)) VIRTUAL"
+      );
       table.unique(["active_enrollment_check"], { indexName: "uq_active_enrollment" });
     });
   }
 }
 
 export async function down(knex: Knex): Promise<void> {
+  const [existingActiveIdx]: any = await knex.raw("SHOW INDEX FROM `student_enrollments` WHERE Key_name = 'uq_active_enrollment'");
+  if (existingActiveIdx && existingActiveIdx.length > 0) {
+    await knex.schema.alterTable("student_enrollments", (table) => {
+      table.dropUnique(["active_enrollment_check"], "uq_active_enrollment");
+    });
+  }
+
   const hasActiveEnrollmentCheck = await knex.schema.hasColumn("student_enrollments", "active_enrollment_check");
   if (hasActiveEnrollmentCheck) {
     await knex.schema.alterTable("student_enrollments", (table) => {
-      table.dropUnique(["active_enrollment_check"], "uq_active_enrollment");
       table.dropColumn("active_enrollment_check");
     });
   }
