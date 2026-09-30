@@ -1839,7 +1839,7 @@ export default function KKTPPage() {
             return (
               <div
                 key={doc.id}
-                className={`bg-white text-black p-8 print:p-0 print:shadow-none shadow-lg rounded-xl print:rounded-none ${
+                className={`kktp-legacy-print-sheet bg-white text-black p-8 print:shadow-none shadow-lg rounded-xl print:rounded-none ${
                   docIdx < docsToPrint.length - 1 ? 'print:break-after-page' : ''
                 }`}
               >

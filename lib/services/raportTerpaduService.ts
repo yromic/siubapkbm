@@ -75,6 +75,11 @@ export interface RaportSchoolIdentity {
   headmaster_name: string;
   headmaster_nip?: string | null;
   letterhead_url?: string | null;
+  letterhead_margin_top_mm?: string;
+  letterhead_margin_right_mm?: string;
+  letterhead_margin_bottom_mm?: string;
+  letterhead_margin_left_mm?: string;
+  letterhead_margin_mode?: string;
 }
 
 export interface RaportSemesterTutorNote {
@@ -506,6 +511,11 @@ export async function getRaportTerpaduAcademicSummary(params: {
     headmaster_name: settings.school_headmaster_name || "Kepala PKBM BLC",
     headmaster_nip: settings.school_headmaster_nip || null,
     letterhead_url: settings.active_letterhead_url || null,
+    letterhead_margin_top_mm: settings.letterhead_margin_top_mm || "0",
+    letterhead_margin_right_mm: settings.letterhead_margin_right_mm || "0",
+    letterhead_margin_bottom_mm: settings.letterhead_margin_bottom_mm || "0",
+    letterhead_margin_left_mm: settings.letterhead_margin_left_mm || "0",
+    letterhead_margin_mode: settings.letterhead_margin_mode || "",
   };
 
   // 14. Document Number

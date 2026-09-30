@@ -721,6 +721,11 @@ export async function getStudentKKTPReport(
       "Pendidikan Kesetaraan Paket A / B / C • Kurikulum Merdeka Terintegrasi BLC\nPusat Kegiatan Belajar Mengajar & Pengembangan Karakter Generasi Qurani",
     school_headmaster_name: settings?.school_headmaster_name || "Kepala PKBM BLC",
     school_headmaster_nip: settings?.school_headmaster_nip || "",
+    letterhead_margin_top_mm: settings?.letterhead_margin_top_mm || "0",
+    letterhead_margin_right_mm: settings?.letterhead_margin_right_mm || "0",
+    letterhead_margin_bottom_mm: settings?.letterhead_margin_bottom_mm || "0",
+    letterhead_margin_left_mm: settings?.letterhead_margin_left_mm || "0",
+    letterhead_margin_mode: settings?.letterhead_margin_mode || "",
   };
 
   const documentNumber = generateKKTPDocumentNumber(

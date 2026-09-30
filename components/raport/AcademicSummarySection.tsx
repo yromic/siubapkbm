@@ -80,6 +80,11 @@ export function AcademicSummarySection({
         schoolSettings={{
           school_name: school.name,
           school_sub_header: school.address || undefined,
+          letterhead_margin_top_mm: school.letterhead_margin_top_mm,
+          letterhead_margin_right_mm: school.letterhead_margin_right_mm,
+          letterhead_margin_bottom_mm: school.letterhead_margin_bottom_mm,
+          letterhead_margin_left_mm: school.letterhead_margin_left_mm,
+          letterhead_margin_mode: school.letterhead_margin_mode,
         }}
       />
 
