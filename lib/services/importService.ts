@@ -1231,6 +1231,12 @@ async function confirmEnrollmentRows(
   processedRows: Array<{ row_number: number; entity_id: string; action: string }>
 ): Promise<ConfirmResult> {
   const { bulkEnrollment } = require('./enrollmentService');
+  const activeYearId = await getActiveAcademicYearId();
+  const activeSemId = await getActiveSemesterId();
+
+  if (!activeYearId || !activeSemId) {
+    throw new AppError('Tahun ajaran atau semester aktif tidak ditemukan.', 'ERR_VALIDATION', 400);
+  }
 
   for (const previewRow of previewRows) {
     if (previewRow.operation === 'error') {
@@ -1243,11 +1249,24 @@ async function confirmEnrollmentRows(
     if (!rawRow) { errorCount++; continue; }
 
     try {
+      const nisn = String(rawRow.nisn ?? '').trim();
+      const classCode = String(rawRow.class_code ?? '').trim();
+
+      const student = await db('students').where('nisn', nisn).whereNot('status', 'soft_deleted').first();
+      if (!student) {
+        throw new Error(`Siswa dengan NISN "${nisn}" tidak ditemukan`);
+      }
+
+      const classItem = await db('classes').where('code', classCode).whereNot('lifecycle_status', 'soft_deleted').first();
+      if (!classItem) {
+        throw new Error(`Kelas dengan kode "${classCode}" tidak ditemukan`);
+      }
+
       const result = await bulkEnrollment({
-        student_ids: [rawRow.student_id],
-        class_id: rawRow.class_id,
-        academic_year_id: rawRow.academic_year_id,
-        semester_id: rawRow.semester_id
+        student_ids: [student.id],
+        class_id: classItem.id,
+        academic_year_id: activeYearId,
+        semester_id: activeSemId
       });
 
       if (result.enrolled && result.enrolled.length > 0) {
